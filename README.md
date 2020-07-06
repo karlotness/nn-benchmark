@@ -51,7 +51,7 @@ so that hopefully the network learns how to simulate a Hamiltonian system, NOT j
 Adam optimizer w/ the reduceOnPlateau scheduler. Initial learning rate = 5e-3, factor = 0.9, patience 100.
 
 ## Variables
-1. Inference Time: Compare with numerical integrators
+1. Inference Time: Compare NN-based models with numerical integrators
 
 2. Dataset Size: Data needed for the model to learn successfully.
 
@@ -100,6 +100,13 @@ Experiments: Spring Mass(2D), Charged Particle(2D), Kuramoto(1D)
 
 https://arxiv.org/pdf/1707.09571.pdf
 
-Code Available:No. But perhaps worth reprocducing
+Code Available:No. But worth reprocducing
+
+### 3. Pushing the limit of molecular dynamics with ab initio accuracy to 100 million atoms with machine learning
+
+https://arxiv.org/abs/2005.00223
+
+Deep Potential continued: showing that this does scale...
+
 
 
