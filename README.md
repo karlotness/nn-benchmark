@@ -43,8 +43,9 @@ so that hopefully the network learns how to simulate a Hamiltonian system, NOT j
 
 
 ### Simple datasets:
-## Spring System with rest-length = 0
-## Gravitational N-body with circular motions.
+1) Spring System with rest-length = 0
+
+2) Gravitational N-body with circular motions.
 
 ## Training
 Adam optimizer w/ the reduceOnPlateau scheduler. Initial learning rate = 5e-3, factor = 0.9, patience 100.
