@@ -86,14 +86,19 @@ Experiments: Spring Mass Chain (1D), Bouncing Ball with Gravity(2D)
 # Models that scale:
 Graph NN based.
 
-### 1. Neural Relational Inference for Interacting Systems (Interaction Network basically; but with the ability to classify the type of interaction)
+### 1. Neural Relational Inference for Interacting Systems 
+(Interaction Network basically; but with the ability to classify the type of interaction)
+
 https://arxiv.org/pdf/1802.04687.pdf
+
 Code Available: Yes
+
 Experiments: Spring Mass(2D), Charged Particle(2D), Kuramoto(1D)
 
-### 2. Deep Potential Molecular Dynamics: a scalable model with the
-accuracy of quantum mechanics
+### 2. Deep Potential Molecular Dynamics: a scalable model with the accuracy of quantum mechanics
+
 https://arxiv.org/pdf/1707.09571.pdf
+
 Code Available:No. But perhaps worth reprocducing
 
 
