@@ -21,8 +21,8 @@ MLPs are fed with data with irregular time stamps since t is an input to the net
 RNNs are fed with data with constant dt
 
 Initial conditions of the simulated trajectories for a physics system are sampled randomly in the phase space and within a predifiend range in energy (E1, E2); 
-so that hopefully the network learns how to simulate a Hamiltonian system, NOT just work on some initial condition( a trained ML model should know how to work on all situation the model is intended forsee https://arxiv.org/pdf/2006.02619.pdf for more discussion)
+so that hopefully the network learns how to simulate a Hamiltonian system, NOT just work on some initial condition(a trained ML model should know how to work on all situation the model is intended for. See https://arxiv.org/pdf/2006.02619.pdf for more discussion)
 
 
-## TODO:
+## Next:
 Test other models and compare.
