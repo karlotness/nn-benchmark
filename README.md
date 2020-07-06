@@ -41,6 +41,11 @@ RNNs are fed with data with constant dt
 Initial conditions of the simulated trajectories for a physics system are sampled randomly in the phase space and within a predifiend range in energy (E1, E2); 
 so that hopefully the network learns how to simulate a Hamiltonian system, NOT just work on some initial condition(a trained ML model should know how to work on all situation the model is intended for. See https://arxiv.org/pdf/2006.02619.pdf for more discussion)
 
+
+### Simple datasets:
+## Spring System with rest-length = 0
+## Gravitational N-body with circular motions.
+
 ## Training
 Adam optimizer w/ the reduceOnPlateau scheduler. Initial learning rate = 5e-3, factor = 0.9, patience 100.
 
@@ -51,19 +56,27 @@ Adam optimizer w/ the reduceOnPlateau scheduler. Initial learning rate = 5e-3, f
 
 ## Deep Learning Models with Physics Constraints
 # Models that work on few-body systems:
-1. Newton vs the machine: solving the chaotic three-body problem using deep neural networks
-https://arxiv.org/pdf/1910.07291.pdf
-A brute force solution-using relu network with 10 hidden layers with 128 hidden nodes. 
-Issues: 1. Non-Markovian
+### 1. Newton vs the machine: solving the chaotic three-body problem using deep neural networks
 
-2.SympNets: Intrinsic structure-preserving symplectic networks for identifying Hamiltonian systems
+https://arxiv.org/pdf/1910.07291.pdf
+
+A brute force solution-using relu network with 10 hidden layers with 128 hidden nodes. 
+
+
+### 2.SympNets: Intrinsic structure-preserving symplectic networks for identifying Hamiltonian systems
+
 https://arxiv.org/pdf/2001.03750.pdf
+
 Code Available: No; but basically the same as what I have been doing.
+
 Experiments: Gravitational 3-body, Pendulum, Double Pendulum
 
-3. Symplectic Recurrent Neural Networks
+### 3. Symplectic Recurrent Neural Networks
+
 https://arxiv.org/abs/1909.13334
+
 Code Available: Yes
+
 Experiments: Spring Mass Chain (1D), Bouncing Ball with Gravity(2D)
 
 
@@ -73,12 +86,12 @@ Experiments: Spring Mass Chain (1D), Bouncing Ball with Gravity(2D)
 # Models that scale:
 Graph NN based.
 
-1. Neural Relational Inference for Interacting Systems (Interaction Network basically; but with the ability to classify the type of interaction)
+### 1. Neural Relational Inference for Interacting Systems (Interaction Network basically; but with the ability to classify the type of interaction)
 https://arxiv.org/pdf/1802.04687.pdf
 Code Available: Yes
 Experiments: Spring Mass(2D), Charged Particle(2D), Kuramoto(1D)
 
-2. Deep Potential Molecular Dynamics: a scalable model with the
+### 2. Deep Potential Molecular Dynamics: a scalable model with the
 accuracy of quantum mechanics
 https://arxiv.org/pdf/1707.09571.pdf
 Code Available:No. But perhaps worth reprocducing
