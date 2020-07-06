@@ -15,8 +15,8 @@ All networks have approximately 1 million parameters.
 MLP approximates the function f: f(x_0, t) -> f(x_t)
 
 RNNs approximate f: f(x_n) -> f(x_{n+1})
-
-## Baseline Traditional Methods
+# Baselines
+## Traditional Methods
 ### First-order methods:
 Explicit, Implicit, Symplectic Euler
 ### Higher-order non-symplectic methods:
@@ -40,5 +40,5 @@ Adam optimizer w/ the reduceOnPlateau scheduler. Initial learning rate = 5e-3, f
 
 ## Evalutation Metrics
 
-## Next:
-Test other models and compare.
+## Deep Learning Models with Physics Constraints
+
