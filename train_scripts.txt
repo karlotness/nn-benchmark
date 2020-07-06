@@ -1,0 +1,26 @@
+#####Scripts to generate data for Gravitational n body.
+
+python generate_data_Nbody.py --nTraj 10000 --n 2 --interval 1 --epsilon 0.05 --pointsPerTraj 10 --randomize 1 --uniform_mass 1 
+
+(check)python generate_data_Nbody.py --nTraj 10000 --n 2 --interval 1 --epsilon 0.05 --pointsPerTraj 10 --randomize 0 --uniform_mass 1 
+
+python generate_data_Nbody.py --nTraj 10000 --n 3 --interval 1 --epsilon 0.05 --pointsPerTraj 10 --randomize 1 --uniform_mass 1 
+
+(check)python generate_data_Nbody.py --nTraj 10000 --n 3 --interval 1 --epsilon 0.05 --pointsPerTraj 10 --randomize 0 --uniformMass 1 
+
+
+#####Scripts to generate data for mass-spring n body.
+
+
+#####Scripts for training models.
+python run_experiment.py --physical_system_type gravitational --n_hidden 512 --n_object 2 --model_type MLP --dataset_size 10000
+
+python run_experiment.py --physical_system_type gravitational --n_hidden 512 --n_object 2 --model_type LSTM --dataset_size 10000
+
+python run_experiment.py --physical_system_type gravitational --n_hidden 1024 --n_object 2 --model_type RNN --dataset_size 10000
+
+
+
+
+python run_experiment.py --physical_system_type spring --n_hidden 512 --n_object 2 --model_type MLP --dataset_size 10000
+
