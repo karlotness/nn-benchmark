@@ -16,7 +16,7 @@ MLP approximates the function f: f(x_0, t) -> f(x_t)
 while RNN, LSTM approximates f: f(x_n) -> f(x_{n+1})
 
 ## Datasets
-10,000 trajectories; each with ten sample points. 
+10,000 trajectories; each with 10 sample points. Note: may need to double this.
 MLPs are fed with data with irregular time stamps since t is an input to the network
 RNNs are fed with data with constant dt
 
