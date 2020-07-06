@@ -84,7 +84,7 @@ Experiments: Spring Mass Chain (1D), Bouncing Ball with Gravity(2D)
 
 
 # Models that scale:
-Graph NN based.
+## Mostly Graph NN based.
 
 ### 1. Neural Relational Inference for Interacting Systems 
 (Interaction Network basically; but with the ability to classify the type of interaction)
