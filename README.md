@@ -13,7 +13,8 @@ LSTM(1 layer)
 All networks have approximately 1 million parameters.
 
 MLP approximates the function f: f(x_0, t) -> f(x_t)
-while RNN, LSTM approximates f: f(x_n) -> f(x_{n+1})
+
+RNNs approximate f: f(x_n) -> f(x_{n+1})
 
 ## Datasets
 10,000 trajectories; each with 10 sample points. 10% for validation 90% for training.
