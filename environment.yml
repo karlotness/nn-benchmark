@@ -1,0 +1,14 @@
+name: nn-benchmark
+channels:
+  - pytorch
+  - defaults
+dependencies:
+  - python=3.8
+  - scipy
+  - pytorch
+  - cudatoolkit=10.1
+  - nodejs
+  - matplotlib
+  - jupyterlab
+  - ipywidgets
+  - numpy
