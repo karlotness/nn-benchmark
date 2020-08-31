@@ -1,0 +1,23 @@
+# Editor scratch files
+*~
+
+# Ignore script outputs
+*.png
+*.npy
+*.npz
+*.mp4
+*.tar
+*.log
+*.txt
+*.pt
+*.bin
+slurm-*.out
+*.pkl
+*.pickle
+
+# Ignore Python-generated files
+__pycache__/
+.ipynb_checkpoints/
+
+# Ignore IPython notebooks
+*.ipynb
