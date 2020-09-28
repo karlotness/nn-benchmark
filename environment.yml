@@ -6,10 +6,17 @@ dependencies:
   - absl-py
   - python=3.8
   - scipy
-  - pytorch
+  - pytorch=1.6.0
   - cudatoolkit=10.1
   - nodejs
   - matplotlib
   - jupyterlab
   - ipywidgets
   - numpy
+  - pip
+  - pip:
+    - https://pytorch-geometric.com/whl/torch-1.6.0/torch_scatter-latest+cu101-cp38-cp38-linux_x86_64.whl
+    - https://pytorch-geometric.com/whl/torch-1.6.0/torch_sparse-latest+cu101-cp38-cp38-linux_x86_64.whl
+    - https://pytorch-geometric.com/whl/torch-1.6.0/torch_cluster-latest+cu101-cp38-cp38-linux_x86_64.whl
+    - https://pytorch-geometric.com/whl/torch-1.6.0/torch_spline_conv-latest+cu101-cp38-cp38-linux_x86_64.whl
+    - torch-geometric
