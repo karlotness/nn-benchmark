@@ -154,7 +154,7 @@ def numerically_integrate(integrator, p_0, q_0, model, method, T, dt, volatile, 
 
 
 class MLP(torch.nn.Module):
-    def __init__(self, input_dim, output_dim, hidden_dim, depth, nonlinearity=torch.nn.Tanh):
+    def __init__(self, input_dim, hidden_dim, output_dim, depth=3, nonlinearity=torch.nn.Tanh):
         super().__init__()
         assert depth >= 2
         layers = [torch.nn.Linear(input_dim, hidden_dim), nonlinearity()]
@@ -168,12 +168,10 @@ class MLP(torch.nn.Module):
         return self.ops(x)
 
 class SRNN(torch.nn.Module):
-    def __init__(self, n_hidden, input_size, n_layers, nonlinearity=torch.nn.Tanh):
+    def __init__(self, input_dim, hidden_dim, output_dim, depth=3, nonlinearity=torch.nn.Tanh):
         super().__init__()
-        self.k_mlp = MLP(input_dim=input_size, output_dim=1, depth=n_layers,
-                         hidden_dim=n_hidden, nonlinearity=nonlinearity)
-        self.p_mlp = MLP(input_dim=input_size, output_dim=1, depth=n_layers,
-                         hidden_dim=n_hidden, nonlinearity=nonlinearity)
+        self.k_mlp = MLP(input_dim, hidden_dim, output_dim, depth=depth, nonlinearity=nonlinearity)
+        self.p_mlp = MLP(input_dim, hidden_dim, output_dim, depth=depth, nonlinearity=nonlinearity)
 
     def kinetic_energy(self, p):
         return self.k_mlp(p)
