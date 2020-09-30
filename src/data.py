@@ -28,7 +28,7 @@ class TrajectoryDataset(data.Dataset):
                 self._split_count += 1
 
     def __getitem__(self, idx):
-        arr = np.load(self.data_dir / "trajectories" / f"{self.split}{idx:05}")
+        arr = np.load(self.data_dir / "trajectories" / f"{self.split}{idx:05}.npy")
         return torch.from_numpy(arr)
 
     def __len__(self):
