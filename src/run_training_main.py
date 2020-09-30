@@ -91,7 +91,7 @@ def train_model(model, device, optim, initial_conditions, data, architecture, pr
                 method_hnet = 5
                 training_steps = 30
                 time_step_size = 3./training_steps
-                p0, q0 = np.split(initial_conditions_batch, 2, axis=-1)
+                p0, q0 = torch.split(initial_conditions_batch, [1, 1], dim=1)
                 int_res = srnn.numerically_integrate(
                     'leapfrog',
                     p0,
