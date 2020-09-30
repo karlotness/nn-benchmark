@@ -18,7 +18,7 @@ METHOD_HNET = 5
 device = torch.device('cpu')
 
 system = spring.SpringSystem()
-net = srnn.SRNN(n_hidden=200, input_size=1, n_layers=3).float().to(device)
+net = srnn.SRNN(input_dim=1, hidden_dim=200, output_dim=1, depth=3).float().to(device)
 
 
 # Generate training set
