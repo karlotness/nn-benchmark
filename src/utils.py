@@ -32,5 +32,5 @@ def get_git_info():
         logger.debug("Running on commit {} ({} worktree)".format(commit_id,
                                                                  "clean" if clean_worktree else "dirty"))
     except Exception:
-        return None
         logger.exception("Failed to get information on git status")
+        return None
