@@ -111,7 +111,7 @@ def train_model(model, device, optim, initial_conditions, data, architecture, pr
                     volatile=False,
                     device=device,
                     coarsening_factor=1).permute(1, 0, 2)
-                loss = loss_fn(int_res, x_batch)
+                loss = loss_fn(int_res, x_batch[:, :training_steps, ...])
 
             loss.backward()
             optim.step()
