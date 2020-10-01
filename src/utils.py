@@ -21,8 +21,11 @@ class CommitInfo:
     clean_worktree: bool
 
 
-def get_git_info():
-    logger = logging.getLogger("envinfo")
+def get_git_info(base_logger=None):
+    if base_logger:
+        logger = base_logger.getChild("gitinfo")
+    else:
+        logger = logging.getLogger("gitinfo")
     try:
         commit_id_out = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True)
         commit_id = codecs.decode(commit_id_out.stdout).strip()
