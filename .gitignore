@@ -14,6 +14,7 @@
 slurm-*.out
 *.pkl
 *.pickle
+*.json
 
 # Ignore Python-generated files
 __pycache__/
