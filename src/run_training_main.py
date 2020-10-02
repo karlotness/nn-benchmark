@@ -6,20 +6,23 @@ from absl import flags
 import torch
 from torch.optim import Adam
 from torch.nn import MSELoss
+from torch.utils.data import DataLoader
 import numpy as np
 
 # Package level imports
 from methods.hnn import HNN
 from methods.hnn import MLP
 from methods.srnn import SRNN
-from methods import srnn
+import integrators
 from systems.spring import SpringSystem
+from dataset import DatasetCollection
 
 FLAGS = flags.FLAGS
 
 # Flag definitions
 flags.DEFINE_string('data_dir', 'data', 'Directory that contains the training and validation data.')
 flags.DEFINE_string('model_save_dir', 'checkpoints', 'Directory that contains the trained models.')
+flags.DEFINE_string('system_name', 'spring_1d', 'Name of the system to run training on.')
 flags.DEFINE_integer('epochs', 1000, 'Number of epochs to run training for.')
 flags.DEFINE_float('learning_rate', 1e-3, 'General learning rate for model training.')
 flags.DEFINE_enum('architecture', 'hnn', ['hnn', 'srnn'], 'Architecture to use.')
@@ -44,23 +47,9 @@ def configure_model(architecture, device):
 
     return model, optim
 
-# TODO(arvi): Replace with function to load training and validation data.
-def load_data(data_dir):
-    system = SpringSystem()
-    x0 = np.array([1, 1], dtype=np.float32)
-    t_span = np.array([0, 3], dtype=np.float32)
-    time_step_size = 1e-1
-    trajectory_data = [[], [], [], [], []]
-    initial_conditions = []
-    for alpha in np.linspace(1, 5, 100):
-        single_trajectory = system.generate_trajectory(alpha*x0, t_span, time_step_size)
-        for i in range(5):
-            trajectory_data[i].append(single_trajectory[i].squeeze())
-        initial_conditions.append(alpha*x0)
-    for i in range(5):
-        trajectory_data[i] = np.stack(trajectory_data[i])
-    initial_conditions = np.stack(initial_conditions)
-    return initial_conditions, trajectory_data
+def load_dataset(data_dir, system_name):
+    dataset_collection = DatasetCollection(data_dir)
+    return dataset_collection[system_name]
 
 def data_batcher(batch_size, x, dxdt, initial_conditions):
     num_timeseries, num_timesteps, _ = x.shape
@@ -72,35 +61,41 @@ def data_batcher(batch_size, x, dxdt, initial_conditions):
         sample_batches = tuple(sample_batches)
         yield x[sample_batches, ...], dxdt[sample_batches, ...], initial_conditions[sample_batches, ...]
 
-def train_model(model, device, optim, initial_conditions, data, architecture, precision):
-    q, p, dqdt, dpdt, t = data
+def train_model(model, device, optim, dataset, architecture, precision):
+    loader = DataLoader(dataset, batch_size=2)
+    # q, p, dqdt, dpdt, t = data
 
-    x = torch.from_numpy(np.stack([p, q], axis=-1).astype(np.float32))
-    x.requires_grad = True
+    # x = torch.from_numpy(np.stack([p, q], axis=-1).astype(np.float32))
+    # x.requires_grad = True
 
-    dxdt_ref = torch.from_numpy(np.stack([dpdt, dqdt], axis=-1).squeeze().astype(np.float32))
+    # dxdt_ref = torch.from_numpy(np.stack([dpdt, dqdt], axis=-1).squeeze().astype(np.float32))
 
-    initial_conditions = torch.from_numpy(initial_conditions)
+    # initial_conditions = torch.from_numpy(initial_conditions)
 
-    x = x.to(device)
-    dxdt_ref = dxdt_ref.to(device)
-    initial_conditions = initial_conditions.to(device)
+    # x = x.to(device)
+    # dxdt_ref = dxdt_ref.to(device)
+    # initial_conditions = initial_conditions.to(device)
 
     loss_fn = MSELoss()
 
     for epoch in range(FLAGS.epochs):
-        for x_batch, dxdt_ref_batch, initial_conditions_batch in data_batcher(10, x, dxdt_ref, initial_conditions):
+        #for x_batch, dxdt_ref_batch, initial_conditions_batch in data_batcher(10, x, dxdt_ref, initial_conditions):
+        for init_cond, t, p, q, dpdt, dqdt in loader:
+            x = torch.stack([p, q], dim=-1).float().to(device)
+            dxdt = torch.stack([dpdt, dqdt], dim=-1).float().to(device)
+            init_cond = init_cond.float().to(device)
             if architecture == 'hnn':
-                x_batch = x_batch.reshape([-1, 2])
-                dxdt_ref_batch = dxdt_ref_batch.reshape([-1, 2])
-                dxdt = model.time_derivative(x_batch)
-                loss = loss_fn(dxdt, dxdt_ref_batch)
+                x = x.reshape([-1, 2])
+                x.requires_grad = True
+                dxdt = dxdt.reshape([-1, 2])
+                dxdt_pred = model.time_derivative(x)
+                loss = loss_fn(dxdt_pred, dxdt)
             elif architecture == 'srnn':
                 method_hnet = 5
                 training_steps = 30
                 time_step_size = 3./training_steps
-                p0, q0 = torch.split(initial_conditions_batch, [1, 1], dim=1)
-                int_res = srnn.numerically_integrate(
+                p0, q0 = torch.split(init_cond, [1, 1], dim=1)
+                int_res = integrators.numerically_integrate(
                     'leapfrog',
                     p0,
                     q0,
@@ -111,7 +106,7 @@ def train_model(model, device, optim, initial_conditions, data, architecture, pr
                     volatile=False,
                     device=device,
                     coarsening_factor=1).permute(1, 0, 2)
-                loss = loss_fn(int_res, x_batch[:, :training_steps, ...])
+                loss = loss_fn(int_res, x[:, :training_steps, ...])
 
             loss.backward()
             optim.step()
@@ -134,8 +129,8 @@ def main(argv):
     device = torch.device('cuda') if torch.cuda.is_available() and FLAGS.cuda else torch.device('cpu')
 
     model, optim = configure_model(FLAGS.architecture, device)
-    initial_conditions, data = load_data(FLAGS.data_dir)
-    train_model(model, device, optim, initial_conditions, data, FLAGS.architecture, FLAGS.precision)
+    dataset = load_dataset(FLAGS.data_dir, FLAGS.system_name)
+    train_model(model, device, optim, dataset, FLAGS.architecture, FLAGS.precision)
     return 0
 
 if __name__ == '__main__':
