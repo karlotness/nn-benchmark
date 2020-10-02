@@ -19,13 +19,12 @@ class DatasetCollection(data.Dataset):
         self.data_dir = data_dir
         with open(os.path.join(data_dir, "metadata.json")) as metadata_file:
             self.metadata = json.load(metadata_file)
-        self.num_systems = len(self.metadata)
 
     def __getitem__(self, key: str):
         return GeneratedDataset(self.data_dir, self.metadata[key])
 
     def __len__(self):
-        return self.systems
+        return len(self.metadata)
 
     def keys(self):
         return self.metadata.keys()
