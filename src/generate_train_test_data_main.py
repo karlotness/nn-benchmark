@@ -49,14 +49,14 @@ def generate_spring_1d(data_dir):
         "t_end": t_span[1],
         "timestep": timestep,
         "dimensions": 1,
+        "num_timesteps" : trajectory_data[0].shape[1],
+        "trajectories" : trajectory_data[0].shape[0],
         "initial_conditions": init_cond_fname,
-        "generated_data": {
-            "t" : t_fname,
-            "p" : p_fname,
-            "q" : q_fname,
-            "dpdt" : dpdt_fname,
-            "dqdt" : dqdt_fname,
-        },
+        "t" : t_fname,
+        "p" : p_fname,
+        "q" : q_fname,
+        "dpdt" : dpdt_fname,
+        "dqdt" : dqdt_fname,
     }
     return data
 
