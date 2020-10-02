@@ -38,21 +38,21 @@ class GeneratedDataset(data.Dataset):
     def __init__(self, data_dir: str, metadata: dict):
         super().__init__()
         self.metadata = metadata
-        load_data = lambda name : np.load(os.path.join(data_dir, self.metadata[name]))
+        load_data = lambda name : torch.from_numpy(np.load(os.path.join(data_dir, self.metadata[name])))
         self.initial_conditions = load_data("initial_conditions")
         self.t = load_data("t")
         self.p = load_data("p")
         self.q = load_data("q")
         self.dpdt = load_data("dpdt")
-        self.dpdt = load_data("dqdt")
+        self.dqdt = load_data("dqdt")
 
     def __getitem__(self, idx: int):
-        return [initial_conditions[idx, ...],
-                t[idx, ...],
-                p[idx, ...],
-                q[idx, ...],
-                dpdt[idx, ...],
-                dqdt[idx, ...]]
+        return [self.initial_conditions[idx, ...],
+                self.t[idx, ...],
+                self.p[idx, ...],
+                self.q[idx, ...],
+                self.dpdt[idx, ...],
+                self.dqdt[idx, ...]]
 
     def __len__(self):
         return self.metadata["trajectories"]
