@@ -74,12 +74,20 @@ def data_batcher(batch_size, x, dxdt, initial_conditions):
 
 def train_model(model, device, optim, initial_conditions, data, architecture, precision):
     q, p, dqdt, dpdt, t = data
+
     x = torch.from_numpy(np.stack([p, q], axis=-1).astype(np.float32))
     x.requires_grad = True
-    x = x.to(device)
+
     dxdt_ref = torch.from_numpy(np.stack([dpdt, dqdt], axis=-1).squeeze().astype(np.float32))
+
     initial_conditions = torch.from_numpy(initial_conditions)
+
+    x = x.to(device)
+    dxdt_ref = dxdt_ref.to(device)
+    initial_conditions = initial_conditions.to(device)
+
     loss_fn = MSELoss()
+
     for epoch in range(FLAGS.epochs):
         for x_batch, dxdt_ref_batch, initial_conditions_batch in data_batcher(10, x, dxdt_ref, initial_conditions):
             if architecture == 'hnn':
@@ -103,7 +111,7 @@ def train_model(model, device, optim, initial_conditions, data, architecture, pr
                     volatile=False,
                     device=device,
                     coarsening_factor=1).permute(1, 0, 2)
-                loss = loss_fn(int_res, x_batch)
+                loss = loss_fn(int_res, x_batch[:, :training_steps, ...])
 
             loss.backward()
             optim.step()
