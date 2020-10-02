@@ -8,6 +8,7 @@ import shutil
 import os
 import platform
 import time
+import dataclasses
 
 
 parser = argparse.ArgumentParser(description="Launch runs from JSON descriptions")
@@ -40,7 +41,7 @@ if __name__ == "__main__":
                    "hostname": platform.node()}
     git_info = utils.get_git_info(base_logger=logger)
     if git_info:
-        env_details["git_info"] = git_info.asdict()
+        env_details["git_info"] = dataclasses.asdict(git_info)
     else:
         env_details["git_info"] = None
     env_details["envvars"] = os.environ
