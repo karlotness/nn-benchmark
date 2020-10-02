@@ -63,23 +63,10 @@ def data_batcher(batch_size, x, dxdt, initial_conditions):
 
 def train_model(model, device, optim, dataset, architecture, precision):
     loader = DataLoader(dataset, batch_size=2)
-    # q, p, dqdt, dpdt, t = data
-
-    # x = torch.from_numpy(np.stack([p, q], axis=-1).astype(np.float32))
-    # x.requires_grad = True
-
-    # dxdt_ref = torch.from_numpy(np.stack([dpdt, dqdt], axis=-1).squeeze().astype(np.float32))
-
-    # initial_conditions = torch.from_numpy(initial_conditions)
-
-    # x = x.to(device)
-    # dxdt_ref = dxdt_ref.to(device)
-    # initial_conditions = initial_conditions.to(device)
 
     loss_fn = MSELoss()
 
     for epoch in range(FLAGS.epochs):
-        #for x_batch, dxdt_ref_batch, initial_conditions_batch in data_batcher(10, x, dxdt_ref, initial_conditions):
         for init_cond, t, p, q, dpdt, dqdt in loader:
             x = torch.stack([p, q], dim=-1).float().to(device)
             dxdt = torch.stack([dpdt, dqdt], dim=-1).float().to(device)
