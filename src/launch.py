@@ -11,6 +11,8 @@ import time
 import dataclasses
 import sys
 
+import data_gen
+
 
 parser = argparse.ArgumentParser(description="Launch runs from JSON descriptions")
 parser.add_argument("run_description", type=str,
@@ -56,9 +58,12 @@ if __name__ == "__main__":
     phase = run_description["phase"]
     logger.info(f"Starting main phase {phase}")
     phase_start = time.perf_counter()
+    # Each phase gets base_dir, out_dir, phase_args
+    phase_args = run_description["phase_args"]
     try:
         if phase == "data_gen":
-            pass
+            data_gen.run_phase(base_dir=base_dir, out_dir=out_dir,
+                               phase_args=phase_args)
         elif phase == "train":
             pass
         elif phase == "eval":
