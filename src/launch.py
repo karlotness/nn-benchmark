@@ -16,7 +16,7 @@ parser = argparse.ArgumentParser(description="Launch runs from JSON descriptions
 parser.add_argument("run_description", type=str,
                     help="Path to run description file")
 parser.add_argument("base_dir", type=str,
-                    help="Base directory at which all output paths will be rooted")
+                    help="Base directory at which all paths will be rooted")
 
 
 if __name__ == "__main__":
