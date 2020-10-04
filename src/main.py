@@ -68,6 +68,8 @@ if __name__ == "__main__":
             pass
         elif phase == "eval":
             pass
+        else:
+            raise ValueError(f"Unknown phase: {phase}")
     except Exception as e:
         logger.exception("Encountered exception during run")
         # Quit so we don't store the "done" flag
