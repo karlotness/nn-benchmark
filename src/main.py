@@ -52,7 +52,7 @@ if __name__ == "__main__":
     else:
         env_details["git_info"] = None
     with open(launch_data_dir / "env_details.json", 'w', encoding='utf8') as env_file:
-        json.dump(env_file, env_details)
+        json.dump(env_details, env_file)
 
     # Dispatch to correct phase (directly in Python)
     phase = run_description["phase"]
