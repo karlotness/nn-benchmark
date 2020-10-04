@@ -46,7 +46,7 @@ if __name__ == "__main__":
     env_details = {"run_description": args.run_description,
                    "hostname": platform.node(),
                    "cmdline": sys.argv,
-                   "envvars": os.environ}
+                   "envvars": dict(os.environ)}
     if git_info := utils.get_git_info(base_logger=logger):
         env_details["git_info"] = dataclasses.asdict(git_info)
     else:
