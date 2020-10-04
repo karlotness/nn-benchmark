@@ -1,6 +1,7 @@
 from collections import namedtuple
 
 TrajectoryResult = namedtuple("TrajectoryResult", ["q", "p", "dq_dt", "dp_dt", "t_steps"])
+SystemResult = namedtuple("SystemResult", ["trajectories", "metadata"])
 
 class System:
     def __init__(self):
