@@ -9,6 +9,7 @@ import os
 import platform
 import time
 import dataclasses
+import sys
 
 
 parser = argparse.ArgumentParser(description="Launch runs from JSON descriptions")
@@ -38,13 +39,13 @@ if __name__ == "__main__":
     # Store environment details in json
     logger.info(f"Running on description: {args.run_description}")
     env_details = {"run_description": args.run_description,
-                   "hostname": platform.node()}
-    git_info = utils.get_git_info(base_logger=logger)
-    if git_info:
+                   "hostname": platform.node(),
+                   "cmdline": sys.argv,
+                   "envvars": os.environ}
+    if git_info := utils.get_git_info(base_logger=logger):
         env_details["git_info"] = dataclasses.asdict(git_info)
     else:
         env_details["git_info"] = None
-    env_details["envvars"] = os.environ
     with open(launch_data_dir / "env_details.json", 'w', encoding='utf8') as env_file:
         json.dump(env_file, env_details)
 
