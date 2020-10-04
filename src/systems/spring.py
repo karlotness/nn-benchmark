@@ -56,7 +56,7 @@ def generate_data(system_args, base_logger=None):
         logger.info(f"Generating trajectory {traj_name}")
 
         # Extract parameters
-        x0 = []
+        x0 = np.array(traj_def["initial_condition"], dtype=np.float64)
         num_time_steps = traj_def["num_time_steps"]
         time_step_size = traj_def["time_step_size"]
         t_span = (0, num_time_steps * time_step_size)
