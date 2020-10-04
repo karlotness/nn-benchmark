@@ -30,7 +30,7 @@ if __name__ == "__main__":
     base_dir = pathlib.Path(args.base_dir)
     out_dir = base_dir / pathlib.Path(run_description["out_dir"])
     out_dir.mkdir(parents=True, exist_ok=True)
-    log_level = run_description.get("log_level", default="INFO")
+    log_level = run_description.get("log_level", "INFO")
     utils.set_up_logging(level=log_level, out_file=out_dir / 'run.log')
     logger = logging.getLogger("launch")
 

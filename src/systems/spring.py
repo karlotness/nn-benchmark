@@ -60,7 +60,7 @@ def generate_data(system_args, base_logger=None):
         num_time_steps = traj_def["num_time_steps"]
         time_step_size = traj_def["time_step_size"]
         t_span = (0, num_time_steps * time_step_size)
-        rtol = traj_def.get("rtol", default=1e-10)
+        rtol = traj_def.get("rtol", 1e-10)
 
         # Generate trajectory
         traj_gen_start = time.perf_counter()
