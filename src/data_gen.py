@@ -31,7 +31,8 @@ def run_phase(base_dir, out_dir, phase_args):
     with open(out_dir / "system_meta.json", "w", encoding="utf8") as meta_file:
         json.dump(meta_file, {"system": system,
                               "system_args": system_args,
-                              "trajectories": sys_result.metadata})
+                              "metadata": sys_result.metadata,
+                              "trajectories": sys_result.trajectory_metadata})
     logger.info("Saved system metadata")
 
     logger.info("Data generation done")
