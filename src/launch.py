@@ -15,6 +15,8 @@ import sys
 parser = argparse.ArgumentParser(description="Launch runs from JSON descriptions")
 parser.add_argument("run_description", type=str,
                     help="Path to run description file")
+parser.add_argument("base_dir", type=str,
+                    help="Base directory at which all output paths will be rooted")
 
 
 if __name__ == "__main__":
@@ -23,7 +25,8 @@ if __name__ == "__main__":
         run_description = json.load(run_file)
 
     # Set up logging
-    out_dir = pathlib.Path(run_description["out_dir"])
+    base_dir = pathlib.Path(args.base_dir)
+    out_dir = base_dir / pathlib.Path(run_description["out_dir"])
     out_dir.mkdir(parents=True, exist_ok=True)
     log_level = run_description.get("log_level", default="INFO")
     utils.set_up_logging(level=log_level, out_file=out_dir / 'run.log')
