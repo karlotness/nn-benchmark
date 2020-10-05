@@ -5,14 +5,12 @@ import numpy as np
 import torch
 from torch.utils import data
 
-BatchComponents = namedtuple("BatchComponents",
-                             ["p", "q", "dp_dt", "dq_dt", "t"])
-
 class TrajectoryDataset(data.Dataset):
     """Returns batches of full trajectories.
     dataset[idx] -> a set of snapshots for a full trajectory"""
 
-    Trajectory = namedtuple("Trajectory", ["name", "batch", "trajectory_meta"])
+    Trajectory = namedtuple("Trajectory", ["name", "p", "q", "dp_dt", "dq_dt",
+                                           "t", "trajectory_meta"])
 
     def __init__(self, data_dir):
         super().__init__()
@@ -35,8 +33,8 @@ class TrajectoryDataset(data.Dataset):
         dq_dt = self._npz_file[meta["field_keys"]["dqdt"]]
         t = np.arange(meta["num_time_steps"]).astype(np.float64) * meta["time_step_size"]
         # Package and return
-        batch = BatchComponents(p=p, q=q, dp_dt=dp_dt, dq_dt=dq_dt, t=t)
-        return self.Trajectory(name=name, batch=batch, trajectory_meta=meta)
+        return self.Trajectory(name=name, trajectory_meta=meta,
+                               p=p, q=q, dp_dt=dp_dt, dq_dt=dq_dt, t=t)
 
     def __len__(self):
         return len(self._trajectory_meta)
