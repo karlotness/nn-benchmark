@@ -12,6 +12,7 @@ import dataclasses
 import sys
 
 import data_gen
+import train
 
 
 parser = argparse.ArgumentParser(description="Launch runs from JSON descriptions")
@@ -65,6 +66,8 @@ if __name__ == "__main__":
             data_gen.run_phase(base_dir=base_dir, out_dir=out_dir,
                                phase_args=phase_args)
         elif phase == "train":
+            train.run_phase(base_dir=base_dir, out_dir=out_dir,
+                            phase_args=phase_args)
             pass
         elif phase == "eval":
             pass
