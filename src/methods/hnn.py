@@ -1,7 +1,4 @@
 import torch
-from collections import namedtuple
-
-HnnTimeDerivativeFields = namedtuple("HnnTimeDerivativeFields", ["conservative", "solenoidal"])
 
 
 def permutation_tensor(n):
@@ -36,8 +33,6 @@ class HNN(torch.nn.Module):
             solenoidal_field = torch.zeros_like(x)
 
         return conservative_field + solenoidal_field
-        # return HnnTimeDerivativeFields(conservative=conservative_field,
-        #                                solenoidal=solenoidal_field)
 
 
 class MLP(torch.nn.Module):
