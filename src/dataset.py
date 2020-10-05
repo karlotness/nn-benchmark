@@ -12,7 +12,6 @@ class TrajectoryDataset(data.Dataset):
     """Returns batches of full trajectories.
     dataset[idx] -> a set of snapshots for a full trajectory"""
 
-    # Flat namedtuple needed for Torch default batching
     Trajectory = namedtuple("Trajectory", ["name", "batch", "trajectory_meta"])
 
     def __init__(self, data_dir):
