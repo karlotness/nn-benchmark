@@ -96,6 +96,6 @@ def generate_data(system_args, base_logger=None):
 
     return SystemResult(trajectories=trajectories,
                         metadata={
-                            "input_size": 2,
+                            "n_grid": 1,
                         },
                         trajectory_metadata=trajectory_metadata)
