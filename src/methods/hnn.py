@@ -1,4 +1,5 @@
 import torch
+from .defs import NONLINEARITIES
 
 
 def permutation_tensor(n):
@@ -49,3 +50,34 @@ class MLP(torch.nn.Module):
 
     def forward(self, x):
         return self.ops(x)
+
+
+def build_mlp(input_dim, base_model_args):
+    hidden_dim = base_model_args["hidden_dim"]
+    output_dim = base_model_args["output_dim"]
+    depth = base_model_args["depth"]
+    nonlinearity = NONLINEARITIES[base_model_args["nonlinearity"]]
+    return MLP(input_dim=input_dim, hidden_dim=hidden_dim,
+               output_dim=output_dim, depth=depth,
+               nonlinearity=nonlinearity)
+
+
+def build_hnn(input_dim, base_model, hnn_args):
+    field_type = hnn_args["field_type"]
+    return HNN(input_dim=input_dim, base_model=base_model,
+               field_type=field_type)
+
+
+def build_network(arch_args):
+    base_model = arch_args["base_model"]
+    input_dim = arch_args["input_dim"]
+    base_model_args = arch_args["base_model_args"]
+    if base_model == "mlp":
+        base_model = build_mlp(input_dim=input_dim,
+                               base_model_args=base_model_args)
+    else:
+        raise ValueError(f"Invalid inner model for HNN: {base_model}")
+
+    hnn = build_hnn(input_dim=input_dim, base_model=base_model,
+                    hnn_args=arch_args["hnn_args"])
+    return hnn
