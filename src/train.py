@@ -82,6 +82,9 @@ def run_phase(base_dir, out_dir, phase_args):
     # Move network to device and convert to dtype
     net = net.to(device, dtype=train_dtype)
 
+    # Declare loss function
+    loss_fn = torch.nn.MSELoss()
+
     # Run training epochs
     logger.info("Starting training")
     for epoch in range(max_epochs):
@@ -91,8 +94,16 @@ def run_phase(base_dir, out_dir, phase_args):
             dp_dt = batch.dp_dt.to(device, dtype=train_dtype)
             dq_dt = batch.dq_dt.to(device, dtype=train_dtype)
             if train_type == "hnn":
-                pass
+                x = torch.stack([p, q], dim=-1)
+                # TODO(arvi): Fix this for different dimensions
+                x = x.reshape([-1, 2])
+                dx_dt = torch.stack([dp_dt, dq_dt], dim=-1)
+                # TODO(arvi): Fix this for different dimensions
+                dx_dt = dx_dt.reshape([-1, 2])
+                dx_dt_pred = net.time_derivative(x)
+                loss = loss_fn(dx_dt_pred, dx_dt)
             elif train_type == "srnn":
+                # TODO(arvi): Figure out how to retrieve initial conditions
                 pass
             else:
                 raise ValueError(f"Invalid train type: {train_type}")
