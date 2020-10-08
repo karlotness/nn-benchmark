@@ -1,4 +1,4 @@
-from . import hnn, srnn
+from . import hnn, srnn, mlp
 
 def build_network(net_args):
     arch = net_args["arch"]
@@ -7,5 +7,7 @@ def build_network(net_args):
         return hnn.build_network(arch_args)
     elif arch == "srnn":
         return srnn.build_network(arch_args)
+    elif arch == "mlp":
+        return mlp.build_network(arch_args)
     else:
         raise ValueError(f"Invalid architecture: {arch}")

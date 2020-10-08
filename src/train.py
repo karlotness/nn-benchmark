@@ -104,7 +104,29 @@ def run_phase(base_dir, out_dir, phase_args):
                 loss = loss_fn(dx_dt_pred, dx_dt)
             elif train_type == "srnn":
                 # TODO(arvi): Figure out how to retrieve initial conditions
-                pass
+                method_hnet = 5
+                training_steps = 30
+                time_step_size = 3./training_steps
+                p0, q0 = torch.split(init_cond, [1, 1], dim=1)
+                int_res = integrators.numerically_integrate(
+                    'leapfrog',
+                    p[:, 0, :],
+                    q[:, 0, :],
+                    model=net,
+                    method=method_hnet,
+                    T=training_steps,
+                    dt=time_step_size,
+                    volatile=False,
+                    device=device,
+                    coarsening_factor=1).permute(1, 0, 2)
+                loss = loss_fn(int_res, x)
+            elif train_type == "mlp":
+                x = torch.stack([p, q], dim=-1)
+                x = x.reshape([-1, 2])
+                dx_dt = torch.stack([dp_dt, dq_dt], dim=-1)
+                dx_dt = dx_dt.reshape([-1, 2])
+                dx_dt_pred = net(x)
+                loss = loss_fn(dx_dt_pred, dx_dt)
             else:
                 raise ValueError(f"Invalid train type: {train_type}")
 
