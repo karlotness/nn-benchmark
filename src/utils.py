@@ -32,8 +32,8 @@ def get_git_info(base_logger=None):
         clean_tree_out = subprocess.run(["git", "status", "--porcelain"], capture_output=True)
         clean_worktree = len(clean_tree_out.stdout) == 0
         return CommitInfo(hash=commit_id, clean_worktree=clean_worktree)
-        logger.debug("Running on commit {} ({} worktree)".format(commit_id,
-                                                                 "clean" if clean_worktree else "dirty"))
+        logger.info("Running on commit {} ({} worktree)".format(commit_id,
+                                                                "clean" if clean_worktree else "dirty"))
     except Exception:
         logger.exception("Failed to get information on git status")
         return None
