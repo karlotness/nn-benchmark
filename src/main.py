@@ -16,7 +16,7 @@ import train
 import evaluate
 
 
-parser = argparse.ArgumentParser(description="Launch runs from JSON descriptions")
+parser = argparse.ArgumentParser(description="Run from JSON descriptions")
 parser.add_argument("run_description", type=str,
                     help="Path to run description file")
 parser.add_argument("base_dir", type=str,
