@@ -73,7 +73,7 @@ def generate_data(system_args, base_logger=None):
         # Store trajectory data
         trajectories.update({
             f"{traj_name}_p": traj_result.p,
-            f"{traj_name}_q": traj_result.p,
+            f"{traj_name}_q": traj_result.q,
             f"{traj_name}_dqdt": traj_result.dq_dt,
             f"{traj_name}_dpdt": traj_result.dp_dt,
         })
