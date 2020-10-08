@@ -73,9 +73,10 @@ def generate_data(system_args, base_logger=None):
         # Store trajectory data
         trajectories.update({
             f"{traj_name}_p": traj_result.p,
-            f"{traj_name}_q": traj_result.p,
+            f"{traj_name}_q": traj_result.q,
             f"{traj_name}_dqdt": traj_result.dq_dt,
             f"{traj_name}_dpdt": traj_result.dp_dt,
+            f"{traj_name}_t": traj_result.t_steps,
         })
 
         # Store per-trajectory metadata
@@ -88,6 +89,7 @@ def generate_data(system_args, base_logger=None):
                  "q": f"{traj_name}_q",
                  "dpdt": f"{traj_name}_dpdt",
                  "dqdt": f"{traj_name}_dqdt",
+                 "t": f"{traj_name}_t",
              },
              "timing": {
                  "traj_gen_time": traj_gen_end - traj_gen_start

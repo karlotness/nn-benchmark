@@ -13,9 +13,10 @@ import sys
 
 import data_gen
 import train
+import evaluate
 
 
-parser = argparse.ArgumentParser(description="Launch runs from JSON descriptions")
+parser = argparse.ArgumentParser(description="Run from JSON descriptions")
 parser.add_argument("run_description", type=str,
                     help="Path to run description file")
 parser.add_argument("base_dir", type=str,
@@ -68,9 +69,9 @@ if __name__ == "__main__":
         elif phase == "train":
             train.run_phase(base_dir=base_dir, out_dir=out_dir,
                             phase_args=phase_args)
-            pass
         elif phase == "eval":
-            pass
+            evaluate.run_phase(base_dir=base_dir, out_dir=out_dir,
+                               phase_args=phase_args)
         else:
             raise ValueError(f"Unknown phase: {phase}")
     except Exception as e:
