@@ -78,6 +78,7 @@ def run_phase(base_dir, out_dir, phase_args):
     train_dtype = TRAIN_DTYPES[training_args.get("train_dtype", "float")]
     logger.info(f"Training in dtype {train_dtype}")
     train_type = training_args["train_type"]  # hnn or srnn. TODO: handle
+    train_type_args = training_args["train_type_args"]
 
     # Move network to device and convert to dtype
     net = net.to(device, dtype=train_dtype)
@@ -93,6 +94,7 @@ def run_phase(base_dir, out_dir, phase_args):
             q = batch.q.to(device, dtype=train_dtype)
             dp_dt = batch.dp_dt.to(device, dtype=train_dtype)
             dq_dt = batch.dq_dt.to(device, dtype=train_dtype)
+            trajectory_meta = batch.trajectory_meta
             if train_type == "hnn":
                 x = torch.stack([p, q], dim=-1)
                 # TODO(arvi): Fix this for different dimensions
@@ -103,13 +105,13 @@ def run_phase(base_dir, out_dir, phase_args):
                 dx_dt_pred = net.time_derivative(x)
                 loss = loss_fn(dx_dt_pred, dx_dt)
             elif train_type == "srnn":
-                # TODO(arvi): Figure out how to retrieve initial conditions
                 method_hnet = 5
-                training_steps = 30
-                time_step_size = 3./training_steps
-                p0, q0 = torch.split(init_cond, [1, 1], dim=1)
+                training_steps = train_type_args["rollout_length"]
+                # TODO(arvi): Make sure that all of the following are equal
+                time_step_size = trajectory_meta["time_step_size"][0]
                 int_res = integrators.numerically_integrate(
-                    'leapfrog',
+                    train_type_args["integrator"],
+                    # TODO(arvi): Fix this for different dimensions
                     p[:, 0, :],
                     q[:, 0, :],
                     model=net,
