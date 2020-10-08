@@ -31,7 +31,7 @@ class TrajectoryDataset(data.Dataset):
         q = self._npz_file[meta["field_keys"]["q"]]
         dp_dt = self._npz_file[meta["field_keys"]["dpdt"]]
         dq_dt = self._npz_file[meta["field_keys"]["dqdt"]]
-        t = np.arange(meta["num_time_steps"]).astype(np.float64) * meta["time_step_size"]
+        t = self._npz_file[meta["field_keys"]["t"]]
         # Package and return
         return self.Trajectory(name=name, trajectory_meta=meta,
                                p=p, q=q, dp_dt=dp_dt, dq_dt=dq_dt, t=t)
