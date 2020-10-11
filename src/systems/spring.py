@@ -28,7 +28,7 @@ class SpringSystem(System):
         t_min, t_max = t_span
         assert t_min < t_max
         num_steps = np.ceil((t_max - t_min) / time_step_size)
-        t_eval = np.linspace(t_min, t_max, int(num_steps))
+        t_eval = np.arange(num_steps) * time_step_size + t_min
 
         spring_ivp = solve_ivp(fun=self._dynamics, t_span=t_span, y0=x0,
                                t_eval=t_eval, rtol=rtol)
