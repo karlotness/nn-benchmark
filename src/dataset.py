@@ -92,5 +92,57 @@ class SnapshotDataset(data.Dataset):
         return len(self._traj_meta)
 
 
-# TODO: Other dataset wrappers for later (wrap a TrajectoryDataset) to select:
-# - Rollout-sized chunks
+class RolloutChunkDataset(data.Dataset):
+    Rollout = namedtuple("Rollout", ["name", "p", "q", "dp_dt", "dq_dt",
+                                     "t", "trajectory_meta"])
+
+    def __init__(self, traj_dataset, rollout_length):
+        super().__init__()
+        self._traj_dataset = traj_dataset
+
+        self.system = self._traj_dataset.system
+        self.system_metadata = self._traj_dataset.system_metadata
+        self.rollout_length = rollout_length
+
+        name = []
+        p = []
+        q = []
+        dp_dt = []
+        dq_dt = []
+        t = []
+        traj_meta = []
+
+        for traj_i in range(len(self._traj_dataset)):
+            traj = self._traj_dataset[traj_i]
+            traj_num_steps = traj.p.shape[0]
+            num_batches = traj_num_steps // self.rollout_length
+            for batch in range(num_batches):
+                # Slice the batches and append
+                slicer = slice(batch * self.rollout_length,
+                               (batch + 1) * self.rollout_length)
+                name.append(traj.name)
+                p.append(traj.p[slicer])
+                q.append(traj.q[slicer])
+                dp_dt.append(traj.dp_dt[slicer])
+                dq_dt.append(traj.dq_dt[slicer])
+                t.append(traj.t[slicer])
+                traj_meta.append(traj.trajectory_meta)
+
+        # Join components
+        self._name = name
+        self._p = np.stack(p)
+        self._q = np.stack(q)
+        self._dp_dt = np.stack(dp_dt)
+        self._dq_dt = np.stack(dq_dt)
+        self._t = np.stack(t)
+        self._traj_meta = traj_meta
+
+    def __getitem__(self, idx):
+        return self.Rollout(name=self._name[idx],
+                            trajectory_meta=self._traj_meta[idx],
+                            p=self._p[idx], q=self._q[idx],
+                            dp_dt=self._dp_dt[idx], dq_dt=self._dq_dt[idx],
+                            t=self._t[idx])
+
+    def __len__(self):
+        return len(self._traj_meta)
