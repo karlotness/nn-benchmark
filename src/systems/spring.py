@@ -37,7 +37,9 @@ class SpringSystem(System):
         dydt = np.stack(dydt).T
         dqdt, dpdt = np.split(dydt,2)
 
-        return TrajectoryResult(q=q, p=p, dq_dt=dqdt[0], dp_dt=dpdt[0], t_steps=t_eval)
+        return TrajectoryResult(q=q[:, np.newaxis], p=p[:, np.newaxis],
+                                dq_dt=dqdt[0, :, np.newaxis], dp_dt=dpdt[0, :, np.newaxis],
+                                t_steps=t_eval)
 
 
 def generate_data(system_args, base_logger=None):
