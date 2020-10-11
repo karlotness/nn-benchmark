@@ -5,6 +5,7 @@ from torch import utils
 import dataset
 import logging
 import json
+import integrators
 
 
 TRAIN_DTYPES = {
@@ -107,24 +108,23 @@ def run_phase(base_dir, out_dir, phase_args):
             dq_dt = batch.dq_dt.to(device, dtype=train_dtype)
             trajectory_meta = batch.trajectory_meta
             if train_type == "hnn":
-                x = torch.stack([p, q], dim=-1)
-                # TODO(arvi): Fix this for different dimensions
-                x = x.reshape([-1, 2])
-                dx_dt = torch.stack([dp_dt, dq_dt], dim=-1)
-                # TODO(arvi): Fix this for different dimensions
-                dx_dt = dx_dt.reshape([-1, 2])
+                # Assume snapshot dataset (shape [batch_size, n_grid])
+                x = torch.cat([p, q], dim=-1)
+                dx_dt = torch.cat([dp_dt, dq_dt], dim=-1)
                 dx_dt_pred = net.time_derivative(x)
                 loss = loss_fn(dx_dt_pred, dx_dt)
             elif train_type == "srnn":
+                # Assume rollout dataset (shape [batch_size, dataset rollout_length, n_grid])
                 method_hnet = 5
                 training_steps = train_type_args["rollout_length"]
-                # TODO(arvi): Make sure that all of the following are equal
-                time_step_size = trajectory_meta["time_step_size"][0]
+                time_step_size = float(trajectory_meta["time_step_size"][0])
+                # Check that all time step sizes are equal
+                if not torch.all(trajectory_meta["time_step_size"] == time_step_size):
+                    raise ValueError("Inconsistent time step sizes in batch")
                 int_res = integrators.numerically_integrate(
                     train_type_args["integrator"],
-                    # TODO(arvi): Fix this for different dimensions
-                    p[:, 0, :],
-                    q[:, 0, :],
+                    p[:, 0],
+                    q[:, 0],
                     model=net,
                     method=method_hnet,
                     T=training_steps,
@@ -134,10 +134,9 @@ def run_phase(base_dir, out_dir, phase_args):
                     coarsening_factor=1).permute(1, 0, 2)
                 loss = loss_fn(int_res, x)
             elif train_type == "mlp":
-                x = torch.stack([p, q], dim=-1)
-                x = x.reshape([-1, 2])
-                dx_dt = torch.stack([dp_dt, dq_dt], dim=-1)
-                dx_dt = dx_dt.reshape([-1, 2])
+                # Assume snapshot dataset (shape [batch_size, n_grid])
+                x = torch.cat([p, q], dim=-1)
+                dx_dt = torch.cat([dp_dt, dq_dt], dim=-1)
                 dx_dt_pred = net(x)
                 loss = loss_fn(dx_dt_pred, dx_dt)
             else:
