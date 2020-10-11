@@ -107,6 +107,10 @@ def run_phase(base_dir, out_dir, phase_args):
             dp_dt = batch.dp_dt.to(device, dtype=train_dtype)
             dq_dt = batch.dq_dt.to(device, dtype=train_dtype)
             trajectory_meta = batch.trajectory_meta
+
+            # Reset optimizer
+            optim.zero_grad()
+
             if train_type == "hnn":
                 # Assume snapshot dataset (shape [batch_size, n_grid])
                 x = torch.cat([p, q], dim=-1)
@@ -141,6 +145,10 @@ def run_phase(base_dir, out_dir, phase_args):
                 loss = loss_fn(dx_dt_pred, dx_dt)
             else:
                 raise ValueError(f"Invalid train type: {train_type}")
+
+            # Training step
+            loss.backward()
+            optimizer.step()
 
     logger.info("Training done")
 
