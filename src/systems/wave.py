@@ -70,7 +70,7 @@ class WaveSystem(System):
                                                         wave_speed=self.wave_speed, time_step=time_step_size)
         steps = [x0]
         step = x0
-        for _ in range(num_steps):
+        for _ in range(num_steps - 1):
             step = self._compute_next_step(step, eqn_known, eqn_unknown)
             steps.append(step)
         steps = np.stack(steps)
