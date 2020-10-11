@@ -32,7 +32,18 @@ def create_optimizer(net, optimizer, optim_args):
 
 def create_dataset(base_dir, data_args):
     data_dir = base_dir / data_args["data_dir"]
-    data_set = dataset.TrajectoryDataset(data_dir=data_dir)
+    base_data_set = dataset.TrajectoryDataset(data_dir=data_dir)
+    dataset_type = data_args["dataset"]
+    if dataset_type == "trajectory":
+        data_set = base_data_set
+    elif dataset_type == "snapshot":
+        data_set = dataset.SnapshotDataset(traj_dataset=base_data_set)
+    elif dataset_type == "rollout-chunk":
+        rollout_length = int(data_args["dataset_args"]["rollout_length"])
+        data_set = dataset.RolloutChunkDataset(traj_dataset=base_data_set,
+                                               rollout_length=rollout_length)
+    else:
+        raise ValueError(f"Invalid dataset type {dataset_type}")
     loader_args = data_args["loader"]
     loader = utils.DataLoader(data_set,
                               batch_size=loader_args["batch_size"],
