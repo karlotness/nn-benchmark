@@ -47,9 +47,9 @@ def create_dataset(base_dir, data_args):
     else:
         raise ValueError(f"Invalid dataset type {dataset_type}")
     loader_args = data_args["loader"]
-    loader = utils.DataLoader(data_set,
-                              batch_size=loader_args["batch_size"],
-                              shuffle=loader_args["shuffle"])
+    loader = utils.data.DataLoader(data_set,
+                                   batch_size=loader_args["batch_size"],
+                                   shuffle=loader_args["shuffle"])
     return data_set, loader
 
 
