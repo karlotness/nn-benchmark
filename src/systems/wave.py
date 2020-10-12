@@ -196,6 +196,7 @@ def generate_data(system_args, base_logger=None):
             {"name": traj_name,
              "num_time_steps": num_time_steps,
              "time_step_size": time_step_size,
+             "wave_speed": wave_speed,
              "field_keys": {
                  "p": f"{traj_name}_p",
                  "q": f"{traj_name}_q",
