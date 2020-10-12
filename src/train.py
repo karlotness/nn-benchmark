@@ -103,6 +103,7 @@ def run_phase(base_dir, out_dir, phase_args):
     logger.info("Starting training")
     epoch_stats = []
     for epoch in range(max_epochs):
+        logger.info(f"Epoch {epoch} of {max_epochs}")
         total_forward_time = 0
         total_backward_time = 0
         time_epoch_start = time.perf_counter()
