@@ -6,6 +6,7 @@ import dataset
 import logging
 import json
 import integrators
+import time
 
 
 TRAIN_DTYPES = {
@@ -89,7 +90,7 @@ def run_phase(base_dir, out_dir, phase_args):
     device = select_device(try_gpu=training_args["try_gpu"], base_logger=logger)
     train_dtype = TRAIN_DTYPES[training_args.get("train_dtype", "float")]
     logger.info(f"Training in dtype {train_dtype}")
-    train_type = training_args["train_type"]  # hnn or srnn. TODO: handle
+    train_type = training_args["train_type"]
     train_type_args = training_args["train_type_args"]
 
     # Move network to device and convert to dtype
@@ -100,7 +101,13 @@ def run_phase(base_dir, out_dir, phase_args):
 
     # Run training epochs
     logger.info("Starting training")
+    epoch_stats = []
     for epoch in range(max_epochs):
+        total_forward_time = 0
+        total_backward_time = 0
+        time_epoch_start = time.perf_counter()
+        total_loss = 0
+        total_loss_denom = 0
         for batch_num, batch in enumerate(train_loader):
             p = batch.p.to(device, dtype=train_dtype)
             q = batch.q.to(device, dtype=train_dtype)
@@ -111,12 +118,14 @@ def run_phase(base_dir, out_dir, phase_args):
             # Reset optimizer
             optim.zero_grad()
 
+            time_forward_start = time.perf_counter()
             if train_type == "hnn":
                 # Assume snapshot dataset (shape [batch_size, n_grid])
                 x = torch.cat([p, q], dim=-1)
                 dx_dt = torch.cat([dp_dt, dq_dt], dim=-1)
                 dx_dt_pred = net.time_derivative(x)
                 loss = loss_fn(dx_dt_pred, dx_dt)
+                total_loss_denom += p.shape[0]
             elif train_type == "srnn":
                 # Assume rollout dataset (shape [batch_size, dataset rollout_length, n_grid])
                 method_hnet = 5
@@ -137,23 +146,48 @@ def run_phase(base_dir, out_dir, phase_args):
                     device=device,
                     coarsening_factor=1).permute(1, 0, 2)
                 loss = loss_fn(int_res, x)
+                total_loss_denom += p.shape[0] * p.shape[1]
             elif train_type == "mlp":
                 # Assume snapshot dataset (shape [batch_size, n_grid])
                 x = torch.cat([p, q], dim=-1)
                 dx_dt = torch.cat([dp_dt, dq_dt], dim=-1)
                 dx_dt_pred = net(x)
                 loss = loss_fn(dx_dt_pred, dx_dt)
+                total_loss_denom += p.shape[0]
             else:
                 raise ValueError(f"Invalid train type: {train_type}")
+            total_forward_time += time.perf_counter() - time_forward_start
 
             # Training step
+            time_backward_start = time.perf_counter()
             loss.backward()
             optimizer.step()
+            total_backward_time += time.perf_counter() - time_backward_start
+            total_loss += loss.item()
+
+        total_epoch_time = time.perf_counter() - time_epoch_start
+        # Compute per-epoch statistics
+        epoch_stats.append({
+            "num_batches": batch_num + 1,
+            "avg_loss": total_loss / total_loss_denom,
+            "timing": {
+                "total_forward": total_forward_time,
+                "total_backward": total_backward_time,
+                "total_epoch": total_epoch_time,
+            }
+        })
 
     logger.info("Training done")
+    total_epoch_count = epoch + 1
 
     # Save the network
     save_network(net=net, network_args=network_args,
                  out_dir=out_dir, base_logger=logger)
 
     # Save the run statistics
+    with open(out_dir / "train_stats.json", "w", encoding="utf8") as stats_file:
+        stats = {
+            "num_epochs": total_epoch_count,
+            "epoch_stats": epoch_stats,
+        }
+        json.dump(stats, stats_file)
