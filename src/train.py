@@ -168,7 +168,7 @@ def run_phase(base_dir, out_dir, phase_args):
             total_loss += loss.item()
 
         total_epoch_time = time.perf_counter() - time_epoch_start
-        avg_loss = total_loss / total_loss_denom,
+        avg_loss = total_loss / total_loss_denom
         logging.info(f"Epoch complete. Avg loss: {avg_loss}, time: {total_epoch_time}")
         # Compute per-epoch statistics
         epoch_stats.append({
