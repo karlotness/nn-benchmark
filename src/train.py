@@ -5,6 +5,7 @@ from torch import utils
 import dataset
 import logging
 import json
+import time
 
 
 TRAIN_DTYPES = {
@@ -90,6 +91,8 @@ def run_phase(base_dir, out_dir, phase_args):
     logger.info("Starting training")
     for epoch in range(max_epochs):
         for batch_num, batch in enumerate(train_loader):
+            time_start = time.perf_counter()
+
             p = batch.p.to(device, dtype=train_dtype)
             q = batch.q.to(device, dtype=train_dtype)
             dp_dt = batch.dp_dt.to(device, dtype=train_dtype)
@@ -131,6 +134,17 @@ def run_phase(base_dir, out_dir, phase_args):
                 loss = loss_fn(dx_dt_pred, dx_dt)
             else:
                 raise ValueError(f"Invalid train type: {train_type}")
+
+            logger.info("Batch {} inference running time: {}".format(
+                batch_num, time.perf_counter() - time_start))
+            time_start = time.perf_counter()
+
+            loss.backward()
+            optim.step()
+            optim.zero_grad()
+
+            logger.info("Batch {} optimization running time: {}".format(
+                batch_num, time.perf_counter() - time_start))
 
     logger.info("Training done")
 
