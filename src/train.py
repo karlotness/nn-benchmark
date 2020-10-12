@@ -129,6 +129,7 @@ def run_phase(base_dir, out_dir, phase_args):
                 total_loss_denom += p.shape[0]
             elif train_type == "srnn":
                 # Assume rollout dataset (shape [batch_size, dataset rollout_length, n_grid])
+                x = torch.cat([p, q], dim=-1)
                 method_hnet = 5
                 training_steps = train_type_args["rollout_length"]
                 time_step_size = float(trajectory_meta["time_step_size"][0])
@@ -162,7 +163,7 @@ def run_phase(base_dir, out_dir, phase_args):
             # Training step
             time_backward_start = time.perf_counter()
             loss.backward()
-            optimizer.step()
+            optim.step()
             total_backward_time += time.perf_counter() - time_backward_start
             total_loss += loss.item()
 

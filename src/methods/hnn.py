@@ -19,6 +19,7 @@ class HNN(torch.nn.Module):
         return y.split(1, 1)
 
     def time_derivative(self, x):
+        x.requires_grad_()
         f1, f2 = self.forward(x)
 
         if self.field_type != "solenoidal":
