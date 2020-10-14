@@ -6,6 +6,8 @@ import dataset
 import logging
 import json
 import time
+from sklearn import neighbors
+from sklearn.externals import joblib
 
 
 TRAIN_DTYPES = {
@@ -14,10 +16,15 @@ TRAIN_DTYPES = {
 }
 
 
-def save_network(net, network_args, out_dir, base_logger):
+def save_network(net, network_args, train_type, out_dir, base_logger):
     logger = base_logger.getChild("save_network")
     logger.info("Saving network")
-    torch.save(net.state_dict(), out_dir / "model.pt")
+
+    if train_type == "knn":
+        joblib.dump(net, out_dir / "model.pt")
+    else:
+        torch.save(net.state_dict(), out_dir / "model.pt")
+
     with open(out_dir / "model.json", "w", encoding="utf8") as model_file:
         json.dump(network_args, model_file)
     logger.info("Saved network")
@@ -80,6 +87,26 @@ def run_phase(base_dir, out_dir, phase_args):
     logger.info(f"Training in dtype {train_dtype}")
     train_type = training_args["train_type"]  # hnn or srnn. TODO: handle
     train_type_args = training_args["train_type_args"]
+
+    if train_type == "knn_regressor":
+        net = neighbors.KNeighborsRegressor(n_neighbors=5)
+
+        logger.info("Starting fitting of dataset for KNN Regressor.")
+
+        data = np.stack([np.stack([batch.p, batch.q, batch.dp, batch.dq], axis=-1)
+                      for batch in train_loader], axis=0)
+        net.fit(data[..., 0:2], data[..., 2:4])
+
+        logger.info("Finished fitting of dataset for KNN Regressor.")
+
+        # Save the network
+        save_network(net=net, network_args=network_args, train_type=train_type,
+                     out_dir=out_dir, base_logger=logger)
+
+        # Save the run statistics
+
+        return
+
 
     # Move network to device and convert to dtype
     net = net.to(device, dtype=train_dtype)
@@ -149,7 +176,7 @@ def run_phase(base_dir, out_dir, phase_args):
     logger.info("Training done")
 
     # Save the network
-    save_network(net=net, network_args=network_args,
+    save_network(net=net, network_args=network_args, train_type=train_type,
                  out_dir=out_dir, base_logger=logger)
 
     # Save the run statistics

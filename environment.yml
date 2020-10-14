@@ -13,6 +13,7 @@ dependencies:
   - jupyterlab
   - ipywidgets
   - numpy
+  - sklearn
   - pip
   - pip:
     - https://pytorch-geometric.com/whl/torch-1.6.0/torch_scatter-latest+cu101-cp38-cp38-linux_x86_64.whl
