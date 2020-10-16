@@ -11,6 +11,13 @@ import utils
 
 PHASES = ["data_gen", "train", "eval"]
 
+DEFAULT_SLURM_ARGS = {
+    "gpu": False,  # Node with GPU True/False
+    "time": "48:00:00",  # Time limit as Slurm time string
+    "cpus": 4,  # Number of CPUs to request as integer
+    "mem": 24,  # Memory amount in integer GB
+}
+
 # Root argument parser
 parser = argparse.ArgumentParser(description="Report on state of JSON-description runs and launch")
 subparsers = parser.add_subparsers(title="commands",
@@ -175,6 +182,33 @@ def do_local_launch(run_descr, root_directory):
         print("Run FAILED")
 
 
+def do_slurm_launch(run_descr, root_directory):
+    shortname = run_descr.relative_to(root_directory)
+    slurm_args = {}
+    slurm_args.update(DEFAULT_SLURM_ARGS)
+    # Load run description and pull out slurm args
+    with open(run_descr, "r", encoding="utf8") as descr_file:
+        descr = json.load(descr_file)
+    # Add slurm arguments from file
+    slurm_args.update(descr.get("slurm_args", {}))
+    # Submit launch using slurm arguments
+    slurm_gpu = slurm_args["gpu"]
+    slurm_time = slurm_args["time"]
+    slurm_cpus = int(slurm_args["cpus"])
+    slurm_mem = int(slurm_args["mem"])
+    gpu_arg = ["--gres=gpu:1"] if slurm_gpu else []
+    try:
+        subprocess.run(["sbatch",
+                        f"--wrap=\"python3 main.py '{run_descr}' '{root_directory}'\"",
+                        f"--job_name=\"{shortname}\"",
+                        f"--time={slurm_time}",
+                        f"--cpus-per-task={slurm_cpus}",
+                        f"--mem={slurm_mem}GB"]
+                       + gpu_arg)
+    except subprocess.CalledProcessError:
+        print("Slurm launch failed")
+
+
 def do_launch(root_directory, phase, launch_method):
     print(f"Performing launch with {launch_method}")
     # Check for conda env
@@ -226,7 +260,7 @@ def do_launch(root_directory, phase, launch_method):
         if launch_method == "local":
             do_local_launch(run_descr.resolve(), root_directory.resolve())
         elif launch_method == "slurm":
-            raise NotImplementedError("Implement slurm launch")
+            do_slurm_launch(run_descr.resolve(), root_directory.resolve())
         else:
             raise ValueError(f"Invalid launch type {launch_method}")
 
