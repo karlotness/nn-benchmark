@@ -12,6 +12,7 @@ import integrators
 
 
 METHOD_HNET = 5
+METHOD_DIRECT_DERIV = 1
 
 
 def load_network(net_dir, base_dir, base_logger):
@@ -68,11 +69,20 @@ def run_phase(base_dir, out_dir, phase_args):
 
     if eval_type == "srnn":
         time_deriv_func = net
+        time_deriv_method = METHOD_HNET
     elif eval_type == "hnn":
         def model_hamiltonian(p, q):
             stacked_input = torch.cat([p, q], dim=-1)
             return net.time_derivative(stacked_input)
         time_deriv_func = model_hamiltonian
+        time_deriv_method = METHOD_HNET
+    elif eval_type == "mlp":
+        # Use the time_derivative
+        def model_time_deriv(x):
+            # x ordered (p, q)
+            return net(x)
+        time_deriv_func = model_time_deriv
+        time_deriv_method = METHOD_DIRECT_DERIV
     else:
         logger.error(f"Invalid evaluation type: {eval_type}")
         raise ValueError(f"Invalid evaluation type: {eval_type}")
@@ -93,7 +103,7 @@ def run_phase(base_dir, out_dir, phase_args):
             p0,
             q0,
             model=time_deriv_func,
-            method=METHOD_HNET,
+            method=time_deriv_method,
             T=num_time_steps,
             dt=time_step_size,
             volatile=True,
