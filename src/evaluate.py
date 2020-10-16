@@ -116,6 +116,8 @@ def run_phase(base_dir, out_dir, phase_args):
         # Remove extraneous batch dimension
         int_res = int_res[0].detach().cpu().numpy()
         integrate_elapsed = time.perf_counter() - integrate_start
+        # Split the integration result
+        int_p, int_q = np.split(int_res, 2, axis=1)
 
         # Compute errors and other statistics
         true = torch.cat([p, q], axis=-1)[0].detach().cpu().numpy()
@@ -126,6 +128,8 @@ def run_phase(base_dir, out_dir, phase_args):
             traj_name: int_res,
             f"{traj_name}_relerr_l2": rel_l2,
             f"{traj_name}_raw_l2": raw_l2,
+            f"{traj_name}_p": int_p,
+            f"{traj_name}_q": int_q,
         }
 
         int_stats = {
@@ -134,6 +138,8 @@ def run_phase(base_dir, out_dir, phase_args):
                 "traj": traj_name,
                 "relerr_l2": f"{traj_name}_relerr_l2",
                 "raw_l2": f"{traj_name}_raw_l2",
+                "p": f"{traj_name}_p",
+                "q": f"{traj_name}_q",
             },
             "timing": {
                 "integrate_elapsed": integrate_elapsed
