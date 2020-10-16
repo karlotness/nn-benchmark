@@ -71,6 +71,7 @@ def create_spring_training_sets():
     train_traj, eval_traj = create_spring_trajectories()
     template = {
         "out_dir": None,
+        "exp_name": EXPERIMENT_NAME_BASE,
         "phase": "data_gen",
         "phase_args": {
             "system": "spring",
@@ -128,6 +129,7 @@ def create_wave_training_sets():
     train_traj, eval_traj = create_wave_trajectories()
     template = {
         "out_dir": None,
+        "exp_name": EXPERIMENT_NAME_BASE,
         "phase": "data_gen",
         "phase_args": {
             "system": "wave",
@@ -183,6 +185,7 @@ def create_training_run(train_data_dir, training_type, net_architecture, name_ke
         }
     template = {
         "out_dir": out_dir,
+        "exp_name": EXPERIMENT_NAME_BASE,
         "phase": "train",
         "phase_args": {
             "network": net_architecture,
