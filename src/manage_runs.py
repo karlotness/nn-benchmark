@@ -38,6 +38,10 @@ launch_args.add_argument("--launch_type", type=str, default="auto",
 scan_args = subparsers.add_parser("scan", description="Report on the state of all runs")
 scan_args.add_argument("root_directory", type=str,
                        help="Path to directory tree of run descriptions")
+scan_args.add_argument("--delete", type=str,
+                       default=None,
+                       choices=["incomplete", "mismatch"],
+                       help="Optionally clean up runs with the given error state")
 
 
 class RunState(enum.Enum):
@@ -106,7 +110,16 @@ def get_out_dir_conflicts(root_directory):
     return conflicts
 
 
-def do_scan(root_directory):
+def delete_run_outputs(root_directory, runs):
+    for run_descr_path in runs:
+        with open(run_descr_path, "r", encoding="utf8") as run_descr_file:
+            run_descr = json.load(run_descr_file)
+        out_dir = root_directory / pathlib.Path(run_descr["out_dir"])
+        if out_dir.is_dir():
+            shutil.rmtree(out_dir)
+
+
+def do_scan(root_directory, delete_type):
     if not root_directory.is_dir():
         raise ValueError(f"{root_directory} is not an existing directory")
 
@@ -152,6 +165,18 @@ def do_scan(root_directory):
     print("{:5} runs incomplete (still running or failed)".format(counts[RunState.INCOMPLETE]))
     print("")
     print("Found {} output directories with conflicts".format(len(conflicts)))
+
+    if delete_type == "incomplete":
+        print("Deleting incomplete runs")
+        delete_run_outputs(root_directory, incomplete_runs)
+    elif delete_type == "mismatch":
+        print("Deleting mismatched runs")
+        delete_run_outputs(root_directory, no_match_runs)
+    elif delete_type is None:
+        # Do nothing
+        pass
+    else:
+        raise ValueError(f"Invalid type to delete {delete_type}")
 
 
 def select_launch_method(user_preference):
@@ -273,7 +298,7 @@ if __name__ == "__main__":
 
     if command == "scan":
         # Scan for states of all run descriptions
-        do_scan(root_directory)
+        do_scan(root_directory, args.delete)
     elif command == "launch":
         # Check states and launch outstanding runs
         phase = args.phase
