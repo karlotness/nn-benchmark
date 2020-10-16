@@ -9,6 +9,7 @@ from train import select_device, TRAIN_DTYPES
 import methods
 import dataset
 import integrators
+from systems import spring, wave
 
 
 METHOD_HNET = 5
@@ -123,6 +124,21 @@ def run_phase(base_dir, out_dir, phase_args):
         true = torch.cat([p, q], axis=-1)[0].detach().cpu().numpy()
         raw_l2 = raw_err(approx=int_res, true=true, norm=2)
         rel_l2 = rel_err(approx=int_res, true=true, norm=2)
+
+        # Compute hamiltonians
+        # Compute the true hamiltonians
+        if eval_dataset.system == "spring":
+            system = spring.SpringSystem()
+        elif eval_dataset.system == "wave":
+            n_grid = eval_dataset.system_metadata["n_grid"]
+            space_max = eval_dataset.system_metadata["space_max"]
+            wave_speed = trajectory.trajectory_meta["wave_speed"][0].item()
+            system = wave.WaveSystem(n_grid=n_grid,
+                                     space_max=space_max,
+                                     wave_speed=wave_speed)
+        else:
+            raise ValueError(f"Unknown system type {eval_dataset.system}")
+        # All combinations true/net hamiltonian on true/net trajectories
 
         int_numpy_arrays = {
             traj_name: int_res,
