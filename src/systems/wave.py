@@ -45,10 +45,7 @@ class WaveSystem(System):
         self.k = _get_k(n_grid=n_grid, space_max=space_max, wave_speed=wave_speed)
 
     def hamiltonian(self, coord):
-        if len(coord.shape) == 2:
-            q, p = coord[0], coord[1]
-        else:
-            q, p = coord[:, 0], coord[:, 1]
+        p, q = np.split(coord, 2, axis=-1)
 
         denom = 4 * self.d_x**2
         q_m1 = np.roll(q, shift=1, axis=-1)
