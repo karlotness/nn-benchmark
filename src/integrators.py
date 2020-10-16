@@ -1,6 +1,5 @@
 import torch
 from torch.autograd import grad
-from contextlib import nullcontext
 
 
 def leapfrog(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
@@ -72,7 +71,7 @@ def leapfrog(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu')
     return trajectories
 
 
-def euler(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu', use_tqdm=False):
+def euler(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
 
     trajectories = torch.empty((T, p_0.shape[0], 2 * p_0.shape[1]), requires_grad=False).to(device)
 
@@ -81,10 +80,7 @@ def euler(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu', us
     p.requires_grad_()
     q.requires_grad_()
 
-    if use_tqdm:
-        range_of_for_loop = tqdm(range(T))
-    else:
-        range_of_for_loop = range(T)
+    range_of_for_loop = range(T)
 
     if is_Hamilt:
 
