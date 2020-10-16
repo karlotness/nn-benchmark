@@ -39,6 +39,10 @@ def create_dataset(base_dir, data_args):
     return data_set, loader
 
 
+def raw_err(approx, true, norm=2):
+    err = np.linalg.norm(approx - true, ord=norm, axis=1)
+    return err
+
 def rel_err(approx, true, norm=2):
     num = np.linalg.norm(approx - true, ord=norm, axis=1)
     denom = np.linalg.norm(true, ord=norm, axis=1)
@@ -115,11 +119,13 @@ def run_phase(base_dir, out_dir, phase_args):
 
         # Compute errors and other statistics
         true = torch.cat([p, q], axis=-1)[0].detach().cpu().numpy()
+        raw_l2 = raw_err(approx=int_res, true=true, norm=2)
         rel_l2 = rel_err(approx=int_res, true=true, norm=2)
 
         int_numpy_arrays = {
             traj_name: int_res,
             f"{traj_name}_relerr_l2": rel_l2,
+            f"{traj_name}_raw_l2": raw_l2,
         }
 
         int_stats = {
@@ -127,6 +133,7 @@ def run_phase(base_dir, out_dir, phase_args):
             "file_names": {
                 "traj": traj_name,
                 "relerr_l2": f"{traj_name}_relerr_l2",
+                "raw_l2": f"{traj_name}_raw_l2",
             },
             "timing": {
                 "integrate_elapsed": integrate_elapsed
