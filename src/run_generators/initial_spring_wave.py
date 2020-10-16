@@ -294,6 +294,28 @@ def create_train_runs(train_sets):
     return train_runs
 
 
+def create_eval_run(trained_net, eval_set, eval_type):
+    name_suffix = "-".join(trained_net.split("_")[1].split("-")[1:])
+    file_name = f"{EXPERIMENT_NAME_BASE}_eval-{name_suffix}"
+    template = {
+        "out_dir": f"run/eval/{EXPERIMENT_NAME_BASE}_eval-{name_suffix}",
+        "exp_name": EXPERIMENT_NAME_BASE,
+        "phase": "eval",
+        "phase_args": {
+            "eval_net": trained_net,
+            "eval_data": {
+                "data_dir": eval_set,
+            },
+            "eval": {
+                "eval_type": eval_type,
+                "integrator": "leapfrog",
+                "eval_dtype": "float",
+                "try_gpu": False
+            }
+        }
+    }
+    return file_name, template
+
 
 def write_json_file(base_dir, dest_file, contents):
     dest_file = pathlib.Path(dest_file)
@@ -329,5 +351,19 @@ if __name__ == "__main__":
 
     # Generate evaluation tasks
     # Evaluate all networks on the single evaluation set for each system
+    for _dest_file, contents, out_dir in training_tasks:
+        trained_net = out_dir
+        base_data_name = str(out_dir).split("_")[-1]
+        eval_type = contents["phase_args"]["training"]["train_type"]
+        system_type = "spring"
+        if "wave" in str(base_data_name):
+            system_type = "wave"
+
+        if system_type == "spring":
+            eval_set = spring_eval_set[2]
+        elif system_type == "wave":
+            eval_set = wave_eval_set[2]
+        file_name, eval_contents = create_eval_run(trained_net, eval_set, eval_type)
+        write_json_file(base_dir, "descr/eval/"+file_name+".json", eval_contents)
 
     # Save evaluation training tasks
