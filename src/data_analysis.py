@@ -19,6 +19,9 @@ df_columns=[
         "method_name",
         "integrator_name",
         "precision_type",
+        "num_train_trajectories",
+        "num_eval_trajectories",
+        "num_epochs",
         "inference_time",
         "ground_truth_trajectory",
         "inferred_trajectory",
@@ -38,12 +41,23 @@ def build_dataframe(dir_prefix):
             results_metadata = json.load(file_)
         with (path / metadata["phase_args"]["eval_data"]["data_dir"] / "system_meta.json").open() as file_:
             system_metadata = json.load(file_)
-
+        with (path / metadata["phase_args"]["eval_net"] / "train_stats.json").open() as file_:
+            train_stats = json.load(file_)
+        with (path / metadata["phase_args"]["eval_net"] / "model.json").open() as file_:
+            model_config = json.load(file_)
+        with (path / metadata["phase_args"]["eval_net"] / "launch" / "run_description.json").open() as file_:
+            train_run_description = json.load(file_)
+        with (path / train_run_description["phase_args"]["train_data"]["data_dir"] / "system_meta.json").open() as file_:
+            train_system_metadata = json.load(file_)
+            
         experiment_name = metadata["out_dir"]
         system_name = system_metadata["system"]
         method_name = metadata["phase_args"]["eval"]["eval_type"]
         integrator_name = metadata["phase_args"]["eval"]["integrator"]
         precision_type = metadata["phase_args"]["eval"]["eval_dtype"]
+        num_train_trajectories = len(train_system_metadata["system_args"]["trajectory_defs"])
+        num_eval_trajectories = len(system_metadata["system_args"]["trajectory_defs"])
+        num_epochs = train_stats["num_epochs"]
         inference_time = np.mean([
             i["timing"]["integrate_elapsed"] 
             for i in results_metadata["integration_stats"]
@@ -73,6 +87,9 @@ def build_dataframe(dir_prefix):
             method_name,
             integrator_name,
             precision_type,
+            num_train_trajectories,
+            num_eval_trajectories,
+            num_epochs,
             inference_time,
             ground_truth_trajectory,
             inferred_trajectory,
