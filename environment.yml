@@ -3,6 +3,7 @@ channels:
   - pytorch
   - defaults
 dependencies:
+  - absl-py
   - python=3.8
   - scipy
   - pytorch=1.6.0
