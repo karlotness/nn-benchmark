@@ -19,6 +19,8 @@ df_columns=[
         "method_name",
         "integrator_name",
         "precision_type",
+        "network_hidden_dim",
+        "network_depth",
         "num_train_trajectories",
         "num_eval_trajectories",
         "num_epochs",
@@ -55,6 +57,13 @@ def build_dataframe(dir_prefix):
         method_name = metadata["phase_args"]["eval"]["eval_type"]
         integrator_name = metadata["phase_args"]["eval"]["integrator"]
         precision_type = metadata["phase_args"]["eval"]["eval_dtype"]
+        if method_name == "hnn":
+            network_hidden_dim = model_config["arch_args"]["base_model_args"]["hidden_dim"]
+            network_depth = model_config["arch_args"]["base_model_args"]["depth"]
+        else:
+            network_hidden_dim = model_config["arch_args"]["hidden_dim"]
+            network_depth = model_config["arch_args"]["depth"]
+            
         num_train_trajectories = len(train_system_metadata["system_args"]["trajectory_defs"])
         num_eval_trajectories = len(system_metadata["system_args"]["trajectory_defs"])
         num_epochs = train_stats["num_epochs"]
@@ -87,6 +96,8 @@ def build_dataframe(dir_prefix):
             method_name,
             integrator_name,
             precision_type,
+            network_hidden_dim,
+            network_depth,
             num_train_trajectories,
             num_eval_trajectories,
             num_epochs,
