@@ -128,13 +128,9 @@ def main(argv):
 
     print("Aggregate dataframe has {} entries".format(len(df_dict["aggregate_data"])))
 
-    print(df_dict["aggregate_data"])
-    print(df_dict["ground_truth_data"])
-    print(df_dict["inferred_data"])
-
     if FLAGS.output_dir:
-        with open(os.path.join(FLAGS.output_dir, "dataframe.pkl"), "wb") as file_:
-            pickle.dump(df_dict, file_)
+        for k, v in df_dict.iteritems():
+            v.to_pickle(os.path.join(FLAGS.output_dir, k + ".pkl"))
 
 if __name__ == "__main__":
     app.run(main)
