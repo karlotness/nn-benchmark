@@ -6,6 +6,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from absl import app
 from absl import flags
+import pickle
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string("root_dir",
@@ -13,7 +14,7 @@ flags.DEFINE_string("root_dir",
                     "Root directory that contains the logged data.")
 flags.DEFINE_string("output_dir", None, "Directory to output the dataframe.")
 
-def get_keyed_dict():
+def get_aggregate_data_dict():
     return {
         "experiment_name" : None,
         "system_name" : None,
@@ -26,14 +27,30 @@ def get_keyed_dict():
         "num_eval_trajectories" : None,
         "num_epochs" : None,
         "inference_time" : None,
-        "ground_truth_trajectory" : None,
-        "inferred_trajectory" : None,
-        "inferred_trajectory_error" : None,
+    }
+
+def get_ground_truth_data_dict(experiment_name=None, trajectory_number=None, timestep_number=None):
+    return {
+            "experiment_name" : experiment_name,
+            "trajectory_number" : trajectory_number, 
+            "timestep_number" : timestep_number, 
+            "ground_truth_data" : None,
+    }
+
+def get_inferred_data_dict(experiment_name=None, trajectory_number=None, timestep_number=None):
+    return {
+            "experiment_name" : experiment_name,
+            "trajectory_number" : trajectory_number, 
+            "timestep_number" : timestep_number, 
+            "inferred_data" : None,
+            "relerr_l2" : None,
     }
 
 
 def build_dataframe(dir_prefix):
-    df = pandas.DataFrame(columns=get_keyed_dict().keys())
+    aggregate_data_df = pandas.DataFrame(columns=get_aggregate_data_dict().keys())
+    ground_truth_data_df = pandas.DataFrame(columns=get_ground_truth_data_dict().keys())
+    inferred_data_df = pandas.DataFrame(columns=get_inferred_data_dict().keys())
 
     path = Path(dir_prefix)
 
@@ -53,19 +70,19 @@ def build_dataframe(dir_prefix):
         with (path / train_run_description["phase_args"]["train_data"]["data_dir"] / "system_meta.json").open() as file_:
             train_system_metadata = json.load(file_)
 
-        df_row_dict = get_keyed_dict()
+        df_row_dict = get_aggregate_data_dict()
 
-       df_row_dict["experiment_name"] = metadata["out_dir"]
-       df_row_dict["system_name"] = system_metadata["system"]
-       df_row_dict["method_name"] = metadata["phase_args"]["eval"]["eval_type"]
-       df_row_dict["integrator_name"] = metadata["phase_args"]["eval"]["integrator"]
-       df_row_dict["precision_type"] = metadata["phase_args"]["eval"]["eval_dtype"]
-        if method_name == "hnn":
+        df_row_dict["experiment_name"] = metadata["out_dir"]
+        df_row_dict["system_name"] = system_metadata["system"]
+        df_row_dict["method_name"] = metadata["phase_args"]["eval"]["eval_type"]
+        df_row_dict["integrator_name"] = metadata["phase_args"]["eval"]["integrator"]
+        df_row_dict["precision_type"] = metadata["phase_args"]["eval"]["eval_dtype"]
+        if df_row_dict["method_name"] == "hnn":
             df_row_dict["network_hidden_dim"] = model_config["arch_args"]["base_model_args"]["hidden_dim"]
             df_row_dict["network_depth"] = model_config["arch_args"]["base_model_args"]["depth"]
         else:
-            network_hidden_dim = model_config["arch_args"]["hidden_dim"]
-            network_depth = model_config["arch_args"]["depth"]
+            df_row_dict["network_hidden_dim"] = model_config["arch_args"]["hidden_dim"]
+            df_row_dict["network_depth"] = model_config["arch_args"]["depth"]
 
         df_row_dict["num_train_trajectories"] = len(train_system_metadata["system_args"]["trajectory_defs"])
         df_row_dict["num_eval_trajectories"] = len(system_metadata["system_args"]["trajectory_defs"])
@@ -77,50 +94,47 @@ def build_dataframe(dir_prefix):
 
         ground_truth_trajectories = np.load(
             (path / metadata["phase_args"]["eval_data"]["data_dir"] / "trajectories.npz"))
-        df_row_dict["ground_truth_trajectory"] = np.stack([
-            np.stack([
+        for trajectory_index, trajectory in enumerate(system_metadata["trajectories"]):
+            data = np.stack([
                 ground_truth_trajectories[trajectory["field_keys"]["p"]],
-                ground_truth_trajectories[trajectory["field_keys"]["q"]]
+                ground_truth_trajectories[trajectory["field_keys"]["q"]],
             ], axis=-1)
-            for trajectory in system_metadata["trajectories"]
-        ])
+            for time_index in range(data.shape[0]):
+                row = get_ground_truth_data_dict(df_row_dict["experiment_name"], trajectory_index, time_index)
+                row["ground_truth_data"] = data[time_index, ...]
+                ground_truth_data_df = ground_truth_data_df.append(row, ignore_index=True)
 
         inferred_trajectories = np.load(run_description.parent.parent / "integrated_trajectories.npz")
-        df_row_dict["inferred_trajectory"] = np.stack([
-            inferred_trajectories[integration["file_names"]["traj"]]
-            for integration in results_metadata["integration_stats"]])
-        df_row_dict["inferred_trajectory_error"] = np.stack([
-            inferred_trajectories[integration["file_names"]["relerr_l2"]]
-            for integration in results_metadata["integration_stats"]])
+        for trajectory_index, trajectory in enumerate(results_metadata["integration_stats"]):
+            data = np.stack([
+                inferred_trajectories[trajectory["file_names"]["p"]],
+                inferred_trajectories[trajectory["file_names"]["q"]]],
+                axis=-1)
+            for time_index in range(data.shape[0]):
+                row = get_inferred_data_dict(df_row_dict["experiment_name"], trajectory_index, time_index)
+                row["inferred_data"] = data[time_index, ...]
+                row["relerr_l2"] = inferred_trajectories[trajectory["file_names"]["relerr_l2"]][time_index]
+                inferred_data_df = inferred_data_df.append(row, ignore_index=True)
 
-        row_entry = [
-            experiment_name,
-            system_name,
-            method_name,
-            integrator_name,
-            precision_type,
-            network_hidden_dim,
-            network_depth,
-            num_train_trajectories,
-            num_eval_trajectories,
-            num_epochs,
-            inference_time,
-            ground_truth_trajectory,
-            inferred_trajectory,
-            inferred_trajectory_error,
-        ]
+        aggregate_data_df = aggregate_data_df.append(df_row_dict, ignore_index=True)
+        print("Processed example {}".format(run_index))
 
-        df.loc[run_index] = df_row_dict.values()
-
-    return df
+    return {"aggregate_data" : aggregate_data_df, 
+            "ground_truth_data" : ground_truth_data_df, 
+            "inferred_data" : inferred_data_df}
 
 def main(argv):
-    df = build_dataframe(FLAGS.root_dir)
+    df_dict = build_dataframe(FLAGS.root_dir)
 
-    print("Dataframe has {} entries".format(len(df)))
+    print("Aggregate dataframe has {} entries".format(len(df_dict["aggregate_data"])))
+
+    print(df_dict["aggregate_data"])
+    print(df_dict["ground_truth_data"])
+    print(df_dict["inferred_data"])
 
     if FLAGS.output_dir:
-        df.to_pickle(os.path.join(FLAGS.output_dir, "dataframe.pkl"))
+        with open(os.path.join(FLAGS.output_dir, "dataframe.pkl"), "wb") as file_:
+            pickle.dump(df_dict, file_)
 
 if __name__ == "__main__":
     app.run(main)
