@@ -132,7 +132,7 @@ def build_dataframe(dir_prefix, processes):
 
     path = Path(dir_prefix)
 
-    pool = multiprocessing.Pool(64)
+    pool = multiprocessing.Pool(processes)
     results = pool.map(build_experiment_dataframe, itertools.product([path], path.glob("run/eval/*/launch/run_description.json")))
 
     aggregate_data_df = pandas.concat([agg for agg, _, _ in results], ignore_index=True)
