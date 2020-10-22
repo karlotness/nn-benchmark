@@ -75,12 +75,18 @@ def run_phase(base_dir, out_dir, phase_args):
     if eval_type == "srnn":
         time_deriv_func = net
         time_deriv_method = METHOD_HNET
+        hamiltonian_func = net
     elif eval_type == "hnn":
+        def model_time_deriv(x):
+            res = net.time_derivative(x)
+            return res
         def model_hamiltonian(p, q):
-            stacked_input = torch.cat([p, q], dim=-1)
-            return net.time_derivative(stacked_input)
-        time_deriv_func = model_hamiltonian
-        time_deriv_method = METHOD_HNET
+            x = torch.cat([p, q], dim=-1)
+            hamilt = net(x)
+            return hamilt[0] + hamilt[1]
+        time_deriv_func = model_time_deriv
+        time_deriv_method = METHOD_DIRECT_DERIV
+        hamiltonian_func = model_hamiltonian
     elif eval_type == "mlp":
         # Use the time_derivative
         def model_time_deriv(x):
@@ -140,16 +146,16 @@ def run_phase(base_dir, out_dir, phase_args):
             raise ValueError(f"Unknown system type {eval_dataset.system}")
 
         # Compute true hamiltonians
-        true_hamilt_true_traj = system.hamiltonian(true)
-        true_hamilt_net_traj = system.hamiltonian(int_res)
+        true_hamilt_true_traj = system.hamiltonian(true).squeeze()
+        true_hamilt_net_traj = system.hamiltonian(int_res).squeeze()
         # Compute network hamiltonians
         net_hamilt_true_traj, net_hamilt_net_traj = None, None
         if eval_type in ("srnn", "hnn"):
-            net_hamilt_true_traj = time_deriv_func(p=p[0], q=q[0]).sum(axis=-1).detach().cpu().numpy()
+            net_hamilt_true_traj = hamiltonian_func(p=p[0], q=q[0]).sum(axis=-1).detach().cpu().numpy()
             int_p_torch, int_q_torch = np.split(int_res, 2, axis=-1)
             int_p_torch = torch.from_numpy(int_p_torch).to(device, dtype=eval_dtype)
             int_q_torch = torch.from_numpy(int_q_torch).to(device, dtype=eval_dtype)
-            net_hamilt_net_traj = time_deriv_func(p=int_p_torch, q=int_q_torch).sum(axis=-1).detach().cpu().numpy()
+            net_hamilt_net_traj = hamiltonian_func(p=int_p_torch, q=int_q_torch).sum(axis=-1).detach().cpu().numpy()
 
         # All combinations true/net hamiltonian on true/net trajectories
 
