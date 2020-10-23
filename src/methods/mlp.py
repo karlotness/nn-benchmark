@@ -18,19 +18,13 @@ class MLP(torch.nn.Module):
         return self.ops(x)
 
 
-def build_mlp(input_dim, base_model_args):
-    hidden_dim = base_model_args["hidden_dim"]
-    output_dim = base_model_args["output_dim"]
-    depth = base_model_args["depth"]
-    nonlinearity = NONLINEARITIES[base_model_args["nonlinearity"]]
-    return MLP(input_dim=input_dim, hidden_dim=hidden_dim,
-               output_dim=output_dim, depth=depth,
-               nonlinearity=nonlinearity)
-
-
 def build_network(arch_args):
     input_dim = arch_args["input_dim"]
-    base_model_args = arch_args["base_model_args"]
-    mlp = build_mlp(input_dim=input_dim, base_model_args=base_model_args)
-
+    hidden_dim = arch_args["hidden_dim"]
+    output_dim = arch_args["output_dim"]
+    depth = arch_args["depth"]
+    nonlinearity = NONLINEARITIES[arch_args["nonlinearity"]]
+    mlp = MLP(input_dim=input_dim, hidden_dim=hidden_dim,
+              output_dim=output_dim, depth=depth,
+              nonlinearity=nonlinearity)
     return mlp

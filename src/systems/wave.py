@@ -45,10 +45,7 @@ class WaveSystem(System):
         self.k = _get_k(n_grid=n_grid, space_max=space_max, wave_speed=wave_speed)
 
     def hamiltonian(self, coord):
-        if len(coord.shape) == 2:
-            q, p = coord[0], coord[1]
-        else:
-            q, p = coord[:, 0], coord[:, 1]
+        p, q = np.split(coord, 2, axis=-1)
 
         denom = 4 * self.d_x**2
         q_m1 = np.roll(q, shift=1, axis=-1)
@@ -64,16 +61,20 @@ class WaveSystem(System):
         orig_shape = coord.shape
         return (coord.reshape((-1, 2 * self.n_grid)) @ self.k.T).reshape(orig_shape)
 
-    def generate_trajectory(self, x0, num_time_steps, time_step_size):
-        num_steps = num_time_steps
+    def generate_trajectory(self, x0, num_time_steps, time_step_size, subsample=1):
+        # Process arguments for subsampling
+        num_steps = num_time_steps * subsample
+        time_step_size = time_step_size / subsample
+
         eqn_known, eqn_unknown = _build_update_matrices(n_grid=self.n_grid, space_max=self.space_max,
                                                         wave_speed=self.wave_speed, time_step=time_step_size)
         steps = [x0]
         step = x0
-        for _ in range(num_steps):
+        for _ in range(num_steps - 1):
             step = self._compute_next_step(step, eqn_known, eqn_unknown)
             steps.append(step)
         steps = np.stack(steps)
+        steps = steps[::subsample]
 
         q = steps[:, 0]
         p = steps[:, 1]
@@ -83,6 +84,7 @@ class WaveSystem(System):
         dqdt = derivatives[:, 0]
         dpdt = derivatives[:, 1]
         t_steps = (np.arange(num_steps) * time_step_size).astype(np.float64)
+        t_steps = t_steps[::subsample]
 
         return TrajectoryResult(q=q, p=p, dq_dt=dqdt, dp_dt=dpdt, t_steps=t_steps)
 
@@ -165,13 +167,15 @@ def generate_data(system_args, base_logger=None):
         wave_speed = traj_def["wave_speed"]
         num_time_steps = traj_def["num_time_steps"]
         time_step_size = traj_def["time_step_size"]
+        subsample = int(traj_def.get("subsample", 1))
         system = WaveSystem(n_grid=n_grid, space_max=space_max,
                             wave_speed=wave_speed)
 
         traj_gen_start = time.perf_counter()
         traj_result = system.generate_trajectory(x0=init_cond,
                                                  num_time_steps=num_time_steps,
-                                                 time_step_size=time_step_size)
+                                                 time_step_size=time_step_size,
+                                                 subsample=subsample)
         traj_gen_elapsed = time.perf_counter() - traj_gen_start
         logger.info(f"Generating {traj_name} in {traj_gen_elapsed} sec")
 
@@ -189,6 +193,7 @@ def generate_data(system_args, base_logger=None):
             {"name": traj_name,
              "num_time_steps": num_time_steps,
              "time_step_size": time_step_size,
+             "wave_speed": wave_speed,
              "field_keys": {
                  "p": f"{traj_name}_p",
                  "q": f"{traj_name}_q",
