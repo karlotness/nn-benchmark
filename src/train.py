@@ -7,7 +7,7 @@ import logging
 import json
 import time
 from sklearn import neighbors
-from sklearn.externals import joblib
+import joblib
 
 
 TRAIN_DTYPES = {
@@ -70,31 +70,17 @@ def run_phase(base_dir, out_dir, phase_args):
     network_args = phase_args["network"]
     net = methods.build_network(network_args)
 
-    # Construct the optimizer
-    logger.info("Creating optimizer")
-    optimizer = training_args["optimizer"]
-    optim_args = training_args["optimizer_args"]
-    optim = create_optimizer(net, optimizer, optim_args)
-
     # Load the data
     logger.info("Constructing dataset")
     train_dataset, train_loader = create_dataset(base_dir, phase_args["train_data"])
 
-    # Misc training parameters
-    max_epochs = training_args["max_epochs"]
-    device = select_device(try_gpu=training_args["try_gpu"], base_logger=logger)
-    train_dtype = TRAIN_DTYPES[training_args.get("train_dtype", "float")]
-    logger.info(f"Training in dtype {train_dtype}")
-    train_type = training_args["train_type"]  # hnn or srnn. TODO: handle
-    train_type_args = training_args["train_type_args"]
-
+    # If training a knn_regressor, this is all we need.
     if train_type == "knn_regressor":
-        net = neighbors.KNeighborsRegressor(n_neighbors=5)
-
         logger.info("Starting fitting of dataset for KNN Regressor.")
 
         data = np.stack([np.stack([batch.p, batch.q, batch.dp, batch.dq], axis=-1)
                       for batch in train_loader], axis=0)
+        print(data.shape)
         net.fit(data[..., 0:2], data[..., 2:4])
 
         logger.info("Finished fitting of dataset for KNN Regressor.")
@@ -107,7 +93,20 @@ def run_phase(base_dir, out_dir, phase_args):
 
         return
 
+    # Construct the optimizer
+    logger.info("Creating optimizer")
+    optimizer = training_args["optimizer"]
+    optim_args = training_args["optimizer_args"]
+    optim = create_optimizer(net, optimizer, optim_args)
 
+    # Misc training parameters
+    max_epochs = training_args["max_epochs"]
+    device = select_device(try_gpu=training_args["try_gpu"], base_logger=logger)
+    train_dtype = TRAIN_DTYPES[training_args.get("train_dtype", "float")]
+    logger.info(f"Training in dtype {train_dtype}")
+    train_type = training_args["train_type"]  # hnn or srnn. TODO: handle
+    train_type_args = training_args["train_type_args"]
+    
     # Move network to device and convert to dtype
     net = net.to(device, dtype=train_dtype)
 
