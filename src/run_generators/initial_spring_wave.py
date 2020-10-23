@@ -257,15 +257,26 @@ def create_srnn_net(input_dim, hidden_dim, output_dim, depth):
     }
 
 
+def create_knn_regresor_net(input_dim, output_dim):
+    return {
+        "arch": "knn_regressor",
+        "arch_args": {
+            "input_dim": input_dim,
+            "output_dim": output_dim,
+        }
+    }
+
+
 def create_train_runs(train_sets):
     types = {
         "srnn": create_srnn_net,
         "hnn": create_hnn_net,
         "mlp": create_mlp_net,
+        "knn_regressor": create_knn_regressor_net,
     }
     train_sets = list(train_sets)
     train_runs = []
-    for net_type in ["srnn", "hnn", "mlp"]:
+    for net_type in ["srnn", "hnn", "mlp", "knn_regressor"]:
         net_func = types[net_type]
         for _dest_file, _contents, train_out_dir in train_sets:
             train_set_size = int(train_out_dir.split("-")[-1])
@@ -281,16 +292,24 @@ def create_train_runs(train_sets):
                 output_dim = 2
                 if net_type == "mlp":
                     output_dim = input_dim
-                net = net_func(input_dim=input_dim,
-                               hidden_dim=hidden,
-                               output_dim=output_dim,
-                               depth=depth)
-                name_key = f"{system_type}-{net_type}-d{depth}-h{hidden}-{train_set_size}"
+                if net_type == "knn_regressor":
+                    net = net_func(input_dim=input_dim,
+                                   output_dim=output_dim)
+                    name_key = f"{system_type}-{net_type}-{train_set_size}"
+                else:
+                    net = net_func(input_dim=input_dim,
+                                   hidden_dim=hidden,
+                                   output_dim=output_dim,
+                                   depth=depth)
+                    name_key = f"{system_type}-{net_type}-d{depth}-h{hidden}-{train_set_size}"
                 run = create_training_run(train_data_dir=train_out_dir,
                                           training_type=net_type,
                                           net_architecture=net,
                                           name_key=name_key)
                 train_runs.append(run)
+                # Only add knn_regressor once.
+                if net_type == "knn_regressor":
+                    break
     return train_runs
 
 
