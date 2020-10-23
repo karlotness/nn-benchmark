@@ -53,9 +53,9 @@ def get_inferred_data_dict(experiment_name=None, trajectory_number=None, timeste
 def build_experiment_dataframe(input_args):
     path, run_description = input_args
 
-    aggregate_data_df = pandas.DataFrame(columns=get_aggregate_data_dict().keys())
-    ground_truth_data_df = pandas.DataFrame(columns=get_ground_truth_data_dict().keys())
-    inferred_data_df = pandas.DataFrame(columns=get_inferred_data_dict().keys())
+    aggregate_data_df = []
+    ground_truth_data_df = []
+    inferred_data_df = []
 
     with run_description.open() as file_:
         metadata = json.load(file_)
@@ -104,7 +104,7 @@ def build_experiment_dataframe(input_args):
         for time_index in range(data.shape[0]):
             row = get_ground_truth_data_dict(df_row_dict["experiment_name"], trajectory_index, time_index)
             row["ground_truth_data"] = data[time_index, ...]
-            ground_truth_data_df = ground_truth_data_df.append(row, ignore_index=True)
+            ground_truth_data_df.append(row)
 
     inferred_trajectories = np.load(run_description.parent.parent / "integrated_trajectories.npz")
     for trajectory_index, trajectory in enumerate(results_metadata["integration_stats"]):
@@ -116,9 +116,9 @@ def build_experiment_dataframe(input_args):
             row = get_inferred_data_dict(df_row_dict["experiment_name"], trajectory_index, time_index)
             row["inferred_data"] = data[time_index, ...]
             row["relerr_l2"] = inferred_trajectories[trajectory["file_names"]["relerr_l2"]][time_index]
-            inferred_data_df = inferred_data_df.append(row, ignore_index=True)
+            inferred_data_df.append(row)
 
-    aggregate_data_df = aggregate_data_df.append(df_row_dict, ignore_index=True)
+    aggregate_data_df.append(df_row_dict)
     print("Processed example at {}".format(run_description))
 
     return aggregate_data_df, ground_truth_data_df, inferred_data_df
@@ -132,12 +132,12 @@ def build_dataframe(dir_prefix, processes):
 
     path = Path(dir_prefix)
 
-    pool = multiprocessing.Pool(processes)
-    results = pool.map(build_experiment_dataframe, itertools.product([path], path.glob("run/eval/*/launch/run_description.json")))
+    with multiprocessing.Pool(processes) as pool:
+        results = pool.map(build_experiment_dataframe, itertools.product([path], path.glob("run/eval/*/launch/run_description.json")))
 
-    aggregate_data_df = pandas.concat([agg for agg, _, _ in results], ignore_index=True)
-    ground_truth_data_df = pandas.concat([ground for _, ground, _ in results], ignore_index=True)
-    inferred_data_df = pandas.concat([inferred for _, _, inferred in results], ignore_index=True)
+    aggregate_data_df = pandas.DataFrame.from_records(itertools.chain([agg for agg, _, _ in results]))
+    ground_truth_data_df = pandas.DataFrame.from_records(itertools.chain([ground for _, ground, _ in results]))
+    inferred_data_df = pandas.DataFrame.from_records(itertools.chain([inferred for _, _, inferred in results]))
 
     return {"aggregate_data" : aggregate_data_df, 
             "ground_truth_data" : ground_truth_data_df, 
