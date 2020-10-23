@@ -100,13 +100,20 @@ def run_phase(base_dir, out_dir, phase_args):
     if train_type == "knn_regressor":
         logger.info("Starting fitting of dataset for KNN Regressor.")
 
-        data = np.stack([np.stack([batch.p, batch.q, batch.dp_dt, batch.dq_dt], axis=-1)
-                      for batch in train_loader], axis=0)
-        data = data.reshape([-1, 4])
-        print(data.shape)
-        net.fit(data[..., 0:2], data[..., 2:4])
+        data_x = []
+        data_y = []
+        for batch in train_loader:
+            data_x.append(np.concatenate([batch.p, batch.q], axis=-1))
+            data_y.append(np.concatenate([batch.dp_dt, batch.dq_dt], axis=-1))
+        data_x = np.concatenate(data_x, axis=0)
+        data_y = np.concatenate(data_y, axis=0)
+
+        net.fit(data_x, data_y)
 
         logger.info("Finished fitting of dataset for KNN Regressor.")
+
+        total_epoch_count = 1
+        epoch_stats = {}
 
     else:
         # Construct the optimizer
