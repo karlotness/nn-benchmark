@@ -24,13 +24,13 @@ class HNN(torch.nn.Module):
 
         if self.field_type != "solenoidal":
             d_f1 = torch.autograd.grad(f1.sum(), x, create_graph=True)[0]
-            conservative_field = d_f1 @ torch.eye(*self._permute_mat.shape)
+            conservative_field = d_f1 @ torch.eye(*self._permute_mat.shape, device=d_f1.device)
         else:
             conservative_field = torch.zeros_like(x)
 
         if self.field_type != "conservative":
             d_f2 = torch.autograd.grad(f2.sum(), x, create_graph=True)[0]
-            solenoidal_field = d_f2 @ self._permute_mat.t()
+            solenoidal_field = d_f2 @ self._permute_mat.t().to(d_f2.device)
         else:
             solenoidal_field = torch.zeros_like(x)
 
