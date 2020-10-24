@@ -82,6 +82,9 @@ def build_experiment_dataframe(input_args):
     if df_row_dict["method_name"] == "hnn":
         df_row_dict["network_hidden_dim"] = model_config["arch_args"]["base_model_args"]["hidden_dim"]
         df_row_dict["network_depth"] = model_config["arch_args"]["base_model_args"]["depth"]
+    elif df_row_dict["method_name"] == "knn_regressor":
+        df_row_dict["network_hidden_dim"] = None
+        df_row_dict["network_depth"] = None
     else:
         df_row_dict["network_hidden_dim"] = model_config["arch_args"]["hidden_dim"]
         df_row_dict["network_depth"] = model_config["arch_args"]["depth"]
@@ -135,9 +138,9 @@ def build_dataframe(dir_prefix, processes):
     with multiprocessing.Pool(processes) as pool:
         results = pool.map(build_experiment_dataframe, itertools.product([path], path.glob("run/eval/*/launch/run_description.json")))
 
-    aggregate_data_df = pandas.DataFrame.from_records(itertools.chain([agg for agg, _, _ in results]))
-    ground_truth_data_df = pandas.DataFrame.from_records(itertools.chain([ground for _, ground, _ in results]))
-    inferred_data_df = pandas.DataFrame.from_records(itertools.chain([inferred for _, _, inferred in results]))
+    aggregate_data_df = aggregate_data_df.from_records(itertools.chain(*[agg for agg, _, _ in results]))
+    ground_truth_data_df = ground_truth_data_df.from_records(itertools.chain(*[ground for _, ground, _ in results]))
+    inferred_data_df = inferred_data_df.from_records(itertools.chain(*[inferred for _, _, inferred in results]))
 
     return {"aggregate_data" : aggregate_data_df, 
             "ground_truth_data" : ground_truth_data_df, 
