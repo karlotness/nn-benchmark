@@ -10,13 +10,14 @@ import methods
 import dataset
 import integrators
 from systems import spring, wave
+import joblib
 
 
 METHOD_HNET = 5
 METHOD_DIRECT_DERIV = 1
 
 
-def load_network(net_dir, base_dir, base_logger):
+def load_network(net_dir, base_dir, eval_type, base_logger):
     logger = base_logger.getChild("load_network")
     # Load metadata
     net_dir = base_dir / pathlib.Path(net_dir)
@@ -28,7 +29,11 @@ def load_network(net_dir, base_dir, base_logger):
     net = methods.build_network(metadata)
     # Load weights
     weight_path = net_dir / "model.pt"
-    net.load_state_dict(torch.load(net_dir / "model.pt", map_location="cpu"))
+    if eval_type == "knn_regressor":
+        with open(net_dir / "model.pt", "rb") as model_file:
+            net = joblib.load(model_file)
+    else:
+        net.load_state_dict(torch.load(net_dir / "model.pt", map_location="cpu"))
     logger.info(f"Loaded weights from {weight_path}")
     return net
 
@@ -58,18 +63,19 @@ def run_phase(base_dir, out_dir, phase_args):
 
     # Choose the device and dtype
     device = select_device(try_gpu=eval_args["try_gpu"], base_logger=logger)
+    eval_type = eval_args["eval_type"]
     eval_dtype = TRAIN_DTYPES[eval_args.get("eval_dtype", "float")]
 
     # Load the network
-    net = load_network(phase_args["eval_net"], base_dir=base_dir, base_logger=logger)
-    net = net.to(device, dtype=eval_dtype)
+    net = load_network(phase_args["eval_net"], base_dir=base_dir, eval_type=eval_type, base_logger=logger)
+    if eval_type != "knn_regressor":
+        net = net.to(device, dtype=eval_dtype)
 
     # Load the evaluation data
     eval_dataset, eval_loader = create_dataset(base_dir, phase_args["eval_data"])
 
     # Integrate each trajectory, compute stats and store
     logger.info("Starting evaluation")
-    eval_type = eval_args["eval_type"]
     integrator_type = eval_args["integrator"]
 
     if eval_type == "srnn":
@@ -92,6 +98,14 @@ def run_phase(base_dir, out_dir, phase_args):
         def model_time_deriv(x):
             # x ordered (p, q)
             return net(x)
+        time_deriv_func = model_time_deriv
+        time_deriv_method = METHOD_DIRECT_DERIV
+    elif eval_type == "knn_regressor":
+        # Use the time_derivative
+        def model_time_deriv(x):
+            # x ordered (p, q)
+            x = x.detach().cpu().numpy()
+            return torch.from_numpy(net.predict(x))
         time_deriv_func = model_time_deriv
         time_deriv_method = METHOD_DIRECT_DERIV
     else:
