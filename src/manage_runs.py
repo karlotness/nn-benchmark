@@ -224,11 +224,11 @@ def do_slurm_launch(run_descr, root_directory):
     gpu_arg = ["--gres=gpu:1"] if slurm_gpu else []
     try:
         subprocess.run(["sbatch",
-                        f"--wrap=\"python3 main.py '{run_descr}' '{root_directory}'\"",
-                        f"--job-name=\"{shortname}\"",
-                        f"--time={slurm_time}",
-                        f"--cpus-per-task={slurm_cpus}",
-                        f"--mem={slurm_mem}GB"]
+                        "--wrap", f"python3 main.py '{run_descr}' '{root_directory}'",
+                        "--job-name", f"{shortname}",
+                        "--time", f"{slurm_time}",
+                        "--cpus-per-task", f"{slurm_cpus}",
+                        "--mem", f"{slurm_mem}GB"]
                        + gpu_arg)
     except subprocess.CalledProcessError:
         print("Slurm launch failed")
