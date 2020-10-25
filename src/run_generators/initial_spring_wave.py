@@ -28,8 +28,6 @@ TRAIN_SET_TRAJ_COUNTS = [25, 100, 250, 500, 750, 1000]
 EVAL_SET_NUM_TRAJ = 25
 ROLLOUT_STEPS = 30
 
-NET_TYPES = ["hnn", "srnn", "mlp"]
-
 # (depth, hidden)
 NET_DEPTHS_CONFIGS = [(3, 200), (3, 500), (2, 500), (2, 2048)]
 
