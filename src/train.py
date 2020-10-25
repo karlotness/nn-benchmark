@@ -6,10 +6,8 @@ import dataset
 import logging
 import json
 import time
-from sklearn import neighbors
 import joblib
 import integrators
-import time
 import numpy as np
 
 
