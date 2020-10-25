@@ -225,7 +225,7 @@ def do_slurm_launch(run_descr, root_directory):
     try:
         subprocess.run(["sbatch",
                         f"--wrap=\"python3 main.py '{run_descr}' '{root_directory}'\"",
-                        f"--job_name=\"{shortname}\"",
+                        f"--job-name=\"{shortname}\"",
                         f"--time={slurm_time}",
                         f"--cpus-per-task={slurm_cpus}",
                         f"--mem={slurm_mem}GB"]
