@@ -12,8 +12,8 @@ import numpy as np
 
 
 TRAIN_DTYPES = {
-    "float": torch.float,
-    "double": torch.double,
+    "float": (torch.float, np.float32),
+    "double": (torch.double, np.float64)
 }
 
 
@@ -85,7 +85,7 @@ def run_phase(base_dir, out_dir, phase_args):
     # Misc training parameters
     max_epochs = training_args["max_epochs"]
     device = select_device(try_gpu=training_args["try_gpu"], base_logger=logger)
-    train_dtype = TRAIN_DTYPES[training_args.get("train_dtype", "float")]
+    train_dtype, train_dtype_np = TRAIN_DTYPES[training_args.get("train_dtype", "float")]
     logger.info(f"Training in dtype {train_dtype}")
     train_type = training_args["train_type"]
     train_type_args = training_args["train_type_args"]

@@ -64,7 +64,7 @@ def run_phase(base_dir, out_dir, phase_args):
     # Choose the device and dtype
     device = select_device(try_gpu=eval_args["try_gpu"], base_logger=logger)
     eval_type = eval_args["eval_type"]
-    eval_dtype = TRAIN_DTYPES[eval_args.get("eval_dtype", "float")]
+    eval_dtype, eval_dtype_np = TRAIN_DTYPES[eval_args.get("eval_dtype", "float")]
 
     # Load the network
     net = load_network(phase_args["eval_net"], base_dir=base_dir, eval_type=eval_type, base_logger=logger)
