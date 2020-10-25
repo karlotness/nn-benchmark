@@ -255,7 +255,7 @@ def create_srnn_net(input_dim, hidden_dim, output_dim, depth):
     }
 
 
-def create_knn_regresor_net(input_dim, output_dim):
+def create_knn_regressor_net(input_dim, output_dim):
     return {
         "arch": "knn_regressor",
         "arch_args": {
