@@ -13,9 +13,9 @@ PHASES = ["data_gen", "train", "eval"]
 
 DEFAULT_SLURM_ARGS = {
     "gpu": False,  # Node with GPU True/False
-    "time": "48:00:00",  # Time limit as Slurm time string
-    "cpus": 4,  # Number of CPUs to request as integer
-    "mem": 24,  # Memory amount in integer GB
+    "time": "2:00:00",  # Time limit as Slurm time string
+    "cpus": 8,  # Number of CPUs to request as integer
+    "mem": 8,  # Memory amount in integer GB
 }
 
 # Root argument parser
