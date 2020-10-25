@@ -33,9 +33,9 @@ NET_DEPTHS_CONFIGS = [(3, 200), (3, 500), (2, 500), (2, 2048)]
 
 LEARNING_RATE = 1e-3
 EPOCHS = 1000
-TRY_GPU = False
-HNN_BATCH = 25
-SRNN_BATCH = 2
+TRY_GPU = True
+HNN_BATCH = 750
+SRNN_BATCH = 750
 SRNN_ROLLOUT_LENGTH = 10
 
 
@@ -77,7 +77,13 @@ def create_spring_training_sets():
             "system_args": {
                 "trajectory_defs": None
             }
-        }
+        },
+        "slurm_args": {
+            "gpu": False,
+            "time": "00:30:00",
+            "cpus": 8,
+            "mem": 6,
+        },
     }
     train_sets = []
     # Create training templates
@@ -94,7 +100,7 @@ def create_spring_training_sets():
     out_dir = f"run/data_gen/{EXPERIMENT_NAME_BASE}_eval-spring"
     data = copy.deepcopy(template)
     data["out_dir"] = out_dir
-    data["run_name"] = f"{EXPERIMENT_NAME_BASE}-eval-spring-{train_size}"
+    data["run_name"] = f"{EXPERIMENT_NAME_BASE}-eval-spring"
     data["phase_args"]["system_args"]["trajectory_defs"] = eval_traj
     eval_set = (f"descr/data_gen/{EXPERIMENT_NAME_BASE}_eval-spring.json", data, out_dir)
 
@@ -140,7 +146,13 @@ def create_wave_training_sets():
                 "n_grid": WAVE_N_GRID,
                 "trajectory_defs": None
             }
-        }
+        },
+        "slurm_args": {
+            "gpu": False,
+            "time": "00:30:00",
+            "cpus": 8,
+            "mem": 6,
+        },
     }
     train_sets = []
     # Create training templates
@@ -157,7 +169,7 @@ def create_wave_training_sets():
     out_dir = f"run/data_gen/{EXPERIMENT_NAME_BASE}_eval-wave"
     data = copy.deepcopy(template)
     data["out_dir"] = out_dir
-    data["run_name"] = f"{EXPERIMENT_NAME_BASE}-eval-wave-{train_size}"
+    data["run_name"] = f"{EXPERIMENT_NAME_BASE}-eval-wave"
     data["phase_args"]["system_args"]["trajectory_defs"] = eval_traj
     eval_set = (f"descr/data_gen/{EXPERIMENT_NAME_BASE}_eval-wave.json", data, out_dir)
 
@@ -200,7 +212,7 @@ def create_training_run(train_data_dir, training_type, net_architecture, name_ke
                     "learning_rate": LEARNING_RATE,
                 },
                 "max_epochs": EPOCHS,
-                "try_gpu": TRY_GPU,
+                "try_gpu": (TRY_GPU and training_type != "knn_regressor"),
                 "train_dtype": "float",
                 "train_type": training_type,
                 "train_type_args": train_type_args,
@@ -211,6 +223,12 @@ def create_training_run(train_data_dir, training_type, net_architecture, name_ke
                 "dataset_args": dataset_args,
                 "loader": loader_args,
             }
+        },
+        "slurm_args": {
+            "gpu": (training_type != "knn_regressor"),  # GPU only if not KNN run
+            "time": "00:45:00",
+            "cpus": 8,
+            "mem": 8,
         },
     }
     return out_file, template, out_dir
@@ -337,7 +355,13 @@ def create_eval_run(trained_net, eval_set, eval_type):
                 "eval_dtype": "float",
                 "try_gpu": False
             }
-        }
+        },
+        "slurm_args": {
+            "gpu": False,  # GPU only if not KNN run
+            "time": "00:30:00",
+            "cpus": 8,
+            "mem": 8,
+        },
     }
     return file_name, template
 
