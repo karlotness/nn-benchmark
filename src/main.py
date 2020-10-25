@@ -74,10 +74,10 @@ if __name__ == "__main__":
                                phase_args=phase_args)
         else:
             raise ValueError(f"Unknown phase: {phase}")
-    except Exception as e:
+    except Exception:
         logger.exception("Encountered exception during run")
         # Quit so we don't store the "done" flag
-        raise e
+        raise
     phase_end = time.perf_counter()
     logger.info("Main phase finished")
 
