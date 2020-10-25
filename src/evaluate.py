@@ -105,7 +105,7 @@ def run_phase(base_dir, out_dir, phase_args):
         def model_time_deriv(x):
             # x ordered (p, q)
             x = x.detach().cpu().numpy()
-            return torch.from_numpy(net.predict(x))
+            return torch.from_numpy(net.predict(x)).to(device, dtype=eval_dtype)
         time_deriv_func = model_time_deriv
         time_deriv_method = METHOD_DIRECT_DERIV
     else:
