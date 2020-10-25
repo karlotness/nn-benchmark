@@ -23,7 +23,7 @@ def save_network(net, network_args, train_type, out_dir, base_logger):
     logger = base_logger.getChild("save_network")
     logger.info("Saving network")
 
-    if train_type == "knn_regressor":
+    if train_type == "knn-regressor":
         joblib.dump(net, out_dir / "model.pt")
     else:
         torch.save(net.state_dict(), out_dir / "model.pt")
@@ -96,8 +96,8 @@ def run_phase(base_dir, out_dir, phase_args):
     logger.info("Constructing dataset")
     train_dataset, train_loader = create_dataset(base_dir, phase_args["train_data"])
 
-    # If training a knn_regressor, this is all we need.
-    if train_type == "knn_regressor":
+    # If training a knn-regressor, this is all we need.
+    if train_type == "knn-regressor":
         logger.info("Starting fitting of dataset for KNN Regressor.")
 
         data_x = []

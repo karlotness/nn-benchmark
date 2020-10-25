@@ -10,7 +10,7 @@ def build_network(net_args):
         return srnn.build_network(arch_args)
     elif arch == "mlp":
         return mlp.build_network(arch_args)
-    elif arch == "knn_regressor":
+    elif arch == "knn-regressor":
         return neighbors.KNeighborsRegressor(n_neighbors=1)
     else:
         raise ValueError(f"Invalid architecture: {arch}")

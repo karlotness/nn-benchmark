@@ -82,7 +82,7 @@ def build_experiment_dataframe(input_args):
     if df_row_dict["method_name"] == "hnn":
         df_row_dict["network_hidden_dim"] = model_config["arch_args"]["base_model_args"]["hidden_dim"]
         df_row_dict["network_depth"] = model_config["arch_args"]["base_model_args"]["depth"]
-    elif df_row_dict["method_name"] == "knn_regressor":
+    elif df_row_dict["method_name"] == "knn-regressor":
         df_row_dict["network_hidden_dim"] = None
         df_row_dict["network_depth"] = None
     else:
