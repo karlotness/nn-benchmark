@@ -35,16 +35,16 @@ def get_aggregate_data_dict():
 def get_ground_truth_data_dict(experiment_name=None, trajectory_number=None, timestep_number=None):
     return {
             "experiment_name" : experiment_name,
-            "trajectory_number" : trajectory_number, 
-            "timestep_number" : timestep_number, 
+            "trajectory_number" : trajectory_number,
+            "timestep_number" : timestep_number,
             "ground_truth_data" : None,
     }
 
 def get_inferred_data_dict(experiment_name=None, trajectory_number=None, timestep_number=None):
     return {
             "experiment_name" : experiment_name,
-            "trajectory_number" : trajectory_number, 
-            "timestep_number" : timestep_number, 
+            "trajectory_number" : trajectory_number,
+            "timestep_number" : timestep_number,
             "inferred_data" : None,
             "relerr_l2" : None,
     }
@@ -142,8 +142,8 @@ def build_dataframe(dir_prefix, processes):
     ground_truth_data_df = ground_truth_data_df.from_records(itertools.chain(*[ground for _, ground, _ in results]))
     inferred_data_df = inferred_data_df.from_records(itertools.chain(*[inferred for _, _, inferred in results]))
 
-    return {"aggregate_data" : aggregate_data_df, 
-            "ground_truth_data" : ground_truth_data_df, 
+    return {"aggregate_data" : aggregate_data_df,
+            "ground_truth_data" : ground_truth_data_df,
             "inferred_data" : inferred_data_df}
 
 def main(argv):
