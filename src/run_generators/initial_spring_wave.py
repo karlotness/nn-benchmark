@@ -70,6 +70,7 @@ def create_spring_training_sets():
     template = {
         "out_dir": None,
         "exp_name": EXPERIMENT_NAME_BASE,
+        "run_name": None,
         "phase": "data_gen",
         "phase_args": {
             "system": "spring",
@@ -85,6 +86,7 @@ def create_spring_training_sets():
         traj_defs = train_traj[:train_size]
         data = copy.deepcopy(template)
         data["out_dir"] = out_dir
+        data["run_name"] = f"{EXPERIMENT_NAME_BASE}-train-spring-{train_size}"
         data["phase_args"]["system_args"]["trajectory_defs"] = traj_defs
         train_sets.append((f"descr/data_gen/{EXPERIMENT_NAME_BASE}_train-spring-{train_size}.json", data, out_dir))
 
@@ -92,6 +94,7 @@ def create_spring_training_sets():
     out_dir = f"run/data_gen/{EXPERIMENT_NAME_BASE}_eval-spring"
     data = copy.deepcopy(template)
     data["out_dir"] = out_dir
+    data["run_name"] = f"{EXPERIMENT_NAME_BASE}-eval-spring-{train_size}"
     data["phase_args"]["system_args"]["trajectory_defs"] = eval_traj
     eval_set = (f"descr/data_gen/{EXPERIMENT_NAME_BASE}_eval-spring.json", data, out_dir)
 
@@ -128,6 +131,7 @@ def create_wave_training_sets():
     template = {
         "out_dir": None,
         "exp_name": EXPERIMENT_NAME_BASE,
+        "run_name": None,
         "phase": "data_gen",
         "phase_args": {
             "system": "wave",
@@ -145,6 +149,7 @@ def create_wave_training_sets():
         traj_defs = train_traj[:train_size]
         data = copy.deepcopy(template)
         data["out_dir"] = out_dir
+        data["run_name"] = f"{EXPERIMENT_NAME_BASE}-train-wave-{train_size}"
         data["phase_args"]["system_args"]["trajectory_defs"] = traj_defs
         train_sets.append((f"descr/data_gen/{EXPERIMENT_NAME_BASE}_train-wave-{train_size}.json", data, out_dir))
 
@@ -152,6 +157,7 @@ def create_wave_training_sets():
     out_dir = f"run/data_gen/{EXPERIMENT_NAME_BASE}_eval-wave"
     data = copy.deepcopy(template)
     data["out_dir"] = out_dir
+    data["run_name"] = f"{EXPERIMENT_NAME_BASE}-eval-wave-{train_size}"
     data["phase_args"]["system_args"]["trajectory_defs"] = eval_traj
     eval_set = (f"descr/data_gen/{EXPERIMENT_NAME_BASE}_eval-wave.json", data, out_dir)
 
@@ -184,6 +190,7 @@ def create_training_run(train_data_dir, training_type, net_architecture, name_ke
     template = {
         "out_dir": out_dir,
         "exp_name": EXPERIMENT_NAME_BASE,
+        "run_name": f"{EXPERIMENT_NAME_BASE}_train-{name_key}",
         "phase": "train",
         "phase_args": {
             "network": net_architecture,
@@ -316,6 +323,7 @@ def create_eval_run(trained_net, eval_set, eval_type):
     file_name = f"{EXPERIMENT_NAME_BASE}_eval-{name_suffix}"
     template = {
         "out_dir": f"run/eval/{EXPERIMENT_NAME_BASE}_eval-{name_suffix}",
+        "run_name": f"{EXPERIMENT_NAME_BASE}_eval-{name_suffix}",
         "exp_name": EXPERIMENT_NAME_BASE,
         "phase": "eval",
         "phase_args": {
