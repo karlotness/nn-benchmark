@@ -226,7 +226,7 @@ def create_training_run(train_data_dir, training_type, net_architecture, name_ke
         },
         "slurm_args": {
             "gpu": (training_type != "knn-regressor"),  # GPU only if not KNN run
-            "time": "00:45:00",
+            "time": "01:30:00",
             "cpus": 8,
             "mem": 8,
         },
