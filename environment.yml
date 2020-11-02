@@ -4,7 +4,7 @@ channels:
   - defaults
 dependencies:
   - absl-py
-  - python=3.8
+  - python=3.7
   - scipy
   - pytorch=1.5.1
   - cudatoolkit=10.1
@@ -18,8 +18,13 @@ dependencies:
   - joblib
   - pip
   - pip:
-    - https://pytorch-geometric.com/whl/torch-1.5.0/torch_scatter-latest+cu101-cp38-cp38-linux_x86_64.whl
-    - https://pytorch-geometric.com/whl/torch-1.5.0/torch_sparse-latest+cu101-cp38-cp38-linux_x86_64.whl
-    - https://pytorch-geometric.com/whl/torch-1.5.0/torch_cluster-latest+cu101-cp38-cp38-linux_x86_64.whl
-    - https://pytorch-geometric.com/whl/torch-1.5.0/torch_spline_conv-latest+cu101-cp38-cp38-linux_x86_64.whl
+    - https://pytorch-geometric.com/whl/torch-1.5.0/torch_scatter-latest+cu101-cp37-cp37m-linux_x86_64.whl
+    - https://pytorch-geometric.com/whl/torch-1.5.0/torch_sparse-latest+cu101-cp37-cp37m-linux_x86_64.whl
+    - https://pytorch-geometric.com/whl/torch-1.5.0/torch_cluster-latest+cu101-cp37-cp37m-linux_x86_64.whl
+    - https://pytorch-geometric.com/whl/torch-1.5.0/torch_spline_conv-latest+cu101-cp37-cp37m-linux_x86_64.whl
     - torch-geometric
+    - tensorflow-gpu>=1.15,<2
+    - dm-sonnet<2
+    - graph-nets>=1.1
+    - tensorflow-probability<0.9
+    - dm-tree
