@@ -152,8 +152,8 @@ def create_wave_training_sets():
         },
         "slurm_args": {
             "gpu": False,
-            "time": "03:00:00",
-            "cpus": 8,
+            "time": "05:00:00",
+            "cpus": 16,
             "mem": 32,
         },
     }
@@ -361,8 +361,8 @@ def create_eval_run(trained_net, eval_set, eval_type):
         },
         "slurm_args": {
             "gpu": False,  # GPU only if not KNN run
-            "time": "02:00:00",
-            "cpus": 8,
+            "time": "05:00:00",
+            "cpus": 16,
             "mem": 32,
         },
     }
