@@ -84,7 +84,7 @@ def create_spring_training_sets():
             "gpu": False,
             "time": "00:30:00",
             "cpus": 8,
-            "mem": 6,
+            "mem": 8,
         },
     }
     train_sets = []
@@ -152,9 +152,9 @@ def create_wave_training_sets():
         },
         "slurm_args": {
             "gpu": False,
-            "time": "01:00:00",
+            "time": "03:00:00",
             "cpus": 8,
-            "mem": 6,
+            "mem": 32,
         },
     }
     train_sets = []
@@ -229,9 +229,9 @@ def create_training_run(train_data_dir, training_type, net_architecture, name_ke
         },
         "slurm_args": {
             "gpu": (training_type != "knn-regressor"),  # GPU only if not KNN run
-            "time": "03:00:00",
+            "time": "08:00:00",
             "cpus": 8,
-            "mem": 8,
+            "mem": 32,
         },
     }
     return out_file, template, out_dir
@@ -361,9 +361,9 @@ def create_eval_run(trained_net, eval_set, eval_type):
         },
         "slurm_args": {
             "gpu": False,  # GPU only if not KNN run
-            "time": "01:00:00",
+            "time": "02:00:00",
             "cpus": 8,
-            "mem": 8,
+            "mem": 32,
         },
     }
     return file_name, template
