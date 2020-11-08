@@ -2,6 +2,7 @@ import logging
 import subprocess
 import codecs
 import dataclasses
+import re
 
 
 def set_up_logging(level, out_file):
@@ -39,3 +40,45 @@ def get_git_info(base_logger=None):
     except Exception:
         logger.exception("Failed to get information on git status")
         return None
+
+
+@dataclasses.dataclass
+class ModuleInfo:
+    name: str
+    version: str
+    raw_name: str
+
+
+def get_loaded_modules(base_logger=None):
+    if base_logger:
+        logger = base_logger.getChild("moduleinfo")
+    else:
+        logger = logging.getLogger("moduleinfo")
+    try:
+        module_cmd_out = subprocess.run(["bash", "-c", "module list"],
+                                        capture_output=True, check=True)
+    except subprocess.CalledProcessError:
+        logger.warning("Failed to get linux module info")
+        return []
+    # Decode process output and scan for module info
+    module_output = codecs.decode(module_cmd_out.stdout or module_cmd_out.stderr)
+    rgx = re.compile(r"\d+\)\s+(?P<modname>\S+)\s?")
+    modules = []
+    for match in re.finditer(rgx, module_output):
+        raw_name = match.group("modname")
+        # Split components of module name
+        if "/" in raw_name:
+            # These are the Prince-format modules
+            components = raw_name.split("/")
+        else:
+            # Modules as found on CIMS machines
+            components = raw_name.split("-")
+        # Extract components
+        name = components[0]
+        if len(components) > 1:
+            version = components[-1]
+        else:
+            version = ""
+        modules.append(ModuleInfo(name=name, version=version,
+                                  raw_name=raw_name))
+    return modules
