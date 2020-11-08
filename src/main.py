@@ -54,6 +54,8 @@ if __name__ == "__main__":
         env_details["git_info"] = dataclasses.asdict(git_info)
     else:
         env_details["git_info"] = None
+    env_details["loaded_modules"] = list(map(dataclasses.asdict,
+                                             utils.get_loaded_modules()))
     with open(launch_data_dir / "env_details.json", 'w', encoding='utf8') as env_file:
         json.dump(env_details, env_file)
 
