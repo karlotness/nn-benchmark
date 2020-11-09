@@ -153,9 +153,9 @@ def run_phase(base_dir, out_dir, phase_args):
                 time_forward_start = time.perf_counter()
                 if train_type == "hnn":
                     # Assume snapshot dataset (shape [batch_size, n_grid])
-                    x = torch.cat([p, q], dim=-1)
+                    deriv_pred = net.time_derivative(p=p, q=q)
                     dx_dt = torch.cat([dp_dt, dq_dt], dim=-1)
-                    dx_dt_pred = net.time_derivative(x)
+                    dx_dt_pred = torch.cat([deriv_pred.dp_dt, deriv_pred.dq_dt], dim=-1)
                     loss = loss_fn(dx_dt_pred, dx_dt)
                     total_loss_denom += p.shape[0]
                 elif train_type == "srnn":
