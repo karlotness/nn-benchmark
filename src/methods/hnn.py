@@ -1,6 +1,8 @@
 import torch
 from .defs import NONLINEARITIES
+from collections import namedtuple
 
+TimeDerivative = namedtuple("TimeDerivative", ["dq_dt", "dp_dt"])
 
 def permutation_tensor(n):
     mat = torch.eye(n)
@@ -14,13 +16,21 @@ class HNN(torch.nn.Module):
         self._permute_mat = permutation_tensor(input_dim)
         self.field_type = field_type
 
-    def forward(self, x):
+    def _build_x(self, q, p):
+        return torch.cat((q, p), dim=-1)
+
+    def forward(self, q, p):
+        x = self._build_x(p=p, q=q)
+        return self._forward_coords(x)
+
+    def _forward_coords(self, x):
         y = self.base_model(x)
         return y.split(1, 1)
 
-    def time_derivative(self, x):
+    def time_derivative(self, q, p):
+        x = self._build_x(p=p, q=q)
         x.requires_grad_()
-        f1, f2 = self.forward(x)
+        f1, f2 = self._forward_coords(x=x)
 
         if self.field_type != "solenoidal":
             d_f1 = torch.autograd.grad(f1.sum(), x, create_graph=True)[0]
@@ -34,7 +44,11 @@ class HNN(torch.nn.Module):
         else:
             solenoidal_field = torch.zeros_like(x)
 
-        return conservative_field + solenoidal_field
+        n = self.input_dim // 2
+        ret = conservative_field + solenoidal_field
+        dqdt = ret[:, :n]
+        dpdt = ret[:, n:]
+        TimeDerivative(dq_dt=dqdt, dp_dt=dpdt)
 
 
 class MLP(torch.nn.Module):
