@@ -15,6 +15,7 @@ class HNN(torch.nn.Module):
         self.base_model = base_model
         self._permute_mat = permutation_tensor(input_dim)
         self.field_type = field_type
+        self._input_dim = input_dim
 
     def _build_x(self, q, p):
         return torch.cat((q, p), dim=-1)
@@ -44,11 +45,11 @@ class HNN(torch.nn.Module):
         else:
             solenoidal_field = torch.zeros_like(x)
 
-        n = self.input_dim // 2
+        n = self._input_dim // 2
         ret = conservative_field + solenoidal_field
         dqdt = ret[:, :n]
         dpdt = ret[:, n:]
-        TimeDerivative(dq_dt=dqdt, dp_dt=dpdt)
+        return TimeDerivative(dq_dt=dqdt, dp_dt=dpdt)
 
 
 class MLP(torch.nn.Module):
