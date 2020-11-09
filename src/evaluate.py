@@ -201,8 +201,10 @@ def run_phase(base_dir, out_dir, phase_args):
                 f"{traj_name}_net_hamilt_true_traj": net_hamilt_true_traj,
                 f"{traj_name}_net_hamilt_net_traj": net_hamilt_net_traj,
             })
-            int_stats["file_names"]["net_hamilt_true_traj"] = f"{traj_name}_net_hamilt_true_traj"
-            int_stats["file_names"]["net_hamilt_net_traj"] = f"{traj_name}_net_hamilt_net_traj"
+            int_stats["file_names"].update({
+                "net_hamilt_true_traj": f"{traj_name}_net_hamilt_true_traj",
+                "net_hamilt_net_traj": f"{traj_name}_net_hamilt_net_traj",
+            })
 
         trajectory_results.append((traj_name, int_numpy_arrays, int_stats))
         logger.info(f"Integrated trajectory: {traj_num} ({traj_name}) in {integrate_elapsed} sec")
