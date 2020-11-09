@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.linalg import circulant
-from .defs import System, TrajectoryResult, SystemResult
+from .defs import System, TrajectoryResult, SystemResult, StatePair
 import time
 import logging
 
@@ -44,9 +44,7 @@ class WaveSystem(System):
         self.d_x = self.space_max / self.n_grid
         self.k = _get_k(n_grid=n_grid, space_max=space_max, wave_speed=wave_speed)
 
-    def hamiltonian(self, coord):
-        p, q = np.split(coord, 2, axis=-1)
-
+    def hamiltonian(self, q, p):
         denom = 4 * self.d_x**2
         q_m1 = np.roll(q, shift=1, axis=-1)
         q_p1 = np.roll(q, shift=-1, axis=-1)
@@ -57,11 +55,14 @@ class WaveSystem(System):
 
         return self.d_x * np.sum((t1 + t2 + t3), axis=-1)
 
-    def derivative(self, coord):
-        orig_shape = coord.shape
-        return (coord.reshape((-1, 2 * self.n_grid)) @ self.k.T).reshape(orig_shape)
+    def derivative(self, q, p):
+        coord = np.concatenate((q, p), axis=-1)
+        deriv_coord = coord @ self.k.T
+        dqdt = deriv_coord[:self.n_grid]
+        dpdt = deriv_coord[self.n_grid:]
+        return StatePair(q=dqdt, p=dpdt)
 
-    def generate_trajectory(self, x0, num_time_steps, time_step_size,
+    def generate_trajectory(self, q0, p0, num_time_steps, time_step_size,
                             subsample=1, noise_sigma=0.0):
         # Process arguments for subsampling
         num_steps = num_time_steps * subsample
@@ -69,6 +70,7 @@ class WaveSystem(System):
 
         eqn_known, eqn_unknown = _build_update_matrices(n_grid=self.n_grid, space_max=self.space_max,
                                                         wave_speed=self.wave_speed, time_step=time_step_size)
+        x0 = np.concatenate((q0, p0), axis=-1)
         steps = [x0]
         step = x0
         for _ in range(num_steps - 1):
@@ -127,13 +129,12 @@ class WaveStartGenerator:
         return height * s_clone
 
     def gen_start(self, height, width, position):
-        y_matrix = np.zeros(2 * self.n_grid)
         q_init = np.zeros(self.n_grid, dtype='float64')
         steps = np.copy(self.coords)
         wave = self.__h(self.__s(steps, position, width), height)
         q_init += wave
-        y_matrix[:self.n_grid] = q_init
-        return y_matrix.reshape((2, self.n_grid))
+        p_init = np.zeros_like(q_init)
+        return StatePair(q=q_init, p=p_init)
 
 
 def generate_cubic_spline_start(space_max, n_grid, start_type_args):
@@ -182,7 +183,8 @@ def generate_data(system_args, base_logger=None):
                             wave_speed=wave_speed)
 
         traj_gen_start = time.perf_counter()
-        traj_result = system.generate_trajectory(x0=init_cond,
+        traj_result = system.generate_trajectory(q0=init_cond.q,
+                                                 p0=init_cond.p,
                                                  num_time_steps=num_time_steps,
                                                  time_step_size=time_step_size,
                                                  subsample=subsample,
