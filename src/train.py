@@ -175,7 +175,7 @@ def run_phase(base_dir, out_dir, phase_args):
                         dt=time_step_size,
                         volatile=False,
                         device=device,
-                        coarsening_factor=1).permute(1, 0, 2)
+                        coarsening_factor=1)
                     loss = loss_fn(int_res, x)
                     total_loss_denom += p.shape[0] * p.shape[1]
                 elif train_type == "mlp":

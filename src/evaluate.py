@@ -133,7 +133,7 @@ def run_phase(base_dir, out_dir, phase_args):
             dt=time_step_size,
             volatile=True,
             device=device,
-            coarsening_factor=1).permute(1, 0, 2)
+            coarsening_factor=1)
         # Remove extraneous batch dimension
         int_res = int_res[0].detach().cpu().numpy()
         integrate_elapsed = time.perf_counter() - integrate_start
