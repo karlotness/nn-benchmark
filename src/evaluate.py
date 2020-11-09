@@ -11,6 +11,7 @@ import dataset
 import integrators
 from systems import spring, wave
 import joblib
+from collections import namedtuple
 
 
 METHOD_HNET = 5
@@ -94,10 +95,14 @@ def run_phase(base_dir, out_dir, phase_args):
         time_deriv_method = METHOD_DIRECT_DERIV
     elif eval_type == "knn-regressor":
         # Use the time_derivative
+        KNNDerivative = namedtuple("KNNDerivative", ["dq_dt", "dp_dt"])
         def model_time_deriv(p, q):
-            x = np.concatenate([p, q], axis=-1).detach().cpu().numpy()
-            return torch.from_numpy(net.predict(x)).to(device,
-                                                       dtype=eval_dtype)
+            x = torch.cat([p, q], axis=-1).detach().cpu().numpy()
+            ret = net.predict(x)
+            dpdt, dqdt = np.split(ret, 2, axis=-1)
+            dpdt = torch.from_numpy(dpdt).to(device, dtype=eval_dtype)
+            dqdt = torch.from_numpy(dqdt).to(device, dtype=eval_dtype)
+            return KNNDerivative(dq_dt=dqdt, dp_dt=dpdt)
         time_deriv_func = model_time_deriv
         time_deriv_method = METHOD_DIRECT_DERIV
     else:
@@ -131,14 +136,17 @@ def run_phase(base_dir, out_dir, phase_args):
         # Remove extraneous batch dimension
         integrate_elapsed = time.perf_counter() - integrate_start
         # Split the integration result
-        int_p = int_res_raw.p.detach().cpu().numpy()
-        int_q = int_res_raw.q.detach().cpu().numpy()
+        int_p = int_res_raw.p
+        int_q = int_res_raw.q
 
         # Compute errors and other statistics
         int_res = torch.cat([int_p, int_q], axis=-1)[0].detach().cpu().numpy()
         true = torch.cat([p_noiseless, q_noiseless], axis=-1)[0].detach().cpu().numpy()
         raw_l2 = raw_err(approx=int_res, true=true, norm=2)
         rel_l2 = rel_err(approx=int_res, true=true, norm=2)
+
+        int_p = int_res_raw.p.detach().cpu().numpy()
+        int_q = int_res_raw.q.detach().cpu().numpy()
 
         # Compute hamiltonians
         # Construct systems
@@ -155,7 +163,8 @@ def run_phase(base_dir, out_dir, phase_args):
             raise ValueError(f"Unknown system type {eval_dataset.system}")
 
         # Compute true hamiltonians
-        true_hamilt_true_traj = system.hamiltonian(p=p_noiseless, q=q_noiseless).squeeze()
+        true_hamilt_true_traj = system.hamiltonian(p=p_noiseless.cpu().numpy()[0],
+                                                   q=q_noiseless.cpu().numpy()[0]).squeeze()
         true_hamilt_net_traj = system.hamiltonian(p=int_p, q=int_q).squeeze()
         # Compute network hamiltonians
         net_hamilt_true_traj, net_hamilt_net_traj = None, None
