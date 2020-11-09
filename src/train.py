@@ -137,8 +137,6 @@ def run_phase(base_dir, out_dir, phase_args):
             total_loss = 0
             total_loss_denom = 0
             for batch_num, batch in enumerate(train_loader):
-                time_start = time.perf_counter()
-
                 p = batch.p.to(device, dtype=train_dtype)
                 q = batch.q.to(device, dtype=train_dtype)
                 p_noiseless = batch.p_noiseless.to(device, dtype=train_dtype)
