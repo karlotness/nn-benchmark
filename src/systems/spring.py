@@ -24,7 +24,8 @@ class SpringSystem(System):
         dqdt, dpdt = np.split(grads, 2)
         return np.concatenate([dpdt, -dqdt], axis=-1)
 
-    def generate_trajectory(self, x0, t_span, time_step_size, rtol=1e-10):
+    def generate_trajectory(self, x0, t_span, time_step_size, rtol=1e-10,
+                            noise_sigma=0.0):
         t_min, t_max = t_span
         assert t_min < t_max
         num_steps = np.ceil((t_max - t_min) / time_step_size)
@@ -37,9 +38,19 @@ class SpringSystem(System):
         dydt = np.stack(dydt).T
         dqdt, dpdt = np.split(dydt,2)
 
-        return TrajectoryResult(q=q[:, np.newaxis], p=p[:, np.newaxis],
-                                dq_dt=dqdt[0, :, np.newaxis], dp_dt=dpdt[0, :, np.newaxis],
-                                t_steps=t_eval)
+        noise_p = noise_sigma * np.random.randn(*p.shape)
+        noise_q = noise_sigma * np.random.randn(*q.shape)
+
+        p_noisy = p + noise_p
+        q_noisy = q + noise_q
+
+        return TrajectoryResult(q=q_noisy[:, np.newaxis],
+                                p=p_noisy[:, np.newaxis],
+                                dq_dt=dqdt[0, :, np.newaxis],
+                                dp_dt=dpdt[0, :, np.newaxis],
+                                t_steps=t_eval,
+                                q_noiseless=q[:, np.newaxis],
+                                p_noiseless=p[:, np.newaxis])
 
 
 def generate_data(system_args, base_logger=None):
@@ -61,6 +72,7 @@ def generate_data(system_args, base_logger=None):
         x0 = np.array(traj_def["initial_condition"], dtype=np.float64)
         num_time_steps = traj_def["num_time_steps"]
         time_step_size = traj_def["time_step_size"]
+        noise_sigma = traj_def.get("noise_sigma", 0.0)
         t_span = (0, num_time_steps * time_step_size)
         rtol = traj_def.get("rtol", 1e-10)
 
@@ -69,7 +81,8 @@ def generate_data(system_args, base_logger=None):
         traj_result = system.generate_trajectory(x0=x0,
                                                  t_span=t_span,
                                                  time_step_size=time_step_size,
-                                                 rtol=rtol)
+                                                 rtol=rtol,
+                                                 noise_sigma=noise_sigma)
         traj_gen_end = time.perf_counter()
 
         # Store trajectory data
@@ -79,6 +92,8 @@ def generate_data(system_args, base_logger=None):
             f"{traj_name}_dqdt": traj_result.dq_dt,
             f"{traj_name}_dpdt": traj_result.dp_dt,
             f"{traj_name}_t": traj_result.t_steps,
+            f"{traj_name}_p_noiseless": traj_result.p_noiseless,
+            f"{traj_name}_q_noiseless": traj_result.q_noiseless,
         })
 
         # Store per-trajectory metadata
@@ -86,12 +101,15 @@ def generate_data(system_args, base_logger=None):
             {"name": traj_name,
              "num_time_steps": num_time_steps,
              "time_step_size": time_step_size,
+             "noise_sigma": noise_sigma,
              "field_keys": {
                  "p": f"{traj_name}_p",
                  "q": f"{traj_name}_q",
                  "dpdt": f"{traj_name}_dpdt",
                  "dqdt": f"{traj_name}_dqdt",
                  "t": f"{traj_name}_t",
+                 "p_noiseless": f"{traj_name}_p_noiseless",
+                 "q_noiseless": f"{traj_name}_q_noiseless",
              },
              "timing": {
                  "traj_gen_time": traj_gen_end - traj_gen_start
