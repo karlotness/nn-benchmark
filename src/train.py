@@ -141,6 +141,8 @@ def run_phase(base_dir, out_dir, phase_args):
 
                 p = batch.p.to(device, dtype=train_dtype)
                 q = batch.q.to(device, dtype=train_dtype)
+                p_noiseless = batch.p_noiseless.to(device, dtype=train_dtype)
+                q_noiseless = batch.q_noiseless.to(device, dtype=train_dtype)
                 dp_dt = batch.dp_dt.to(device, dtype=train_dtype)
                 dq_dt = batch.dq_dt.to(device, dtype=train_dtype)
                 trajectory_meta = batch.trajectory_meta
