@@ -119,8 +119,8 @@ def run_phase(base_dir, out_dir, phase_args):
         integrate_start = time.perf_counter()
         int_res_raw = integrators.numerically_integrate(
             integrator_type,
-            p0=p0,
-            q0=q0,
+            p_0=p0,
+            q_0=q0,
             model=time_deriv_func,
             method=time_deriv_method,
             T=num_time_steps,

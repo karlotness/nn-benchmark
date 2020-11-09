@@ -166,8 +166,8 @@ def run_phase(base_dir, out_dir, phase_args):
                         raise ValueError("Inconsistent time step sizes in batch")
                     int_res = integrators.numerically_integrate(
                         train_type_args["integrator"],
-                        p0=p[:, 0],
-                        q0=q[:, 0],
+                        p_0=p[:, 0],
+                        q_0=q[:, 0],
                         model=net,
                         method=method_hnet,
                         T=training_steps,
