@@ -59,12 +59,12 @@ def leapfrog(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu')
                 trajectories[i, :, dim:] = q
 
             time_drvt = Func(p=p_half, q=q)
-            dqdt = time_drvt[:, dim:].dq_dt
+            dqdt = time_drvt.dq_dt
 
             q_next = q + dqdt * dt
 
             time_drvt = Func(p=p_half, q=q_next)
-            dpdt = time_drvt[:, :dim].dp_dt
+            dpdt = time_drvt.dp_dt
 
             p_next = p_half + dpdt * (dt / 2)
 
