@@ -162,8 +162,8 @@ class RolloutChunkDataset(data.Dataset):
         self._dq_dt = np.stack(dq_dt)
         self._t = np.stack(t)
         self._traj_meta = traj_meta
-        self._p_noiseless = np.concatenate(p_noiseless)
-        self._q_noiseless = np.concatenate(q_noiseless)
+        self._p_noiseless = np.stack(p_noiseless)
+        self._q_noiseless = np.stack(q_noiseless)
 
     def __getitem__(self, idx):
         return self.Rollout(name=self._name[idx],
