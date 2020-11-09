@@ -1,5 +1,8 @@
+from collections import namedtuple
 import torch
 from torch.autograd import grad
+
+IntegrationResult = namedtuple("IntegrationResult", ["q", "p"])
 
 
 def leapfrog(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
@@ -14,7 +17,7 @@ def leapfrog(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu')
     range_of_for_loop = range(T)
 
     if is_Hamilt:
-        hamilt = Func(p, q)
+        hamilt = Func(p=p, q=q)
         dpdt = -grad(hamilt.sum(), q, create_graph=not volatile)[0]
 
         for i in range_of_for_loop:
@@ -27,12 +30,12 @@ def leapfrog(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu')
                 trajectories[i, :, :p_0.shape[1]] = p
                 trajectories[i, :, p_0.shape[1]:] = q
 
-            hamilt = Func(p_half, q)
+            hamilt = Func(p=p_half, q=q)
             dqdt = grad(hamilt.sum(), p, create_graph=not volatile)[0]
 
             q_next = q + dqdt * dt
 
-            hamilt = Func(p_half, q_next)
+            hamilt = Func(p=p_half, q=q_next)
             dpdt = -grad(hamilt.sum(), q_next, create_graph=not volatile)[0]
 
             p_next = p_half + dpdt * (dt / 2)
@@ -42,8 +45,8 @@ def leapfrog(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu')
 
     else:
         dim = p_0.shape[1]
-        time_drvt = Func(torch.cat((p, q), 1))
-        dpdt = time_drvt[:, :dim]
+        time_drvt = Func(q=q, p=p)
+        dpdt = time_drvt.dp_dt
 
         for i in range_of_for_loop:
             p_half = p + dpdt * (dt / 2)
@@ -55,20 +58,24 @@ def leapfrog(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu')
                 trajectories[i, :, :dim] = p
                 trajectories[i, :, dim:] = q
 
-            time_drvt = Func(torch.cat((p_half, q), 1))
-            dqdt = time_drvt[:, dim:]
+            time_drvt = Func(p=p_half, q=q)
+            dqdt = time_drvt[:, dim:].dq_dt
 
             q_next = q + dqdt * dt
 
-            time_drvt = Func(torch.cat((p_half, q_next), 1))
-            dpdt = time_drvt[:, :dim]
+            time_drvt = Func(p=p_half, q=q_next)
+            dpdt = time_drvt[:, :dim].dp_dt
 
             p_next = p_half + dpdt * (dt / 2)
 
             p = p_next
             q = q_next
 
-    return trajectories
+    trajectories = trajectories.permute(1, 0, 2)
+    n = p_0.shape[1]
+    ret_p = trajectories[:, :, :n]
+    ret_q = trajectories[:, :, n:]
+    return IntegrationResult(q=ret_q, p=ret_p)
 
 
 def euler(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
@@ -93,7 +100,7 @@ def euler(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
                 trajectories[i, :, :p_0.shape[1]] = p
                 trajectories[i, :, p_0.shape[1]:] = q
 
-            hamilt = Func(p, q)
+            hamilt = Func(p=p, q=q)
             dpdt = -grad(hamilt.sum(), q, create_graph=not volatile)[0]
             dqdt = grad(hamilt.sum(), p, create_graph=not volatile)[0]
 
@@ -115,9 +122,9 @@ def euler(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
                 trajectories[i, :, :dim] = p
                 trajectories[i, :, dim:] = q
 
-            time_drvt = Func(torch.cat((p, q), 1))
-            dpdt = time_drvt[:, :dim]
-            dqdt = time_drvt[:, dim:]
+            time_drvt = Func(p=p, q=q)
+            dpdt = time_drvt.dp_dt
+            dqdt = time_drvt.dq_dt
 
             p_next = p + dpdt * dt
             q_next = q + dqdt * dt
@@ -125,7 +132,11 @@ def euler(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
             p = p_next
             q = q_next
 
-    return trajectories
+    trajectories = trajectories.permute(1, 0, 2)
+    n = p_0.shape[1]
+    ret_p = trajectories[:, :, :n]
+    ret_q = trajectories[:, :, n:]
+    return IntegrationResult(q=ret_q, p=ret_p)
 
 
 def numerically_integrate(integrator, p_0, q_0, model, method, T, dt, volatile, device, coarsening_factor=1):
