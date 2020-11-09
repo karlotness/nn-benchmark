@@ -160,7 +160,6 @@ def run_phase(base_dir, out_dir, phase_args):
                     total_loss_denom += p.shape[0]
                 elif train_type == "srnn":
                     # Assume rollout dataset (shape [batch_size, dataset rollout_length, n_grid])
-                    x = torch.cat([p, q], dim=-1)
                     method_hnet = 5
                     training_steps = train_type_args["rollout_length"]
                     time_step_size = float(trajectory_meta["time_step_size"][0])
@@ -169,8 +168,8 @@ def run_phase(base_dir, out_dir, phase_args):
                         raise ValueError("Inconsistent time step sizes in batch")
                     int_res = integrators.numerically_integrate(
                         train_type_args["integrator"],
-                        p[:, 0],
-                        q[:, 0],
+                        p0=p[:, 0],
+                        q0=q[:, 0],
                         model=net,
                         method=method_hnet,
                         T=training_steps,
@@ -178,7 +177,9 @@ def run_phase(base_dir, out_dir, phase_args):
                         volatile=False,
                         device=device,
                         coarsening_factor=1)
-                    loss = loss_fn(int_res, x)
+                    x = torch.cat([p_noiseless, q_noiseless], dim=-1)
+                    x_pred = torch.cat([int_res.p, int_res.q], dim=-1)
+                    loss = loss_fn(x_pred, x)
                     total_loss_denom += p.shape[0] * p.shape[1]
                 elif train_type == "mlp":
                     # Assume snapshot dataset (shape [batch_size, n_grid])
