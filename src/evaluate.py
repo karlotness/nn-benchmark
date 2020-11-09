@@ -83,29 +83,21 @@ def run_phase(base_dir, out_dir, phase_args):
         time_deriv_method = METHOD_HNET
         hamiltonian_func = net
     elif eval_type == "hnn":
-        def model_time_deriv(x):
-            res = net.time_derivative(x)
-            return res
         def model_hamiltonian(p, q):
-            x = torch.cat([p, q], dim=-1)
-            hamilt = net(x)
+            hamilt = net(p=p, q=q)
             return hamilt[0] + hamilt[1]
-        time_deriv_func = model_time_deriv
+        time_deriv_func = net.time_derivative
         time_deriv_method = METHOD_DIRECT_DERIV
         hamiltonian_func = model_hamiltonian
     elif eval_type == "mlp":
-        # Use the time_derivative
-        def model_time_deriv(x):
-            # x ordered (p, q)
-            return net(x)
-        time_deriv_func = model_time_deriv
+        time_deriv_func = net
         time_deriv_method = METHOD_DIRECT_DERIV
     elif eval_type == "knn-regressor":
         # Use the time_derivative
-        def model_time_deriv(x):
-            # x ordered (p, q)
-            x = x.detach().cpu().numpy()
-            return torch.from_numpy(net.predict(x)).to(device, dtype=eval_dtype)
+        def model_time_deriv(p, q):
+            x = np.concatenate([p, q], axis=-1).detach().cpu().numpy()
+            return torch.from_numpy(net.predict(x)).to(device,
+                                                       dtype=eval_dtype)
         time_deriv_func = model_time_deriv
         time_deriv_method = METHOD_DIRECT_DERIV
     else:
@@ -118,15 +110,17 @@ def run_phase(base_dir, out_dir, phase_args):
         traj_name = trajectory.name[0]
         p = trajectory.p.to(device, dtype=eval_dtype)
         q = trajectory.q.to(device, dtype=eval_dtype)
+        p_noiseless = trajectory.p_noiseless.to(device, dtype=eval_dtype)
+        q_noiseless = trajectory.q_noiseless.to(device, dtype=eval_dtype)
         num_time_steps = trajectory.trajectory_meta["num_time_steps"][0]
         time_step_size = trajectory.trajectory_meta["time_step_size"][0]
         p0 = p[:, 0]
         q0 = q[:, 0]
         integrate_start = time.perf_counter()
-        int_res = integrators.numerically_integrate(
+        int_res_raw = integrators.numerically_integrate(
             integrator_type,
-            p0,
-            q0,
+            p0=p0,
+            q0=q0,
             model=time_deriv_func,
             method=time_deriv_method,
             T=num_time_steps,
@@ -135,13 +129,14 @@ def run_phase(base_dir, out_dir, phase_args):
             device=device,
             coarsening_factor=1)
         # Remove extraneous batch dimension
-        int_res = int_res[0].detach().cpu().numpy()
         integrate_elapsed = time.perf_counter() - integrate_start
         # Split the integration result
-        int_p, int_q = np.split(int_res, 2, axis=1)
+        int_p = int_res_raw.p.detach().cpu().numpy()
+        int_q = int_res_raw.q.detach().cpu().numpy()
 
         # Compute errors and other statistics
-        true = torch.cat([p, q], axis=-1)[0].detach().cpu().numpy()
+        int_res = torch.cat([int_p, int_q], axis=-1)[0].detach().cpu().numpy()
+        true = torch.cat([p_noiseless, q_noiseless], axis=-1)[0].detach().cpu().numpy()
         raw_l2 = raw_err(approx=int_res, true=true, norm=2)
         rel_l2 = rel_err(approx=int_res, true=true, norm=2)
 
@@ -160,15 +155,14 @@ def run_phase(base_dir, out_dir, phase_args):
             raise ValueError(f"Unknown system type {eval_dataset.system}")
 
         # Compute true hamiltonians
-        true_hamilt_true_traj = system.hamiltonian(true).squeeze()
-        true_hamilt_net_traj = system.hamiltonian(int_res).squeeze()
+        true_hamilt_true_traj = system.hamiltonian(p=p_noiseless, q=q_noiseless).squeeze()
+        true_hamilt_net_traj = system.hamiltonian(p=int_p, q=int_q).squeeze()
         # Compute network hamiltonians
         net_hamilt_true_traj, net_hamilt_net_traj = None, None
         if eval_type in ("srnn", "hnn"):
             net_hamilt_true_traj = hamiltonian_func(p=p[0], q=q[0]).sum(axis=-1).detach().cpu().numpy()
-            int_p_torch, int_q_torch = np.split(int_res, 2, axis=-1)
-            int_p_torch = torch.from_numpy(int_p_torch).to(device, dtype=eval_dtype)
-            int_q_torch = torch.from_numpy(int_q_torch).to(device, dtype=eval_dtype)
+            int_p_torch = torch.from_numpy(int_p).to(device, dtype=eval_dtype)
+            int_q_torch = torch.from_numpy(int_q).to(device, dtype=eval_dtype)
             net_hamilt_net_traj = hamiltonian_func(p=int_p_torch, q=int_q_torch).sum(axis=-1).detach().cpu().numpy()
 
         # All combinations true/net hamiltonian on true/net trajectories
