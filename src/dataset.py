@@ -11,7 +11,8 @@ class TrajectoryDataset(data.Dataset):
     dataset[idx] -> a set of snapshots for a full trajectory"""
 
     Trajectory = namedtuple("Trajectory", ["name", "p", "q", "dp_dt", "dq_dt",
-                                           "t", "trajectory_meta"])
+                                           "t", "trajectory_meta",
+                                           "p_noiseless", "q_noiseless"])
 
     def __init__(self, data_dir):
         super().__init__()
@@ -33,9 +34,20 @@ class TrajectoryDataset(data.Dataset):
         dp_dt = self._npz_file[meta["field_keys"]["dpdt"]]
         dq_dt = self._npz_file[meta["field_keys"]["dqdt"]]
         t = self._npz_file[meta["field_keys"]["t"]]
+        # Handle (possibly missing) noiseless data
+        if "p_noiseless" in meta["field_keys"] and "q_noiseless" in meta["field_keys"]:
+            # We have explicit noiseless data
+            p_noiseless = self._npz_file[meta["field_keys"]["p_noiseless"]]
+            q_noiseless = self._npz_file[meta["field_keys"]["q_noiseless"]]
+        else:
+            # Data must already be noiseless
+            p_noiseless = self._npz_file[meta["field_keys"]["p"]]
+            q_noiseless = self._npz_file[meta["field_keys"]["q"]]
         # Package and return
         return self.Trajectory(name=name, trajectory_meta=meta,
-                               p=p, q=q, dp_dt=dp_dt, dq_dt=dq_dt, t=t)
+                               p=p, q=q, dp_dt=dp_dt, dq_dt=dq_dt, t=t,
+                               p_noiseless=p_noiseless,
+                               q_noiseless=q_noiseless)
 
     def __len__(self):
         return len(self._trajectory_meta)
@@ -43,7 +55,8 @@ class TrajectoryDataset(data.Dataset):
 
 class SnapshotDataset(data.Dataset):
     Snapshot = namedtuple("Snapshot", ["name", "p", "q", "dp_dt", "dq_dt",
-                                       "t", "trajectory_meta"])
+                                       "t", "trajectory_meta",
+                                       "p_noiseless", "q_noiseless"])
 
     def __init__(self, traj_dataset):
         super().__init__()
@@ -59,6 +72,8 @@ class SnapshotDataset(data.Dataset):
         dq_dt = []
         t = []
         traj_meta = []
+        p_noiseless = []
+        q_noiseless = []
 
         for traj_i in range(len(self._traj_dataset)):
             traj = self._traj_dataset[traj_i]
@@ -71,6 +86,8 @@ class SnapshotDataset(data.Dataset):
             dq_dt.append(traj.dq_dt)
             t.append(traj.t)
             traj_meta.extend([traj.trajectory_meta] * traj_num_steps)
+            p_noiseless.append(traj.p_noiseless)
+            q_noiseless.append(traj.q_noiseless)
 
         # Load each trajectory and join the components
         self._name = name
@@ -80,13 +97,17 @@ class SnapshotDataset(data.Dataset):
         self._dq_dt = np.concatenate(dq_dt)
         self._t = np.concatenate(t)
         self._traj_meta = traj_meta
+        self._p_noiseless = np.concatenate(p_noiseless)
+        self._q_noiseless = np.concatenate(q_noiseless)
 
     def __getitem__(self, idx):
         return self.Snapshot(name=self._name[idx],
                              trajectory_meta=self._traj_meta[idx],
                              p=self._p[idx], q=self._q[idx],
                              dp_dt=self._dp_dt[idx], dq_dt=self._dq_dt[idx],
-                             t=self._t[idx])
+                             t=self._t[idx],
+                             p_noiseless=self._p_noiseless[idx],
+                             q_noiseless=self._q_noiseless[idx])
 
     def __len__(self):
         return len(self._traj_meta)
@@ -94,7 +115,8 @@ class SnapshotDataset(data.Dataset):
 
 class RolloutChunkDataset(data.Dataset):
     Rollout = namedtuple("Rollout", ["name", "p", "q", "dp_dt", "dq_dt",
-                                     "t", "trajectory_meta"])
+                                     "t", "trajectory_meta",
+                                     "p_noiseless", "q_noiseless"])
 
     def __init__(self, traj_dataset, rollout_length):
         super().__init__()
@@ -111,6 +133,8 @@ class RolloutChunkDataset(data.Dataset):
         dq_dt = []
         t = []
         traj_meta = []
+        p_noiseless = []
+        q_noiseless = []
 
         for traj_i in range(len(self._traj_dataset)):
             traj = self._traj_dataset[traj_i]
@@ -127,6 +151,8 @@ class RolloutChunkDataset(data.Dataset):
                 dq_dt.append(traj.dq_dt[slicer])
                 t.append(traj.t[slicer])
                 traj_meta.append(traj.trajectory_meta)
+                p_noiseless.append(traj.p_noiseless[slicer])
+                q_noiseless.append(traj.q_noiseless[slicer])
 
         # Join components
         self._name = name
@@ -136,13 +162,17 @@ class RolloutChunkDataset(data.Dataset):
         self._dq_dt = np.stack(dq_dt)
         self._t = np.stack(t)
         self._traj_meta = traj_meta
+        self._p_noiseless = np.concatenate(p_noiseless)
+        self._q_noiseless = np.concatenate(q_noiseless)
 
     def __getitem__(self, idx):
         return self.Rollout(name=self._name[idx],
                             trajectory_meta=self._traj_meta[idx],
                             p=self._p[idx], q=self._q[idx],
                             dp_dt=self._dp_dt[idx], dq_dt=self._dq_dt[idx],
-                            t=self._t[idx])
+                            t=self._t[idx],
+                            p_noiseless=self._p_noiseless[idx],
+                            q_noiseless=self._q_noiseless[idx])
 
     def __len__(self):
         return len(self._traj_meta)
