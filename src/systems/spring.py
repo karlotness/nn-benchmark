@@ -18,7 +18,7 @@ class SpringSystem(System):
     def _dynamics(self, time, coord):
         q, p = np.split(coord, 2)
         deriv = self.derivative(q=q, p=p)
-        return np.stack((deriv.q, deriv.p), axis=-1)
+        return np.concatenate((deriv.q, deriv.p), axis=-1)
 
     def derivative(self, q, p):
         grad = self._hamiltonian_grad(q=q, p=p)

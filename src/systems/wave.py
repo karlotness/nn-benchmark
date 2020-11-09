@@ -58,8 +58,8 @@ class WaveSystem(System):
     def derivative(self, q, p):
         coord = np.concatenate((q, p), axis=-1)
         deriv_coord = coord @ self.k.T
-        dqdt = deriv_coord[:self.n_grid]
-        dpdt = deriv_coord[self.n_grid:]
+        dqdt = deriv_coord[..., :self.n_grid]
+        dpdt = deriv_coord[..., self.n_grid:]
         return StatePair(q=dqdt, p=dpdt)
 
     def generate_trajectory(self, q0, p0, num_time_steps, time_step_size,
@@ -70,7 +70,7 @@ class WaveSystem(System):
 
         eqn_known, eqn_unknown = _build_update_matrices(n_grid=self.n_grid, space_max=self.space_max,
                                                         wave_speed=self.wave_speed, time_step=time_step_size)
-        x0 = np.concatenate((q0, p0), axis=-1)
+        x0 = np.stack((q0, p0))
         steps = [x0]
         step = x0
         for _ in range(num_steps - 1):
@@ -82,7 +82,7 @@ class WaveSystem(System):
         q = steps[:, 0]
         p = steps[:, 1]
 
-        derivatives = self.derivative(steps)
+        derivatives = self.derivative(q=q, p=p)
 
         noise_p = noise_sigma * np.random.randn(*p.shape)
         noise_q = noise_sigma * np.random.randn(*q.shape)
@@ -90,8 +90,8 @@ class WaveSystem(System):
         p_noisy = p + noise_p
         q_noisy = q + noise_q
 
-        dqdt = derivatives[:, 0]
-        dpdt = derivatives[:, 1]
+        dqdt = derivatives.q
+        dpdt = derivatives.p
         t_steps = (np.arange(num_steps) * time_step_size).astype(np.float64)
         t_steps = t_steps[::subsample]
 
