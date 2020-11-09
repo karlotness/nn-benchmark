@@ -1,6 +1,6 @@
 from collections import namedtuple
 
-TrajectoryResult = namedtuple("TrajectoryResult", ["q", "p", "dq_dt", "dp_dt", "t_steps"])
+TrajectoryResult = namedtuple("TrajectoryResult", ["q", "p", "dq_dt", "dp_dt", "t_steps", "p_noiseless", "q_noiseless"])
 SystemResult = namedtuple("SystemResult",
                           ["trajectories", "trajectory_metadata", "metadata"])
 
