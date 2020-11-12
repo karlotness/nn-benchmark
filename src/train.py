@@ -101,7 +101,7 @@ def run_phase(base_dir, out_dir, phase_args):
         data_x = []
         data_y = []
         for batch in train_loader:
-            data_x.append(np.concatenate([batch.p_noiseless, batch.q_noiseless], axis=-1))
+            data_x.append(np.concatenate([batch.p, batch.q], axis=-1))
             data_y.append(np.concatenate([batch.dp_dt, batch.dq_dt], axis=-1))
         data_x = np.concatenate(data_x, axis=0)
         data_y = np.concatenate(data_y, axis=0)
