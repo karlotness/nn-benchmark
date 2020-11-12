@@ -145,8 +145,8 @@ def run_phase(base_dir, out_dir, phase_args):
         raw_l2 = raw_err(approx=int_res, true=true, norm=2)
         rel_l2 = rel_err(approx=int_res, true=true, norm=2)
 
-        int_p = int_res_raw.p.detach().cpu().numpy()
-        int_q = int_res_raw.q.detach().cpu().numpy()
+        int_p = int_res_raw.p[0].detach().cpu().numpy()
+        int_q = int_res_raw.q[0].detach().cpu().numpy()
 
         # Compute hamiltonians
         # Construct systems
