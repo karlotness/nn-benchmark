@@ -133,3 +133,16 @@ class HGN(MessagePassing):
             return torch.sum(torch.abs(g.y - dv_dt)) + regularization
         else:
             return torch.sum(torch.abs(g.y - dv_dt))
+
+
+def build_network(arch_args):
+    # Input dim controls the actual vector shape accepted by the network
+    # ndim is the number of positional dimensions for the system
+    # Input dim = ndim + extra features (certainly at least one particle mass)
+    input_dim = arch_args["input_dim"]
+    ndim = arch_args["ndim"]
+    hidden_dim = arch_args["hidden_dim"]
+    assert input_dim >= 2 * ndim + 1
+
+    net = HGN(n_f=input_dim, ndim=ndim, hidden=hidden_dim)
+    return net
