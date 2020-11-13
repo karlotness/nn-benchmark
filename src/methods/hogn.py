@@ -1,6 +1,7 @@
 import torch
 from torch.nn import Sequential as Seq, Linear as Lin, Softplus
 from torch_geometric.nn import MessagePassing
+from torch_geometric.data import Data
 from torch.autograd import grad
 import numpy as np
 from scipy.linalg import circulant
@@ -29,6 +30,13 @@ def get_edge_index(connection_args):
         return adj
     else:
         raise ValueError(f"Unknown connection type {conn_type}")
+
+
+def package_data(p, q, dp_dt, dq_dt, masses, edge_index):
+    x = np.concatenate((q, p, masses), axis=-1)
+    y = np.concatenate((dq_dt, dp_dt), axis=-1)
+    ret = Data(x=x, edge_index=edge_index, y=y)
+    return ret
 
 
 class HGN(MessagePassing):
