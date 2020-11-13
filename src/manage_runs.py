@@ -229,7 +229,8 @@ def do_slurm_launch(run_descr, root_directory):
                         "--time", f"{slurm_time}",
                         "--cpus-per-task", f"{slurm_cpus}",
                         "--mem", f"{slurm_mem}GB"]
-                       + gpu_arg)
+                       + gpu_arg,
+                       check=True)
     except subprocess.CalledProcessError:
         print("Slurm launch failed")
 
