@@ -33,8 +33,11 @@ def get_edge_index(connection_args):
 
 
 def package_data(p, q, dp_dt, dq_dt, masses, edge_index):
-    x = np.concatenate((q, p, masses), axis=-1)
-    y = np.concatenate((dq_dt, dp_dt), axis=-1)
+    # convert momenta to velocities
+    v = p / masses
+    dv_dt = dp_dt / masses
+    x = np.concatenate((q, v, masses), axis=-1)
+    y = np.concatenate((dq_dt, dv_dt), axis=-1)
     ret = Data(x=x, edge_index=edge_index, y=y)
     return ret
 
