@@ -44,6 +44,7 @@ scan_args.add_argument("--delete", type=str,
                        help="Optionally clean up runs with the given error state")
 
 
+@enum.unique
 class RunState(enum.Enum):
     OUTSTANDING = enum.auto()  # No output directory exists, (ready to launch)
     NO_MATCH = enum.auto()  # Run description does not match (manual resolution needed)
