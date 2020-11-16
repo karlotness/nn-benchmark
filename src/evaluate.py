@@ -112,6 +112,41 @@ def run_phase(base_dir, out_dir, phase_args):
             return KNNDerivative(dq_dt=dqdt, dp_dt=dpdt)
         time_deriv_func = model_time_deriv
         time_deriv_method = METHOD_DIRECT_DERIV
+    elif eval_type == "hogn":
+        # Lazy import to avoid pytorch-geometric if possible
+        from methods import hogn
+        import dataset_geometric
+
+        package_args = eval_args["package_args"]
+        HognMockDataset = namedtuple("HognMockDataset", ["p", "q", "dp_dt", "dq_dt", "masses"])
+
+        def hogn_time_deriv_func(masses):
+            def model_time_deriv(p, q):
+                mocked = HognMockDataset(p=p, q=q, masses=masses,
+                                         dp_dt=None, dq_dt=None)
+                bundled = dataset_geometric(dataset=[mocked],
+                                            package_args=package_args)[0]
+                derivs = net.just_derivative(bundled)
+                unbundled = hogn.unpackage_time_derivative(input_data=bundled,
+                                                           deriv=derivs)
+                return unbundled
+            return model_time_deriv
+
+        def hogn_hamiltonian_func(masses):
+            def model_hamiltonian(p, q):
+                hamilts = []
+                for i in range(p.shape[0]):
+                    # Break out batches separately
+                    mocked = HognMockDataset(p=p[i], q=q[i], masses=masses[i],
+                                             dp_dt=None, dq_dt=None)
+                    bundled = dataset_geometric(dataset=[mocked],
+                                                package_args=package_args)[0]
+                    h = net(bundled).sum()
+                    hamilts.append(h)
+                return np.array(hamilts)
+            return model_hamiltonian
+
+        time_deriv_method = METHOD_DIRECT_DERIV
     else:
         logger.error(f"Invalid evaluation type: {eval_type}")
         raise ValueError(f"Invalid evaluation type: {eval_type}")
@@ -126,6 +161,13 @@ def run_phase(base_dir, out_dir, phase_args):
         q_noiseless = trajectory.q_noiseless.to(device, dtype=eval_dtype)
         num_time_steps = trajectory.trajectory_meta["num_time_steps"][0]
         time_step_size = trajectory.trajectory_meta["time_step_size"][0]
+
+        if eval_type == "hogn":
+            # Pull out masses for HOGN
+            masses = getattr(trajectory, "masses", None)
+            time_deriv_func = hogn_time_deriv_func(masses=masses)
+            hamiltonian_func = hogn_hamiltonian_func(masses=masses)
+
         p0 = p[:, 0]
         q0 = q[:, 0]
         integrate_start = time.perf_counter()
@@ -175,7 +217,7 @@ def run_phase(base_dir, out_dir, phase_args):
         true_hamilt_net_traj = system.hamiltonian(p=int_p, q=int_q).squeeze()
         # Compute network hamiltonians
         net_hamilt_true_traj, net_hamilt_net_traj = None, None
-        if eval_type in ("srnn", "hnn"):
+        if eval_type in ("srnn", "hnn", "hogn"):
             net_hamilt_true_traj = hamiltonian_func(p=p[0], q=q[0]).sum(axis=-1).detach().cpu().numpy()
             int_p_torch = torch.from_numpy(int_p).to(device, dtype=eval_dtype)
             int_q_torch = torch.from_numpy(int_q).to(device, dtype=eval_dtype)
