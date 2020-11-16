@@ -57,20 +57,23 @@ def build_experiment_dataframe(input_args):
     ground_truth_data_df = []
     inferred_data_df = []
 
-    with run_description.open() as file_:
-        metadata = json.load(file_)
-    with (run_description.parent.parent / "results_meta.json").open() as file_:
-        results_metadata = json.load(file_)
-    with (path / metadata["phase_args"]["eval_data"]["data_dir"] / "system_meta.json").open() as file_:
-        system_metadata = json.load(file_)
-    with (path / metadata["phase_args"]["eval_net"] / "train_stats.json").open() as file_:
-        train_stats = json.load(file_)
-    with (path / metadata["phase_args"]["eval_net"] / "model.json").open() as file_:
-        model_config = json.load(file_)
-    with (path / metadata["phase_args"]["eval_net"] / "launch" / "run_description.json").open() as file_:
-        train_run_description = json.load(file_)
-    with (path / train_run_description["phase_args"]["train_data"]["data_dir"] / "system_meta.json").open() as file_:
-        train_system_metadata = json.load(file_)
+    try:
+        with run_description.open() as file_:
+            metadata = json.load(file_)
+        with (run_description.parent.parent / "results_meta.json").open() as file_:
+            results_metadata = json.load(file_)
+        with (path / metadata["phase_args"]["eval_data"]["data_dir"] / "system_meta.json").open() as file_:
+            system_metadata = json.load(file_)
+        with (path / metadata["phase_args"]["eval_net"] / "train_stats.json").open() as file_:
+            train_stats = json.load(file_)
+        with (path / metadata["phase_args"]["eval_net"] / "model.json").open() as file_:
+            model_config = json.load(file_)
+        with (path / metadata["phase_args"]["eval_net"] / "launch" / "run_description.json").open() as file_:
+            train_run_description = json.load(file_)
+        with (path / train_run_description["phase_args"]["train_data"]["data_dir"] / "system_meta.json").open() as file_:
+            train_system_metadata = json.load(file_)
+    except FileNotFoundError as e:
+        return [], [], []
 
     df_row_dict = get_aggregate_data_dict()
 
