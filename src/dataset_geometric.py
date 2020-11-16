@@ -71,7 +71,7 @@ def package_data(data_set, package_args):
         if hasattr(batch, "masses"):
             masses = batch.masses
         else:
-            masses = np.ones()
+            masses = np.ones(p.shape[1])
         proc_part = particle_process_func(p=p, q=q,
                                           dp_dt=dp_dt, dq_dt=dq_dt,
                                           masses=masses)
