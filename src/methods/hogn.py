@@ -1,44 +1,18 @@
 import torch
 from torch.nn import Sequential as Seq, Linear as Lin, Softplus
 from torch_geometric.nn import MessagePassing
-from torch_geometric.data import Data
 from torch.autograd import grad
+from torch_geometric.data import data
 import numpy as np
-from scipy.linalg import circulant
 
 
-def get_edge_index(connection_args):
-    conn_type = connection_args["type"]
-    if conn_type == "fully-connected":
-        # Connect all vertices to each other
-        # No self loop
-        dim = connection_args["dimension"]
-        a = np.ones((dim, dim), dtype=np.int8)
-        b = np.eye(dim, dtype=np.int8)
-        adj = torch.from_numpy(np.array(np.where(a - b)))
-        return adj
-    elif conn_type == "circular-local":
-        # Connect neighboring vertices to each other
-        # Distance controlled by "degree" on either side
-        # No self loops
-        dim = connection_args["dimension"]
-        degree = connection_args["degree"]
-        template = np.zeros(dim, dtype=np.int8)
-        template[1:degree+1] = 1
-        template[-degree:] = 1
-        adj = torch.from_numpy(np.array(np.where(circulant(template))))
-        return adj
-    else:
-        raise ValueError(f"Unknown connection type {conn_type}")
-
-
-def package_data(p, q, dp_dt, dq_dt, masses, edge_index):
+def package_batch(p, q, dp_dt, dq_dt, masses, edge_index):
     # convert momenta to velocities
     v = p / masses
     dv_dt = dp_dt / masses
     x = np.concatenate((q, v, masses), axis=-1)
     y = np.concatenate((dq_dt, dv_dt), axis=-1)
-    ret = Data(x=x, edge_index=edge_index, y=y)
+    ret = data.Data(x=x, edge_index=edge_index, y=y)
     return ret
 
 
