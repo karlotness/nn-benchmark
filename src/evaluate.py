@@ -6,6 +6,7 @@ import torch
 from torch import utils
 import numpy as np
 from train import select_device, TRAIN_DTYPES
+from train import create_dataset as train_create_dataset
 import methods
 import dataset
 import integrators
@@ -40,10 +41,16 @@ def load_network(net_dir, base_dir, eval_type, base_logger):
 
 
 def create_dataset(base_dir, data_args):
-    data_dir = base_dir / data_args["data_dir"]
-    data_set = dataset.TrajectoryDataset(data_dir=data_dir)
-    loader = utils.data.DataLoader(data_set, batch_size=1, shuffle=False)
-    return data_set, loader
+    dataset_type = data_args.get("dataset", None)
+    if dataset_type is None:
+        data_dir = base_dir / data_args["data_dir"]
+        data_set = dataset.TrajectoryDataset(data_dir=data_dir)
+        loader = utils.data.DataLoader(data_set, batch_size=1, shuffle=False)
+        return data_set, loader
+    else:
+        # Non-default data set for evaluation
+        # Use this for creating more complex datasets, like pytorch-geometric
+        return train_create_dataset(base_dir=base_dir, data_args=data_args)
 
 
 def raw_err(approx, true, norm=2):
