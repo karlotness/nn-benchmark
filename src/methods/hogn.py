@@ -4,6 +4,10 @@ from torch_geometric.nn import MessagePassing
 from torch.autograd import grad
 from torch_geometric.data import data
 import numpy as np
+from collections import namedtuple
+
+
+TimeDerivative = namedtuple("TimeDerivative", ["dq_dt", "dp_dt"])
 
 
 def package_batch(p, q, dp_dt, dq_dt, masses, edge_index):
@@ -14,6 +18,13 @@ def package_batch(p, q, dp_dt, dq_dt, masses, edge_index):
     y = np.concatenate((dq_dt, dv_dt), axis=-1)
     ret = data.Data(x=x, edge_index=edge_index, y=y)
     return ret
+
+
+def unpackage_time_derivative(deriv, masses):
+    # deriv = torch.cat((dq_dt, dv_dt), dim=1)
+    dq_dt, dv_dt = np.split(deriv, 2, axis=1)
+    dp_dt = dv_dt * masses
+    return TimeDerivative(dq_dt=dq_dt, dp_dt=dp_dt)
 
 
 class HGN(MessagePassing):
