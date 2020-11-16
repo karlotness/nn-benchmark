@@ -13,9 +13,12 @@ TimeDerivative = namedtuple("TimeDerivative", ["dq_dt", "dp_dt"])
 def package_batch(p, q, dp_dt, dq_dt, masses, edge_index):
     # convert momenta to velocities
     v = p / masses
-    dv_dt = dp_dt / masses
     x = np.concatenate((q, v, masses), axis=-1)
-    y = np.concatenate((dq_dt, dv_dt), axis=-1)
+    if dp_dt is not None and dq_dt is not None:
+        dv_dt = dp_dt / masses
+        y = np.concatenate((dq_dt, dv_dt), axis=-1)
+    else:
+        y = None
     ret = data.Data(x=x, edge_index=edge_index, y=y)
     return ret
 

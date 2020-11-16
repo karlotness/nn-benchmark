@@ -36,7 +36,10 @@ def get_edge_index(connection_args):
 def particle_type_one_dim(p, q, dp_dt, dq_dt, masses):
     def process_elem(ev):
         # Plain vector, pivot to have one dimension
-        return ev.reshape((-1, 1))
+        if ev is not None:
+            return ev.reshape((-1, 1))
+        else:
+            return None
     return ProcessedParticles(
         p=process_elem(p),
         q=process_elem(q),
@@ -68,7 +71,7 @@ def package_data(data_set, package_args):
         q = batch.q
         dp_dt = batch.dp_dt
         dq_dt = batch.dq_dt
-        if hasattr(batch, "masses"):
+        if hasattr(batch, "masses") and batch["masses"] is not None:
             masses = batch.masses
         else:
             masses = np.ones(p.shape[1])
