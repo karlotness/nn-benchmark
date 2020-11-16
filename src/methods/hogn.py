@@ -20,11 +20,13 @@ def package_batch(p, q, dp_dt, dq_dt, masses, edge_index):
     return ret
 
 
-def unpackage_time_derivative(deriv, masses):
-    # deriv = torch.cat((dq_dt, dv_dt), dim=1)
+def unpackage_time_derivative(input_data, deriv):
+    # format: deriv = torch.cat((dq_dt, dv_dt), dim=1)
+    masses = input_data.x[..., -1]
     dq_dt, dv_dt = np.split(deriv, 2, axis=1)
     dp_dt = dv_dt * masses
-    return TimeDerivative(dq_dt=dq_dt, dp_dt=dp_dt)
+    return TimeDerivative(dq_dt=dq_dt.reshape((1, -1)),
+                          dp_dt=dp_dt.reshape((1, -1)))
 
 
 class HGN(MessagePassing):
