@@ -151,13 +151,17 @@ def run_phase(base_dir, out_dir, phase_args):
             total_loss = 0
             total_loss_denom = 0
             for batch_num, batch in enumerate(train_loader):
-                p = batch.p.to(device, dtype=train_dtype)
-                q = batch.q.to(device, dtype=train_dtype)
-                p_noiseless = batch.p_noiseless.to(device, dtype=train_dtype)
-                q_noiseless = batch.q_noiseless.to(device, dtype=train_dtype)
-                dp_dt = batch.dp_dt.to(device, dtype=train_dtype)
-                dq_dt = batch.dq_dt.to(device, dtype=train_dtype)
-                trajectory_meta = batch.trajectory_meta
+                if train_type == "hogn":
+                    graph_batch = batch
+                else:
+                    # Standard batch
+                    p = batch.p.to(device, dtype=train_dtype)
+                    q = batch.q.to(device, dtype=train_dtype)
+                    p_noiseless = batch.p_noiseless.to(device, dtype=train_dtype)
+                    q_noiseless = batch.q_noiseless.to(device, dtype=train_dtype)
+                    dp_dt = batch.dp_dt.to(device, dtype=train_dtype)
+                    dq_dt = batch.dq_dt.to(device, dtype=train_dtype)
+                    trajectory_meta = batch.trajectory_meta
 
                 # Reset optimizer
                 optim.zero_grad()
@@ -200,6 +204,10 @@ def run_phase(base_dir, out_dir, phase_args):
                     dx_dt_pred = torch.cat([deriv_pred.dp_dt, deriv_pred.dq_dt], dim=-1)
                     loss = loss_fn(dx_dt_pred, dx_dt)
                     total_loss_denom += p.shape[0]
+                elif train_type == "hogn":
+                    # HOGN training with graph_batch
+                    loss = net.loss(graph_batch)
+                    total_loss_denom += graph_batch.num_graphs
                 else:
                     raise ValueError(f"Invalid train type: {train_type}")
                 total_forward_time += time.perf_counter() - time_forward_start
