@@ -170,6 +170,9 @@ def run_phase(base_dir, out_dir, phase_args):
             for batch_num, batch in enumerate(train_loader):
                 if train_type == "hogn":
                     graph_batch = batch
+                    graph_batch.x = graph_batch.x.to(device, dtype=train_dtype)
+                    graph_batch.y = graph_batch.y.to(device, dtype=train_dtype)
+                    graph_batch.edge_index = graph_batch.edge_index.to(device)
                 else:
                     # Standard batch
                     p = batch.p.to(device, dtype=train_dtype)
