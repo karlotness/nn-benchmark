@@ -94,7 +94,7 @@ def spring_description_steps(subsample):
             "gpu": False,
             "time": "04:00:00",
             "cpus": 8,
-            "mem": 8
+            "mem": 32
         }
     }
     return descr
