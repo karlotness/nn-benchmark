@@ -100,6 +100,45 @@ def spring_description_steps(subsample):
     return descr
 
 
+def spring_description_tolerance(subsample):
+    run_name = f"{EXPERIMENT_NAME_BASE}_spring-tolerance-{-1 * subsample}"
+    steps = 100
+    time_step_size = 0.1
+    rtol = 10**(subsample)
+    descr = {
+        "out_dir": f"run/data_gen/{run_name}",
+        "exp_name": EXPERIMENT_NAME_BASE,
+        "run_name": run_name,
+        "phase": "data_gen",
+        "phase_args": {
+            "system": "spring",
+            "system_args": {
+                "trajectory_defs": [
+                    {
+                        "initial_condition": [0.70124551, -0.49899528],
+                        "num_time_steps": steps,
+                        "time_step_size": time_step_size,
+                        "rtol": rtol,
+                    },
+                    {
+                        "initial_condition": [-0.14520081, 0.90368528],
+                        "num_time_steps": steps,
+                        "time_step_size": time_step_size,
+                        "rtol": rtol,
+                    }
+                ]
+            }
+        },
+        "slurm_args": {
+            "gpu": False,
+            "time": "04:00:00",
+            "cpus": 8,
+            "mem": 8
+        }
+    }
+    return descr
+
+
 if __name__ == "__main__":
     args = parser.parse_args()
     base_dir = pathlib.Path(args.base_dir)
@@ -116,6 +155,15 @@ if __name__ == "__main__":
     for i in range(11):
         subsample = 2**i
         descr = spring_description_steps(subsample=subsample)
+        rname = descr["run_name"] + ".json"
+        out_path = base_dir / "descr" / "data_gen" / rname
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(out_path, "w", encoding="utf8") as out_file:
+            json.dump(descr, out_file)
+
+    for i in range(1, 11):
+        subsample = -i
+        descr = spring_description_tolerance(subsample=subsample)
         rname = descr["run_name"] + ".json"
         out_path = base_dir / "descr" / "data_gen" / rname
         out_path.parent.mkdir(parents=True, exist_ok=True)
