@@ -31,7 +31,7 @@ def load_network(net_dir, base_dir, eval_type, base_logger):
     net = methods.build_network(metadata)
     # Load weights
     weight_path = net_dir / "model.pt"
-    if eval_type == "knn-regressor":
+    if eval_type == "knn-integrator" or eval_type == "knn-predictor":
         with open(net_dir / "model.pt", "rb") as model_file:
             net = joblib.load(model_file)
     else:
@@ -76,7 +76,7 @@ def run_phase(base_dir, out_dir, phase_args):
 
     # Load the network
     net = load_network(phase_args["eval_net"], base_dir=base_dir, eval_type=eval_type, base_logger=logger)
-    if eval_type != "knn-regressor":
+    if not (eval_type == "knn-integrator" or eval_type == "knn-predictor"):
         net = net.to(device, dtype=eval_dtype)
 
     # Load the evaluation data
@@ -100,7 +100,7 @@ def run_phase(base_dir, out_dir, phase_args):
     elif eval_type == "mlp":
         time_deriv_func = net
         time_deriv_method = METHOD_DIRECT_DERIV
-    elif eval_type == "knn-regressor":
+    elif eval_type == "knn-integrator":
         # Use the time_derivative
         KNNDerivative = namedtuple("KNNDerivative", ["dq_dt", "dp_dt"])
         def model_time_deriv(p, q):
@@ -111,6 +111,18 @@ def run_phase(base_dir, out_dir, phase_args):
             dqdt = torch.from_numpy(dqdt).to(device, dtype=eval_dtype)
             return KNNDerivative(dq_dt=dqdt, dp_dt=dpdt)
         time_deriv_func = model_time_deriv
+        time_deriv_method = METHOD_DIRECT_DERIV
+    elif eval_type == "knn-predictor":
+        def model_pred(p_q):
+            p_q_next = net(p_q)
+            return p_q_next
+    elif eval_type == "integrator-baseline":
+        # Use the time_derivative
+        SystemDerivative = namedtuple("SystemDerivative", ["dq_dt", "dp_dt"])
+        def system_derivative(p, q):
+            derivative = system.derivative(p, q)
+            return SystemDerivative(dp_dt=derivative.p, dq_dt=derivative.q)
+        time_deriv_func = system_derivative
         time_deriv_method = METHOD_DIRECT_DERIV
     elif eval_type == "hogn":
         # Lazy import to avoid pytorch-geometric if possible
@@ -162,41 +174,6 @@ def run_phase(base_dir, out_dir, phase_args):
         num_time_steps = trajectory.trajectory_meta["num_time_steps"][0]
         time_step_size = trajectory.trajectory_meta["time_step_size"][0]
 
-        if eval_type == "hogn":
-            # Pull out masses for HOGN
-            masses = getattr(trajectory, "masses", None)
-            time_deriv_func = hogn_time_deriv_func(masses=masses)
-            hamiltonian_func = hogn_hamiltonian_func(masses=masses)
-
-        p0 = p[:, 0]
-        q0 = q[:, 0]
-        integrate_start = time.perf_counter()
-        int_res_raw = integrators.numerically_integrate(
-            integrator_type,
-            p_0=p0,
-            q_0=q0,
-            model=time_deriv_func,
-            method=time_deriv_method,
-            T=num_time_steps,
-            dt=time_step_size,
-            volatile=True,
-            device=device,
-            coarsening_factor=1)
-        # Remove extraneous batch dimension
-        integrate_elapsed = time.perf_counter() - integrate_start
-        # Split the integration result
-        int_p = int_res_raw.p
-        int_q = int_res_raw.q
-
-        # Compute errors and other statistics
-        int_res = torch.cat([int_p, int_q], axis=-1)[0].detach().cpu().numpy()
-        true = torch.cat([p_noiseless, q_noiseless], axis=-1)[0].detach().cpu().numpy()
-        raw_l2 = raw_err(approx=int_res, true=true, norm=2)
-        rel_l2 = rel_err(approx=int_res, true=true, norm=2)
-
-        int_p = int_res_raw.p[0].detach().cpu().numpy()
-        int_q = int_res_raw.q[0].detach().cpu().numpy()
-
         # Compute hamiltonians
         # Construct systems
         if eval_dataset.system == "spring":
@@ -210,6 +187,60 @@ def run_phase(base_dir, out_dir, phase_args):
                                      wave_speed=wave_speed)
         else:
             raise ValueError(f"Unknown system type {eval_dataset.system}")
+
+        if eval_type == "hogn":
+            # Pull out masses for HOGN
+            masses = getattr(trajectory, "masses", None)
+            time_deriv_func = hogn_time_deriv_func(masses=masses)
+            hamiltonian_func = hogn_hamiltonian_func(masses=masses)
+
+        if eval_type == "knn-predictor":
+            p0 = p[:, 0]
+            q0 = q[:, 0]
+            p_q = np.concatenate([p0, q0], axis=-1)
+            p_q_cumulative = [p_q]
+
+            integrate_start = time.perf_counter()
+            for time_step in range(num_time_steps):
+                p_q = model_pred(p_q)
+                p_q_cumulative.append([p_q])
+            integrate_elapsed = time.perf_counter() - integrate_start
+
+            int_res = np.stack(p_q_cumulative, axis=-2)
+            true = torch.cat([p_noiseless, q_noiseless], axis=-1)[0].detach().cpu().numpy()
+            raw_l2 = raw_err(approx=int_res, true=true, norm=2)
+            rel_l2 = rel_err(approx=int_res, true=true, norm=2)
+            int_p, int_q = np.split(int_res, 2, axis=-1)
+        else:
+            p0 = p[:, 0]
+            q0 = q[:, 0]
+            integrate_start = time.perf_counter()
+            int_res_raw = integrators.numerically_integrate(
+                integrator_type,
+                p_0=p0,
+                q_0=q0,
+                model=time_deriv_func,
+                method=time_deriv_method,
+                T=num_time_steps,
+                dt=time_step_size,
+                volatile=True,
+                device=device,
+                coarsening_factor=1)
+            # Remove extraneous batch dimension
+            integrate_elapsed = time.perf_counter() - integrate_start
+            # Split the integration result
+            int_p = int_res_raw.p
+            int_q = int_res_raw.q
+
+            # Compute errors and other statistics
+            int_res = torch.cat([int_p, int_q], axis=-1)[0].detach().cpu().numpy()
+            true = torch.cat([p_noiseless, q_noiseless], axis=-1)[0].detach().cpu().numpy()
+            raw_l2 = raw_err(approx=int_res, true=true, norm=2)
+            rel_l2 = rel_err(approx=int_res, true=true, norm=2)
+
+            int_p = int_res_raw.p[0].detach().cpu().numpy()
+            int_q = int_res_raw.q[0].detach().cpu().numpy()
+
 
         # Compute true hamiltonians
         true_hamilt_true_traj = system.hamiltonian(p=p_noiseless.cpu().numpy()[0],

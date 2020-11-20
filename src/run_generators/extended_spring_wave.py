@@ -215,7 +215,8 @@ def create_training_run(train_data_dir, training_type, net_architecture, name_ke
                     "learning_rate": LEARNING_RATE,
                 },
                 "max_epochs": EPOCHS,
-                "try_gpu": (TRY_GPU and training_type != "knn-regressor"),
+                "try_gpu": (TRY_GPU and not (training_type == "knn-integrator"
+                                             or training_type == "knn-predictor")),
                 "train_dtype": "float",
                 "train_type": training_type,
                 "train_type_args": train_type_args,
@@ -228,7 +229,8 @@ def create_training_run(train_data_dir, training_type, net_architecture, name_ke
             }
         },
         "slurm_args": {
-            "gpu": (training_type != "knn-regressor"),  # GPU only if not KNN run
+            "gpu": (not (training_type == "knn-integrator"
+                         or training_type == "knn-predictor")),  # GPU only if not KNN run
             "time": "08:00:00",
             "cpus": 8,
             "mem": 32,
@@ -283,9 +285,19 @@ def create_srnn_net(input_dim, hidden_dim, output_dim, depth):
     }
 
 
-def create_knn_regressor_net(input_dim, output_dim):
+def create_knn_integrator_net(input_dim, output_dim):
     return {
-        "arch": "knn-regressor",
+        "arch": "knn-integrator",
+        "arch_args": {
+            "input_dim": input_dim,
+            "output_dim": output_dim,
+        }
+    }
+
+
+def create_knn_predictor_net(input_dim, output_dim):
+    return {
+        "arch": "knn-predictor",
         "arch_args": {
             "input_dim": input_dim,
             "output_dim": output_dim,
@@ -298,16 +310,17 @@ def create_train_runs(train_sets):
         "srnn": create_srnn_net,
         "hnn": create_hnn_net,
         "mlp": create_mlp_net,
-        "knn-regressor": create_knn_regressor_net,
+        "knn-integrator": create_knn_integrator_net,
+        "knn-predictor": create_knn_predictor_net,
     }
     train_sets = list(train_sets)
     train_runs = []
-    for net_type in ["srnn", "hnn", "mlp", "knn-regressor"]:
+    for net_type in ["srnn", "hnn", "mlp", "knn-integrator", "knn-predictor"]:
         net_func = types[net_type]
         for _dest_file, _contents, train_out_dir in train_sets:
             train_set_size = int(train_out_dir.split("-")[-1])
             net_configs = NET_DEPTHS_CONFIGS
-            if net_type == "knn-regressor":
+            if net_type == "knn-integrator" or net_type == "knn-predictor":
                 net_configs = [(None, None)]
             for depth, hidden in net_configs:
                 base_data_name = str(train_out_dir).split("_")[-1]
@@ -321,7 +334,7 @@ def create_train_runs(train_sets):
                 output_dim = 2
                 if net_type == "mlp":
                     output_dim = input_dim
-                if net_type == "knn-regressor":
+                if net_type == "knn-integrator" or net_type == "knn-predictor":
                     net = net_func(input_dim=input_dim,
                                    output_dim=output_dim)
                     name_key = f"{system_type}-{net_type}-{train_set_size}"
