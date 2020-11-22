@@ -57,10 +57,16 @@ def raw_err(approx, true, norm=2):
     err = np.linalg.norm(approx - true, ord=norm, axis=1)
     return err
 
+
 def rel_err(approx, true, norm=2):
     num = np.linalg.norm(approx - true, ord=norm, axis=1)
     denom = np.linalg.norm(true, ord=norm, axis=1)
     return num / denom
+
+
+def mean_square_err(approx, true):
+    diff = (approx - true)**2
+    return np.mean(diff, axis=1)
 
 
 def run_phase(base_dir, out_dir, phase_args):
@@ -210,6 +216,7 @@ def run_phase(base_dir, out_dir, phase_args):
             true = torch.cat([p_noiseless, q_noiseless], axis=-1)[0].detach().cpu().numpy()
             raw_l2 = raw_err(approx=int_res, true=true, norm=2)
             rel_l2 = rel_err(approx=int_res, true=true, norm=2)
+            mse_err = mean_square_err(approx=int_res, true=true)
             int_p, int_q = np.split(int_res, 2, axis=-1)
         else:
             p0 = p[:, 0]
@@ -237,6 +244,7 @@ def run_phase(base_dir, out_dir, phase_args):
             true = torch.cat([p_noiseless, q_noiseless], axis=-1)[0].detach().cpu().numpy()
             raw_l2 = raw_err(approx=int_res, true=true, norm=2)
             rel_l2 = rel_err(approx=int_res, true=true, norm=2)
+            mse_err = mean_square_err(approx=int_res, true=true)
 
             int_p = int_res_raw.p[0].detach().cpu().numpy()
             int_q = int_res_raw.q[0].detach().cpu().numpy()
@@ -260,6 +268,7 @@ def run_phase(base_dir, out_dir, phase_args):
             traj_name: int_res,
             f"{traj_name}_relerr_l2": rel_l2,
             f"{traj_name}_raw_l2": raw_l2,
+            f"{traj_name}_mse": mse_err,
             f"{traj_name}_p": int_p,
             f"{traj_name}_q": int_q,
             f"{traj_name}_true_hamilt_true_traj": true_hamilt_true_traj,
@@ -272,6 +281,7 @@ def run_phase(base_dir, out_dir, phase_args):
                 "traj": traj_name,
                 "relerr_l2": f"{traj_name}_relerr_l2",
                 "raw_l2": f"{traj_name}_raw_l2",
+                "mse": f"{traj_name}_mse",
                 "p": f"{traj_name}_p",
                 "q": f"{traj_name}_q",
                 "true_hamilt_true_traj": f"{traj_name}_true_hamilt_true_traj",
