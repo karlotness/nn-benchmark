@@ -200,55 +200,35 @@ def run_phase(base_dir, out_dir, phase_args):
             time_deriv_func = hogn_time_deriv_func(masses=masses)
             hamiltonian_func = hogn_hamiltonian_func(masses=masses)
 
-        if eval_type == "knn-predictor":
-            p0 = p[:, 0]
-            q0 = q[:, 0]
-            p_q = np.concatenate([p0, q0], axis=-1)
-            p_q_cumulative = [p_q]
+        p0 = p[:, 0]
+        q0 = q[:, 0]
+        integrate_start = time.perf_counter()
+        int_res_raw = integrators.numerically_integrate(
+            integrator_type,
+            p_0=p0,
+            q_0=q0,
+            model=time_deriv_func,
+            method=time_deriv_method,
+            T=num_time_steps,
+            dt=time_step_size,
+            volatile=True,
+            device=device,
+            coarsening_factor=1)
+        # Remove extraneous batch dimension
+        integrate_elapsed = time.perf_counter() - integrate_start
+        # Split the integration result
+        int_p = int_res_raw.p
+        int_q = int_res_raw.q
 
-            integrate_start = time.perf_counter()
-            for time_step in range(num_time_steps):
-                p_q = model_pred(p_q)
-                p_q_cumulative.append([p_q])
-            integrate_elapsed = time.perf_counter() - integrate_start
+        # Compute errors and other statistics
+        int_res = torch.cat([int_p, int_q], axis=-1)[0].detach().cpu().numpy()
+        true = torch.cat([p_noiseless, q_noiseless], axis=-1)[0].detach().cpu().numpy()
+        raw_l2 = raw_err(approx=int_res, true=true, norm=2)
+        rel_l2 = rel_err(approx=int_res, true=true, norm=2)
+        mse_err = mean_square_err(approx=int_res, true=true)
 
-            int_res = np.stack(p_q_cumulative, axis=-2)
-            true = torch.cat([p_noiseless, q_noiseless], axis=-1)[0].detach().cpu().numpy()
-            raw_l2 = raw_err(approx=int_res, true=true, norm=2)
-            rel_l2 = rel_err(approx=int_res, true=true, norm=2)
-            mse_err = mean_square_err(approx=int_res, true=true)
-            int_p, int_q = np.split(int_res, 2, axis=-1)
-        else:
-            p0 = p[:, 0]
-            q0 = q[:, 0]
-            integrate_start = time.perf_counter()
-            int_res_raw = integrators.numerically_integrate(
-                integrator_type,
-                p_0=p0,
-                q_0=q0,
-                model=time_deriv_func,
-                method=time_deriv_method,
-                T=num_time_steps,
-                dt=time_step_size,
-                volatile=True,
-                device=device,
-                coarsening_factor=1)
-            # Remove extraneous batch dimension
-            integrate_elapsed = time.perf_counter() - integrate_start
-            # Split the integration result
-            int_p = int_res_raw.p
-            int_q = int_res_raw.q
-
-            # Compute errors and other statistics
-            int_res = torch.cat([int_p, int_q], axis=-1)[0].detach().cpu().numpy()
-            true = torch.cat([p_noiseless, q_noiseless], axis=-1)[0].detach().cpu().numpy()
-            raw_l2 = raw_err(approx=int_res, true=true, norm=2)
-            rel_l2 = rel_err(approx=int_res, true=true, norm=2)
-            mse_err = mean_square_err(approx=int_res, true=true)
-
-            int_p = int_res_raw.p[0].detach().cpu().numpy()
-            int_q = int_res_raw.q[0].detach().cpu().numpy()
-
+        int_p = int_res_raw.p[0].detach().cpu().numpy()
+        int_q = int_res_raw.q[0].detach().cpu().numpy()
 
         # Compute true hamiltonians
         true_hamilt_true_traj = system.hamiltonian(p=p_noiseless.cpu().numpy()[0],
