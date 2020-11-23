@@ -2,6 +2,8 @@ from collections import namedtuple
 import torch
 from torch.autograd import grad
 import enum
+from scipy import integrate
+import numpy as np
 
 IntegrationResult = namedtuple("IntegrationResult", ["q", "p"])
 
@@ -173,6 +175,49 @@ def null_integrator(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=False, devic
     ret_p = trajectories[:, :, :n]
     ret_q = trajectories[:, :, n:]
     return IntegrationResult(q=ret_q, p=ret_p)
+
+
+def scipy_integrator(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu', method="RK45"):
+    if not volatile:
+        raise ValueError("SciPy integrators cannot create graph")
+
+    def scipy_wrapper(_time, y):
+        p, q = np.split(y, 2, axis=-1)
+        p = torch.from_numpy(p).to(device)
+        q = torch.from_numpy(q).to(device)
+        if is_Hamilt:
+            # Do backprop for hamiltonian
+            p.requires_grad_()
+            q.requires_grad_()
+            hamilt = Func(p=p, q=q)
+            dpdt = -grad(hamilt.sum(), q, create_graph=not volatile)[0]
+            dqdt = grad(hamilt.sum(), p, create_graph=not volatile)[0]
+            dpdt = dpdt.detach().cpu().numpy()
+            dqdt = dqdt.detach().cpu().numpy()
+            return np.concatenate((dpdt, dqdt), axis=-1)
+        else:
+            # Do direct integration
+            deriv = Func(p=p, q=q)
+            dpdt = deriv.dp_dt.detach().cpu().numpy()
+            dqdt = deriv.dq_dt.detach().cpu().numpy()
+            return np.concatenate((dpdt, dqdt), axis=-1)
+
+    t_span = (0, dt * T)
+    t_eval = np.arange(T).astype(np.float64) * dt
+    y0 = np.concatenate((p_0, q_0), axis=-1)
+
+    ivp_res = integrate.solve_ivp(scipy_wrapper,
+                                  t_span=t_span,
+                                  y0=y0,
+                                  method=method,
+                                  t_eval=t_eval)
+
+    # Read out results
+    y = np.moveaxis(ivp_res["y"], 0, -1)
+    ps, qs = np.split(y, 2, axis=-1)
+    ps = torch.from_numpy(ps).to(device)
+    qs = torch.from_numpy(qs).to(device)
+    return IntegrationResult(q=qs, p=ps)
 
 
 def numerically_integrate(integrator, p_0, q_0, model, method, T, dt, volatile, device, coarsening_factor=1):
