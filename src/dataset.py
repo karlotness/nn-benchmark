@@ -15,7 +15,7 @@ class TrajectoryDataset(data.Dataset):
                                            "p_noiseless", "q_noiseless",
                                            "masses"])
 
-    def __init__(self, data_dir):
+    def __init__(self, data_dir, linearize=False):
         super().__init__()
         data_dir = pathlib.Path(data_dir)
 
@@ -25,6 +25,14 @@ class TrajectoryDataset(data.Dataset):
         self.system_metadata = metadata["metadata"]
         self._trajectory_meta = metadata["trajectories"]
         self._npz_file = np.load(data_dir / "trajectories.npz")
+        self._linearize = linearize
+
+    def __linearize(self, arr):
+        if self._linearize:
+            num_steps = arr.shape[0]
+            return arr.reshape((num_steps, -1))
+        else:
+            return arr
 
     def __getitem__(self, idx):
         meta = self._trajectory_meta[idx]
@@ -51,9 +59,13 @@ class TrajectoryDataset(data.Dataset):
             masses = None
         # Package and return
         return self.Trajectory(name=name, trajectory_meta=meta,
-                               p=p, q=q, dp_dt=dp_dt, dq_dt=dq_dt, t=t,
-                               p_noiseless=p_noiseless,
-                               q_noiseless=q_noiseless,
+                               p=self.__linearize(p),
+                               q=self.__linearize(q),
+                               dp_dt=self.__linearize(dp_dt),
+                               dq_dt=self.__linearize(dq_dt),
+                               t=t,
+                               p_noiseless=self.__linearize(p_noiseless),
+                               q_noiseless=self.__linearize(q_noiseless),
                                masses=masses)
 
     def __len__(self):
