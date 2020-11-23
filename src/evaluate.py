@@ -10,7 +10,7 @@ from train import create_dataset as train_create_dataset
 import methods
 import dataset
 import integrators
-from systems import spring, wave
+from systems import spring, wave, particle
 import joblib
 from collections import namedtuple
 
@@ -200,6 +200,12 @@ def run_phase(base_dir, out_dir, phase_args):
             system = wave.WaveSystem(n_grid=n_grid,
                                      space_max=space_max,
                                      wave_speed=wave_speed)
+        elif eval_dataset.system == "particle":
+            n_dim = eval_dataset.system_metadata["n_dim"]
+            n_particles = eval_dataset.system_metadata["n_particles"]
+            g = eval_dataset.system_metadata["g"]
+            system = particle.ParticleSystem(n_particles=n_particles,
+                                             n_dim=n_dim, g=g)
         else:
             raise ValueError(f"Unknown system type {eval_dataset.system}")
 
