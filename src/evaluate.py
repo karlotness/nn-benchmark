@@ -119,9 +119,18 @@ def run_phase(base_dir, out_dir, phase_args):
         time_deriv_func = model_time_deriv
         time_deriv_method = METHOD_DIRECT_DERIV
     elif eval_type == "knn-predictor":
-        def model_pred(p_q):
-            p_q_next = net(p_q)
-            return p_q_next
+        KNNPrediction = namedtuple("KNNPrediction", ["q", "p"])
+        def model_next_step(p, q):
+            x = torch.cat([p, q], axis=-1).detach().cpu().numpy()
+            ret = net.predict(x)
+            next_p, next_q = np.split(ret, 2, axis=-1)
+            next_p = torch.from_numpy(next_p).to(device, dtype=eval_dtype)
+            next_q = torch.from_numpy(next_q).to(device, dtype=eval_dtype)
+            return KNNPrediction(q=next_q, p=next_p)
+        time_deriv_func = model_next_step
+        time_deriv_method = METHOD_DIRECT_DERIV
+        if integrator_type != "null":
+            raise ValueError(f"KNN predictions to not work with integrator {integrator_type}")
     elif eval_type == "integrator-baseline":
         # Use the time_derivative
         SystemDerivative = namedtuple("SystemDerivative", ["dq_dt", "dp_dt"])
