@@ -1,7 +1,7 @@
 import logging
 import pathlib
 import numpy as np
-from systems import spring, wave
+from systems import spring, wave, particle
 import json
 
 
@@ -19,6 +19,9 @@ def run_phase(base_dir, out_dir, phase_args):
     elif system == "wave":
         sys_result = wave.generate_data(system_args=system_args,
                                         base_logger=logger)
+    elif system == "particle":
+        sys_result = particle.generate_data(system_args=system_args,
+                                            base_logger=logger)
     else:
         raise ValueError(f"Invalid system: {system}")
 

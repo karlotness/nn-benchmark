@@ -133,3 +133,79 @@ def generate_data(system_args, base_logger=None):
         logger = base_logger.getChild("particle")
     else:
         logger = logging.getLogger("particle")
+
+    # Global system parameters
+    n_particles = system_args["n_particles"]
+    n_dim = system_args["n_dim"]
+    g = system_args.get("g", 1.0)
+
+    system = ParticleSystem(n_particles=n_particles,
+                            n_dim=n_dim,
+                            g=g)
+
+    trajectory_metadata = []
+    trajectories = {}
+    trajectory_defs = system_args["trajectory_defs"]
+    for i, traj_def in enumerate(trajectory_defs):
+        traj_name = f"traj_{i:05}"
+        logger.info(f"Generating trajectory {traj_name}")
+
+        q0 = np.array(traj_def["q0"]).astype(np.float64)
+        p0 = np.array(traj_def["p0"]).astype(np.float64)
+        masses = np.array(traj_def["masses"]).astype(np.float64)
+        num_time_steps = traj_def["num_time_steps"]
+        time_step_size = traj_def["time_step_size"]
+        rtol = traj_def.get("rtol", 1e-10)
+        noise_sigma = traj_def.get("noise_sigma", 0.0)
+
+        # Generate trajectory
+        traj_gen_start = time.perf_counter()
+        traj_result = system.generate_trajectory(
+            q0=q0, p0=p0, masses=masses,
+            num_time_steps=num_time_steps, time_step_size=time_step_size,
+            rtol=rtol, noise_sigma=noise_sigma)
+        traj_gen_end = time.perf_counter()
+
+        # Store trajectory data
+        trajectories.update({
+            f"{traj_name}_p": traj_result.p,
+            f"{traj_name}_q": traj_result.q,
+            f"{traj_name}_dqdt": traj_result.dq_dt,
+            f"{traj_name}_dpdt": traj_result.dp_dt,
+            f"{traj_name}_t": traj_result.t_steps,
+            f"{traj_name}_p_noiseless": traj_result.p_noiseless,
+            f"{traj_name}_q_noiseless": traj_result.q_noiseless,
+            f"{traj_name}_masses": traj_result.masses,
+        })
+
+        # Store per-trajectory metadata
+        trajectory_metadata.append(
+            {"name": traj_name,
+             "num_time_steps": num_time_steps,
+             "time_step_size": time_step_size,
+             "noise_sigma": noise_sigma,
+             "field_keys": {
+                 "p": f"{traj_name}_p",
+                 "q": f"{traj_name}_q",
+                 "dpdt": f"{traj_name}_dpdt",
+                 "dqdt": f"{traj_name}_dqdt",
+                 "t": f"{traj_name}_t",
+                 "p_noiseless": f"{traj_name}_p_noiseless",
+                 "q_noiseless": f"{traj_name}_q_noiseless",
+                 "masses": f"{traj_name}_masses",
+             },
+             "timing": {
+                 "traj_gen_time": traj_gen_end - traj_gen_start
+             }})
+
+    logger.info("Done generating trajectories")
+
+    return SystemResult(trajectories=trajectories,
+                        metadata={
+                            "n_grid": n_dim,
+                            "n_dim": n_dim,
+                            "n_particles": n_particles,
+                            "g": g,
+                            "system_type": "particle",
+                        },
+                        trajectory_metadata=trajectory_metadata)
