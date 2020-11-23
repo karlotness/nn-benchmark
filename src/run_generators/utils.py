@@ -30,7 +30,7 @@ class InitialConditionSource:
     def sample_initial_conditions(self, num):
         if num > len(self._initial_conditions):
             remaining = num - len(self._initial_conditions)
-            for _i in remaining:
+            for _i in range(remaining):
                 new_cond = self._generate_initial_condition()
                 self._initial_conditions.append(new_cond)
         return [copy.deepcopy(d) for d in self._initial_conditions[:num]]
