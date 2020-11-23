@@ -18,8 +18,8 @@ ParticleTrajectoryResult = namedtuple("ParticleTrajectoryResult",
 class ParticleSystem(System):
     def __init__(self, n_particles, n_dim, g=1):
         super().__init__()
-        self.n_particles
-        self.n_dim
+        self.n_particles = n_particles
+        self.n_dim = n_dim
         self.g = g
 
     def hamiltonian(self, q, p):
@@ -35,7 +35,7 @@ class ParticleSystem(System):
         dp_dt = np.zeros((num_steps, self.n_particles, self.n_dim))
         # Compute change in momentum
         for step in range(num_steps):
-            for i, j in itertools.combinations(range(self.n_particles)):
+            for i, j in itertools.combinations(range(self.n_particles), 2):
                 fqa, fqb = self._pairwise_force(qa=q[step, i], ma=masses[i],
                                                 qb=q[step, j], mb=masses[j])
                 dp_dt[step, i] += fqa
@@ -44,7 +44,7 @@ class ParticleSystem(System):
 
     def _pairwise_force(self, qa, qb, ma, mb, epsilon=1e-2):
         # Shapes each (n_dim) for position
-        diff = qa - qb
+        diff = qb - qa
         dist = np.linalg.norm(diff, ord=2) + epsilon
         mass_prod = ma * mb
         denom = dist**3
@@ -61,38 +61,39 @@ class ParticleSystem(System):
         masses = coord[:, -1]
         # Accumulate forces
         force_acc = np.zeros((self.n_particles, self.n_dim))
-        for i, j in itertools.combinations(range(self.n_particles)):
+        for i, j in itertools.combinations(range(self.n_particles), 2):
             fqa, fqb = self._pairwise_force(qa=qs[i], ma=masses[i],
                                             qb=qs[j], mb=masses[j])
             force_acc[i] += fqa
             force_acc[j] += fqb
         # Compute updates
         accel = force_acc / masses.reshape((self.n_particles, 1))
-        res = np.concatenate((vs, accel, np.zeros(self.n_particles, 1)), axis=-1)
+        res = np.concatenate((vs, accel, np.zeros((self.n_particles, 1))), axis=-1)
         # Return result
         return res.reshape(orig_shape)
 
     def generate_trajectory(self, q0, p0, num_time_steps, time_step_size,
                             masses, rtol=1e-10, noise_sigma=0.0):
         # Check shapes of inputs
-        if ((q0.shape != (self.n_particles, self.n_dim)) or (p0.shape == (self.n_particles, self.n_dim)) or (masses.shape == (self.n_particles,))):
+        if ((q0.shape != (self.n_particles, self.n_dim)) or (p0.shape != (self.n_particles, self.n_dim)) or (masses.shape != (self.n_particles,))):
             raise ValueError("Invalid input shape for particle system")
         m0 = masses.reshape((self.n_particles, 1))
         v0 = p0 / m0
-        x0 = np.concatenate((q0, v0, m0), axsi=-1).reshape((-1, ))
+        x0 = np.concatenate((q0, v0, m0), axis=-1).reshape((-1, ))
         # Run the solver
         t_span = (0, num_time_steps * time_step_size)
         t_eval = np.arange(num_time_steps) * time_step_size
         particle_ivp = solve_ivp(fun=self._dynamics, t_span=t_span, y0=x0,
                                  t_eval=t_eval, rtol=rtol)
         # Extract results
-        res = particle_ivp['y'].reshape((num_time_steps, self.n_particles, 2 * self.n_dim + 1))
+        res = particle_ivp['y']
+        res = np.moveaxis(res, 0, -1).reshape((num_time_steps, self.n_particles, 2 * self.n_dim + 1))
         qs = res[:, :, :self.n_dim]
         vs = res[:, :, self.n_dim:2*self.n_dim]
         ps = vs * masses.reshape((1, self.n_particles, 1))
 
         # Compute derivatives
-        derivs = self.derivatives(q=qs, p=ps, masses=masses)
+        derivs = self.derivative(q=qs, p=ps, masses=masses)
         dq_dt = derivs.q
         dp_dt = derivs.p
 
