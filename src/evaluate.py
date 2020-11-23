@@ -106,7 +106,7 @@ def run_phase(base_dir, out_dir, phase_args):
     elif eval_type == "mlp":
         time_deriv_func = net
         time_deriv_method = METHOD_DIRECT_DERIV
-    elif eval_type == "knn-integrator":
+    elif eval_type == "knn-regressor":
         # Use the time_derivative
         KNNDerivative = namedtuple("KNNDerivative", ["dq_dt", "dp_dt"])
         def model_time_deriv(p, q):
