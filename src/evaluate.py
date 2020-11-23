@@ -15,8 +15,8 @@ import joblib
 from collections import namedtuple
 
 
-METHOD_HNET = 5
-METHOD_DIRECT_DERIV = 1
+METHOD_HNET = integrators.IntegrationScheme.HAMILTONIAN
+METHOD_DIRECT_DERIV = integrators.IntegrationScheme.DIRECT_OUTPUT
 
 
 def load_network(net_dir, base_dir, base_logger):

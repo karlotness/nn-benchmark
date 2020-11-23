@@ -1,8 +1,14 @@
 from collections import namedtuple
 import torch
 from torch.autograd import grad
+import enum
 
 IntegrationResult = namedtuple("IntegrationResult", ["q", "p"])
+
+
+class IntegrationScheme(enum.IntEnum):
+    DIRECT_OUTPUT = 1
+    HAMILTONIAN = 5
 
 
 def leapfrog(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
@@ -174,14 +180,14 @@ def numerically_integrate(integrator, p_0, q_0, model, method, T, dt, volatile, 
         fine_trajectory = numerically_integrate(integrator, p_0, q_0, model, method, T * coarsening_factor, dt / coarsening_factor, volatile, device)
         trajectory_simulated = fine_trajectory[np.arange(T) * coarsening_factor, :, :]
         return trajectory_simulated
-    if (method == 5):
+    if (method == IntegrationScheme.HAMILTONIAN):
         if (integrator == 'leapfrog'):
             trajectory_simulated = leapfrog(p_0, q_0, model, T, dt, volatile=volatile, device=device)
         elif (integrator == 'euler'):
             trajectory_simulated = euler(p_0, q_0, model, T, dt, volatile=volatile, device=device)
         else:
             raise ValueError(f"Unknown integrator {integrator}")
-    elif (method == 1):
+    elif (method == IntegrationScheme.DIRECT_OUTPUT):
         if (integrator == 'leapfrog'):
             trajectory_simulated = leapfrog(p_0, q_0, model, T, dt, volatile=volatile, is_Hamilt=False, device=device)
         elif (integrator == 'euler'):

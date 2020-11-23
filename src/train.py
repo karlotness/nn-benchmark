@@ -196,7 +196,6 @@ def run_phase(base_dir, out_dir, phase_args):
                     total_loss_denom += p.shape[0]
                 elif train_type == "srnn":
                     # Assume rollout dataset (shape [batch_size, dataset rollout_length, n_grid])
-                    method_hnet = 5
                     training_steps = train_type_args["rollout_length"]
                     time_step_size = float(trajectory_meta["time_step_size"][0])
                     # Check that all time step sizes are equal
@@ -207,7 +206,7 @@ def run_phase(base_dir, out_dir, phase_args):
                         p_0=p[:, 0],
                         q_0=q[:, 0],
                         model=net,
-                        method=method_hnet,
+                        method=integrators.IntegrationScheme.HAMILTONIAN,
                         T=training_steps,
                         dt=time_step_size,
                         volatile=False,
