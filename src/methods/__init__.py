@@ -10,7 +10,7 @@ def build_network(net_args):
         return srnn.build_network(arch_args)
     elif arch == "mlp":
         return mlp.build_network(arch_args)
-    elif arch == "knn-integrator" or arch == "knn-predictor":
+    elif arch == "knn-regressor" or arch == "knn-predictor":
         return neighbors.KNeighborsRegressor(n_neighbors=1)
     elif arch == "hogn":
         # Lazy import HOGN to avoid pytorch-geometric if possible

@@ -21,7 +21,7 @@ def save_network(net, network_args, train_type, out_dir, base_logger):
     logger = base_logger.getChild("save_network")
     logger.info("Saving network")
 
-    if train_type == "knn-integrator" or train_type == "knn-predictor":
+    if train_type in {"knn-regressor", "knn-predictor"}:
         joblib.dump(net, out_dir / "model.pt")
     else:
         torch.save(net.state_dict(), out_dir / "model.pt")
@@ -109,7 +109,7 @@ def run_phase(base_dir, out_dir, phase_args):
     train_dataset, train_loader = create_dataset(base_dir, phase_args["train_data"])
 
     # If training a knn, this is all we need.
-    if train_type == "knn-integrator":
+    if train_type == "knn-regressor":
         logger.info("Starting fitting of dataset for KNN Regressor.")
 
         data_x = []
@@ -127,7 +127,7 @@ def run_phase(base_dir, out_dir, phase_args):
         total_epoch_count = 1
         epoch_stats = {}
     elif train_type == "knn-predictor":
-        logger.info("Starting fitting of dataset for KNN Regressor.")
+        logger.info("Starting fitting of dataset for KNN Predictor.")
 
         data_x = []
         data_y = []
@@ -137,9 +137,9 @@ def run_phase(base_dir, out_dir, phase_args):
         data_x = np.concatenate(data_x, axis=0)
         data_y = np.concatenate(data_y, axis=0)
 
-        net.fit(data_x[1:, ...], data_y[:-1, ...])
+        net.fit(data_x[:-1, ...], data_y[1:, ...])
 
-        logger.info("Finished fitting of dataset for KNN Regressor.")
+        logger.info("Finished fitting of dataset for KNN Predictor.")
 
         total_epoch_count = 1
         epoch_stats = {}
