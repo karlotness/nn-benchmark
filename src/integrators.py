@@ -230,6 +230,10 @@ def numerically_integrate(integrator, p_0, q_0, model, method, T, dt, volatile, 
             trajectory_simulated = leapfrog(p_0, q_0, model, T, dt, volatile=volatile, device=device)
         elif (integrator == 'euler'):
             trajectory_simulated = euler(p_0, q_0, model, T, dt, volatile=volatile, device=device)
+        elif integrator.startswith("scipy-"):
+            # Handle SciPy integration
+            method = integrator.split("-")[1]
+            trajectory_simulated = scipy_integrator(p_0, q_0, model, T, dt, volatile=volatile, device=device, method=method)
         else:
             raise ValueError(f"Unknown integrator {integrator}")
     elif (method == IntegrationScheme.DIRECT_OUTPUT):
@@ -239,6 +243,10 @@ def numerically_integrate(integrator, p_0, q_0, model, method, T, dt, volatile, 
             trajectory_simulated = euler(p_0, q_0, model, T, dt, volatile=volatile, is_Hamilt=False, device=device)
         elif integrator == 'null':
             trajectory_simulated = euler(p_0, q_0, model, T, dt, volatile=volatile, is_Hamilt=False, device=device)
+        elif integrator.startswith("scipy-"):
+            # Handle SciPy integration
+            method = integrator.split("-")[1]
+            trajectory_simulated = scipy_integrator(p_0, q_0, model, T, dt, volatile=volatile, is_Hamilt=False, device=device, method=method)
         else:
             raise ValueError(f"Unknown integrator {integrator}")
     else:
