@@ -139,6 +139,36 @@ def euler(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
     return IntegrationResult(q=ret_q, p=ret_p)
 
 
+def null_integrator(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=False, device='cpu'):
+    # Integrator performs no actual integration, function provides next states
+    if not volatile or is_Hamilt:
+        raise ValueError("Null integrator cannot create graph and does not support Hamiltonian")
+
+    p = p_0
+    q = q_0
+
+    trajectories = torch.empty((T, p_0.shape[0], 2 * p_0.shape[1]), requires_grad=False).to(device)
+
+    for i in range(T):
+        trajectories[i, :, :p_0.shape[1]] = p.detach()
+        trajectories[i, :, p_0.shape[1]:] = q.detach()
+
+        res = Func(p=p, q=q)
+
+        if hasattr(res, "p"):
+            p = res.p
+            q = res.q
+        else:
+            p = res.dp_dt
+            q = res.dq_dt
+
+    trajectories = trajectories.permute(1, 0, 2)
+    n = p_0.shape[1]
+    ret_p = trajectories[:, :, :n]
+    ret_q = trajectories[:, :, n:]
+    return IntegrationResult(q=ret_q, p=ret_p)
+
+
 def numerically_integrate(integrator, p_0, q_0, model, method, T, dt, volatile, device, coarsening_factor=1):
     if (coarsening_factor > 1):
         fine_trajectory = numerically_integrate(integrator, p_0, q_0, model, method, T * coarsening_factor, dt / coarsening_factor, volatile, device)
@@ -149,11 +179,17 @@ def numerically_integrate(integrator, p_0, q_0, model, method, T, dt, volatile, 
             trajectory_simulated = leapfrog(p_0, q_0, model, T, dt, volatile=volatile, device=device)
         elif (integrator == 'euler'):
             trajectory_simulated = euler(p_0, q_0, model, T, dt, volatile=volatile, device=device)
+        else:
+            raise ValueError(f"Unknown integrator {integrator}")
     elif (method == 1):
         if (integrator == 'leapfrog'):
             trajectory_simulated = leapfrog(p_0, q_0, model, T, dt, volatile=volatile, is_Hamilt=False, device=device)
         elif (integrator == 'euler'):
             trajectory_simulated = euler(p_0, q_0, model, T, dt, volatile=volatile, is_Hamilt=False, device=device)
+        elif integrator == 'null':
+            trajectory_simulated = euler(p_0, q_0, model, T, dt, volatile=volatile, is_Hamilt=False, device=device)
+        else:
+            raise ValueError(f"Unknown integrator {integrator}")
     else:
         trajectory_simulated = model(torch.cat([p_0, q_0], dim=1), T)
     return trajectory_simulated
