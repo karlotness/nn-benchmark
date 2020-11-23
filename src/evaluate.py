@@ -19,7 +19,7 @@ METHOD_HNET = 5
 METHOD_DIRECT_DERIV = 1
 
 
-def load_network(net_dir, base_dir, eval_type, base_logger):
+def load_network(net_dir, base_dir, base_logger):
     logger = base_logger.getChild("load_network")
     # Load metadata
     net_dir = base_dir / pathlib.Path(net_dir)
@@ -31,7 +31,7 @@ def load_network(net_dir, base_dir, eval_type, base_logger):
     net = methods.build_network(metadata)
     # Load weights
     weight_path = net_dir / "model.pt"
-    if eval_type == "knn-integrator" or eval_type == "knn-predictor":
+    if metadata["arch"] in {"knn-regressor", "knn-predictor"}:
         with open(net_dir / "model.pt", "rb") as model_file:
             net = joblib.load(model_file)
     else:
@@ -81,8 +81,8 @@ def run_phase(base_dir, out_dir, phase_args):
     eval_dtype, eval_dtype_np = TRAIN_DTYPES[eval_args.get("eval_dtype", "float")]
 
     # Load the network
-    net = load_network(phase_args["eval_net"], base_dir=base_dir, eval_type=eval_type, base_logger=logger)
-    if not (eval_type == "knn-integrator" or eval_type == "knn-predictor"):
+    net = load_network(phase_args["eval_net"], base_dir=base_dir, base_logger=logger)
+    if not isinstance(net, (torch.nn.Module, torch.Tensor)):
         net = net.to(device, dtype=eval_dtype)
 
     # Load the evaluation data
