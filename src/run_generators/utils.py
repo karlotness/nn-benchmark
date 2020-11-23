@@ -87,7 +87,7 @@ class SpringInitialConditionSource(InitialConditionSource):
         return state
 
 
-class SavableDescription:
+class WritableDescription:
     def __init__(self, experiment, phase, name):
         self.experiment = experiment
         self.name = self.experiment.get_run_name(name)
@@ -118,7 +118,7 @@ class SavableDescription:
             json.dump(descr, out_file)
 
 
-class Dataset(SavableDescription):
+class Dataset(WritableDescription):
     def __init__(self, experiment, name_tail, system, set_type="train"):
         super().__init__(experiment=experiment,
                          phase="data_gen",
