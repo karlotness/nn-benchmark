@@ -119,11 +119,12 @@ class SavableDescription:
 
 
 class Dataset(SavableDescription):
-    def __init__(self, experiment, name_tail, set_type="train"):
+    def __init__(self, experiment, name_tail, system, set_type="train"):
         super().__init__(experiment=experiment,
                          phase="data_gen",
-                         name=f"{set_type}-{name_tail}")
+                         name=f"{set_type}-{system}-{name_tail}")
         self.set_type = set_type
+        self.system = system
 
     def data_dir(self):
         return self.path
@@ -135,7 +136,8 @@ class SpringDataset(Dataset):
                  num_time_steps=30, time_step_size=0.3, rtol=1e-10,
                  noise_sigma=0.0):
         super().__init__(experiment=experiment,
-                         name_tail=f"spring-n{num_traj}-t{num_time_steps}",
+                         name_tail=f"n{num_traj}-t{num_time_steps}",
+                         system="spring",
                          set_type=set_type)
         self.num_traj = num_traj
         self.initial_cond_source = initial_cond_source
@@ -144,6 +146,7 @@ class SpringDataset(Dataset):
         self.rtol = rtol
         self.noise_sigma = noise_sigma
         self.initial_conditions = self.initial_cond_source.sample_initial_conditions(self.num_traj)
+        assert isinstance(self.initial_conditions, SpringInitialConditionSource)
 
     def description(self):
         # Build trajectories
@@ -169,6 +172,59 @@ class SpringDataset(Dataset):
                 "time": "00:30:00",
                 "cpus": 8,
                 "mem": 6,
+            },
+        }
+        return template
+
+
+class WaveDataset(Dataset):
+    def __init__(self, experiment, initial_cond_source, num_traj,
+                 set_type="train", n_grid=250,
+                 num_time_steps=200, time_step_size=0.1, wave_speed=0.1,
+                 subsampling=1000, noise_sigma=0.0):
+        super().__init__(experiment=experiment,
+                         name_tail=f"n{num_traj}-t{num_time_steps}",
+                         system="wave",
+                         set_type=set_type)
+        self.space_max = 1
+        self.n_grid = n_grid
+        self.wave_speed = wave_speed
+        self.subsampling = subsampling
+        self.num_traj = num_traj
+        self.initial_cond_source = initial_cond_source
+        self.num_time_steps = num_time_steps
+        self.time_step_size = time_step_size
+        self.noise_sigma = noise_sigma
+        self.initial_conditions = self.initial_cond_source.sample_initial_conditions(self.num_traj)
+        assert isinstance(self.initial_conditions, WaveInitialConditionSource)
+
+    def description(self):
+        trajectories = []
+        for icond in self.initial_conditions:
+            traj = {
+                "wave_speed": self.wave_speed,
+                "num_time_steps": self.num_time_steps,
+                "time_step_size": self.time_step_size,
+                "subsample": self.subsampling,
+                "noise_sigma": self.noise_sigma,
+            }
+            traj.update(icond)
+            trajectories.append(traj)
+        # Generate template
+        template = {
+            "phase_args": {
+                "system": "wave",
+                "system_args": {
+                    "space_max": self.space_max,
+                    "n_grid": self.n_grid,
+                    "trajectory_defs": trajectories,
+                }
+            },
+            "slurm_args": {
+                "gpu": False,
+                "time": "05:00:00",
+                "cpus": 16,
+                "mem": 32,
             },
         }
         return template
