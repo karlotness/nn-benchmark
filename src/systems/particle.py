@@ -22,8 +22,21 @@ class ParticleSystem(System):
         self.n_dim = n_dim
         self.g = g
 
-    def hamiltonian(self, q, p):
-        pass
+    def hamiltonian(self, q, p, masses, epsilon=1e-2):
+        q = q.reshape((-1, self.n_particles, self.n_dim))
+        p = p.reshape((-1, self.n_particles, self.n_dim))
+        masses = masses.reshape((self.n_particles, ))
+        assert q.shape == p.shape
+        num_steps = q.shape[0]
+        # Initialize with ke
+        hamilts = np.sum(1/(2 * masses.reshape(1, self.n_particles)) * np.sum(p ** 2, axis=-1), axis=-1)
+        for step in range(num_steps):
+            for i, j in itertools.combinations(range(self.n_particles), 2):
+                diff = q[step, j] - q[step, i]
+                dist = np.linalg.norm(diff, ord=2) + epsilon
+                pe = -1 * self.g * masses[i] * masses[j] / dist
+                hamilts[step] += pe
+        return hamilts
 
     def derivative(self, q, p, masses):
         q = q.reshape((-1, self.n_particles, self.n_dim))
