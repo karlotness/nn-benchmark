@@ -21,6 +21,9 @@ METHOD_DIRECT_DERIV = integrators.IntegrationScheme.DIRECT_OUTPUT
 
 def load_network(net_dir, base_dir, base_logger):
     logger = base_logger.getChild("load_network")
+    if net_dir is None:
+        logger.info("Skipping network load")
+        return None
     # Load metadata
     net_dir = base_dir / pathlib.Path(net_dir)
     meta_path = net_dir / "model.json"
