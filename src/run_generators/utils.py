@@ -452,6 +452,7 @@ class KNNRegressor(TrainedNetwork):
                          method="knn-regressor",
                          name_tail=f"{training_set.name}")
         self.training_set = training_set
+        self.train_dtype = "double"
 
     def description(self):
         template = {
@@ -463,7 +464,7 @@ class KNNRegressor(TrainedNetwork):
                 "training": {
                     "max_epochs": 0,
                     "try_gpu": False,
-                    "train_dtype": "double",
+                    "train_dtype": self.train_dtype,
                     "train_type": "knn-regressor",
                     "train_type_args": {},
                 },
@@ -493,6 +494,7 @@ class KNNPredictor(TrainedNetwork):
                          method="knn-predictor",
                          name_tail=f"{training_set.name}")
         self.training_set = training_set
+        self.train_dtype = "double"
 
     def description(self):
         template = {
@@ -504,7 +506,7 @@ class KNNPredictor(TrainedNetwork):
                 "training": {
                     "max_epochs": 0,
                     "try_gpu": False,
-                    "train_dtype": "double",
+                    "train_dtype": self.train_dtype,
                     "train_type": "knn-predictor",
                     "train_type_args": {},
                 },
