@@ -256,7 +256,7 @@ class HNN(TrainedNetwork):
                  epochs=1000):
         super().__init__(experiment=experiment,
                          method="hnn",
-                         name_tail=f"{training_set.name}")
+                         name_tail=f"{training_set.name}-d{depth}-h{hidden_dim}")
         self.training_set = training_set
         self.gpu = gpu
         self.learning_rate = learning_rate
@@ -325,7 +325,7 @@ class SRNN(TrainedNetwork):
                  integrator="leapfrog"):
         super().__init__(experiment=experiment,
                          method="srnn",
-                         name_tail=f"{training_set.name}")
+                         name_tail=f"{training_set.name}-d{depth}-h{hidden_dim}")
         self.training_set = training_set
         self.gpu = gpu
         self.learning_rate = learning_rate
@@ -394,7 +394,7 @@ class MLP(TrainedNetwork):
                  batch_size=750, epochs=1000):
         super().__init__(experiment=experiment,
                          method="mlp",
-                         name_tail=f"{training_set.name}")
+                         name_tail=f"{training_set.name}-d{depth}-h{hidden_dim}")
         self.training_set = training_set
         self.gpu = gpu
         self.learning_rate = learning_rate
@@ -543,7 +543,7 @@ class NetworkEvaluation(Evaluation):
     def __init__(self, experiment, network, eval_set, gpu=False, integrator="leapfrog",
                  eval_dtype=None):
         super().__init__(experiment=experiment,
-                         name_tail=f"{network.method}-{eval_set.name}")
+                         name_tail=f"net-{network.name}-set-{eval_set.name}-{integrator}")
         self.network = network
         self.eval_set = eval_set
         self.gpu = gpu
@@ -589,7 +589,7 @@ class BaselineIntegrator(Evaluation):
     def __init__(self, experiment, eval_set, integrator="leapfrog",
                  eval_dtype="double"):
         super().__init__(experiment=experiment,
-                         name_tail=f"integrator-baseline-{eval_set.name}")
+                         name_tail=f"integrator-baseline-{eval_set.name}-{integrator}")
         self.eval_set = eval_set
         self.eval_dtype = eval_dtype
         self.integrator = integrator
