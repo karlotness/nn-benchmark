@@ -581,3 +581,36 @@ class NetworkEvaluation(Evaluation):
             },
         }
         return template
+
+
+class BaselineIntegrator(Evaluation):
+    def __init__(self, experiment, eval_set, integrator="leapfrog",
+                 eval_dtype="double"):
+        super().__init__(experiment=experiment,
+                         name_tail=f"integrator-baseline-{eval_set.name}")
+        self.eval_set = eval_set
+        self.eval_dtype = eval_dtype
+        self.integrator = integrator
+
+    def description(self):
+        template = {
+            "phase_args": {
+                "eval_net": None,
+                "eval_data": {
+                    "data_dir": self.eval_set.path,
+                },
+                "eval": {
+                    "eval_type": "integrator-baseline",
+                    "integrator": self.integrator,
+                    "eval_dtype": self.eval_dtype,
+                    "try_gpu": False,
+                },
+            },
+            "slurm_args": {
+                "gpu": False,
+                "time": "03:00:00",
+                "cpus": 16,
+                "mem": 32,
+            },
+        }
+        return template
