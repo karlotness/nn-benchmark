@@ -211,7 +211,7 @@ def scipy_integrator(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, devic
 
     t_span = (0, dt * T)
     t_eval = np.arange(T).astype(np.float64) * dt
-    y0 = np.concatenate((p_0, q_0), axis=-1)
+    y0 = np.concatenate((p_0, q_0), axis=-1)[0]
 
     ivp_res = integrate.solve_ivp(scipy_wrapper,
                                   t_span=t_span,
@@ -222,8 +222,8 @@ def scipy_integrator(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, devic
     # Read out results
     y = np.moveaxis(ivp_res["y"], 0, -1)
     ps, qs = np.split(y, 2, axis=-1)
-    ps = torch.from_numpy(ps).to(device)
-    qs = torch.from_numpy(qs).to(device)
+    ps = torch.from_numpy(ps).to(device).unsqueeze(0)
+    qs = torch.from_numpy(qs).to(device).unsqueeze(0)
     return IntegrationResult(q=qs, p=ps)
 
 
