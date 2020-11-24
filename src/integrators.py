@@ -180,6 +180,13 @@ def null_integrator(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=False, devic
 def scipy_integrator(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu', method="RK45"):
     if not volatile:
         raise ValueError("SciPy integrators cannot create graph")
+    if len(p_0.shape) > 2:
+        raise ValueError("SciPy integrators do not support batching")
+
+    dt = dt.item()
+    T = T.item()
+    p_0 = p_0.detach().cpu().numpy()
+    q_0 = q_0.detach().cpu().numpy()
 
     def scipy_wrapper(_time, y):
         p, q = np.split(y, 2, axis=-1)
