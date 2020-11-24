@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.linalg import circulant
+from scipy.linalg import circulant, lu_factor, lu_solve
 from .defs import System, TrajectoryResult, SystemResult, StatePair
 import time
 import logging
@@ -70,11 +70,13 @@ class WaveSystem(System):
 
         eqn_known, eqn_unknown = _build_update_matrices(n_grid=self.n_grid, space_max=self.space_max,
                                                         wave_speed=self.wave_speed, time_step=time_step_size)
+        eqn_unknown_factor = lu_factor(eqn_unknown)
+
         x0 = np.stack((q0, p0))
         steps = [x0]
         step = x0
         for _ in range(num_steps - 1):
-            step = self._compute_next_step(step, eqn_known, eqn_unknown)
+            step = self._compute_next_step(step, eqn_known, eqn_unknown_factor)
             steps.append(step)
         steps = np.stack(steps)
         steps = steps[::subsample]
@@ -99,11 +101,11 @@ class WaveSystem(System):
                                 t_steps=t_steps,
                                 q_noiseless=q, p_noiseless=p)
 
-    def _compute_next_step(self, prev_step, eqn_known, eqn_unknown):
+    def _compute_next_step(self, prev_step, eqn_known, eqn_unknown_factor):
         orig_shape = prev_step.shape
         prev_step = prev_step.reshape((-1))
         known = eqn_known @ prev_step
-        new_step = np.linalg.solve(eqn_unknown, known)
+        new_step = lu_solve(eqn_unknown_factor, known)
         return new_step.reshape(orig_shape)
 
 
