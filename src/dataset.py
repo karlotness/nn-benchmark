@@ -56,7 +56,8 @@ class TrajectoryDataset(data.Dataset):
         if "masses" in meta["field_keys"]:
             masses = self._npz_file[meta["field_keys"]["masses"]]
         else:
-            masses = None
+            num_particles = p.shape[1]
+            masses = np.ones(num_particles)
         # Package and return
         return self.Trajectory(name=name, trajectory_meta=meta,
                                p=self.__linearize(p),
