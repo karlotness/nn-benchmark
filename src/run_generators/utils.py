@@ -7,15 +7,16 @@ import json
 class Experiment:
     def __init__(self, name):
         self.name = name
-        self._counter = 0
+        self._name_counters = {}
 
-    def _get_run_suffix(self):
-        count = self._counter
-        self._counter += 1
-        return count
+    def _get_run_suffix(self, name):
+        if name not in self._name_counters:
+            self._name_counters[name] = 0
+        self._name_counters[name] += 1
+        return self._name_counters[name]
 
     def get_run_name(self, name_core):
-        suffix = self._get_run_suffix()
+        suffix = self._get_run_suffix(name=name_core)
         name = f"{self.name}_{name_core}_{suffix:05}"
         return name
 
