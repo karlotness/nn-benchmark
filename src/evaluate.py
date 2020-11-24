@@ -82,7 +82,7 @@ def run_phase(base_dir, out_dir, phase_args):
 
     # Load the network
     net = load_network(phase_args["eval_net"], base_dir=base_dir, base_logger=logger)
-    if not isinstance(net, (torch.nn.Module, torch.Tensor)):
+    if isinstance(net, (torch.nn.Module, torch.Tensor)):
         net = net.to(device, dtype=eval_dtype)
 
     # Load the evaluation data
