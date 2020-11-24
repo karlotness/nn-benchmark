@@ -528,3 +528,54 @@ class KNNPredictor(TrainedNetwork):
             },
         }
         return template
+
+
+class Evaluation(WritableDescription):
+    def __init__(self, experiment, name_tail):
+        super().__init__(experiment=experiment,
+                         phase="eval",
+                         name=f"eval-{name_tail}")
+
+
+class NetworkEvaluation(Evaluation):
+    def __init__(self, experiment, network, eval_set, gpu=False, integrator="leapfrog",
+                 eval_dtype=None):
+        super().__init__(experiment=experiment,
+                         name_tail=f"{network.method}-{eval_set.name}")
+        self.network = network
+        self.eval_set = eval_set
+        self.gpu = gpu
+        if eval_dtype is None:
+            self.eval_dtype = self.network.train_dtype
+        else:
+            self.eval_dtype = eval_dtype
+        self.integrator = integrator
+        # Validate inputs
+        assert isinstance(self.network, TrainedNetwork)
+        if self.eval_set.system != self.network.training_set.system:
+            raise ValueError(f"Inconsistent systems {self.eval_set.system} and {self.network.training_set.system}")
+
+    def description(self):
+        eval_type = self.network.method
+        gpu = self.gpu and (eval_type not in {"knn-predictor", "knn-regressor"})
+        template = {
+            "phase_args": {
+                "eval_net": self.network.path,
+                "eval_data": {
+                    "data_dir": self.eval_set.path,
+                },
+                "eval": {
+                    "eval_type": eval_type,
+                    "integrator": self.integrator,
+                    "eval_dtype": self.eval_dtype,
+                    "try_gpu": gpu,
+                }
+            },
+            "slurm_args": {
+                "gpu": gpu,
+                "time": "03:00:00",
+                "cpus": 16,
+                "mem": 32,
+            },
+        }
+        return template
