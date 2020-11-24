@@ -384,3 +384,63 @@ class SRNN(TrainedNetwork):
             },
         }
         return template
+
+
+class MLP(TrainedNetwork):
+    def __init__(self, experiment, training_set, gpu=True, learning_rate=1e-3,
+                 hidden_dim=2048, depth=2, train_dtype="float",
+                 batch_size=750, epochs=1000):
+        super().__init__(experiment=experiment,
+                         method="mlp",
+                         name_tail=f"{training_set.name}")
+        self.training_set = training_set
+        self.gpu = gpu
+        self.learning_rate = learning_rate
+        self.hidden_dim = hidden_dim
+        self.depth = depth
+        self.train_dtype = train_dtype
+        self.batch_size = batch_size
+        self.epochs = epochs
+
+    def description(self):
+        template = {
+            "phase_args": {
+                "network": {
+                    "arch": "mlp",
+                    "arch_args": {
+                        "input_dim": self.training_set.input_size(),
+                        "hidden_dim": self.hidden_dim,
+                        "output_dim": self.training_set.input_size(),
+                        "depth": self.depth,
+                        "nonlinearity": "tanh",
+                    },
+                },
+                "training": {
+                    "optimizer": "adam",
+                    "optimizer_args": {
+                        "learning_rate": self.learning_rate,
+                    },
+                    "max_epochs": self.epochs,
+                    "try_gpu": self.gpu,
+                    "train_dtype": self.train_dtype,
+                    "train_type": "mlp",
+                    "train_type_args": {},
+                },
+                "train_data": {
+                    "data_dir": self.training_set.path,
+                    "dataset": "snapshot",
+                    "dataset_args": {},
+                    "loader": {
+                        "batch_size": self.batch_size,
+                        "shuffle": True,
+                    },
+                },
+            },
+            "slurm_args": {
+                "gpu": self.gpu,
+                "time": "08:00:00",
+                "cpus": 8,
+                "mem": 32,
+            },
+        }
+        return template
