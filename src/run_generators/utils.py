@@ -90,9 +90,10 @@ class SpringInitialConditionSource(InitialConditionSource):
 class WritableDescription:
     def __init__(self, experiment, phase, name):
         self.experiment = experiment
-        self.name = self.experiment.get_run_name(name)
-        self.path = f"run/{phase}/{self.name}"
-        self._descr_path = f"descr/{phase}/{self.name}.json"
+        self.name = name
+        self.full_name = self.experiment.get_run_name(name)
+        self.path = f"run/{phase}/{self.full_name}"
+        self._descr_path = f"descr/{phase}/{self.full_name}.json"
         self.phase = phase
 
     def description(self):
@@ -104,14 +105,15 @@ class WritableDescription:
     def write_description(self, base_dir):
         base_dir = pathlib.Path(base_dir)
         out_path = base_dir / pathlib.Path(self._descr_path)
-        descr = self.description()
-        # Update core values
-        descr.update({
+        # Construct core values
+        descr = {
             "out_dir": self.path,
             "phase": self.phase,
             "exp_name": self.experiment.name,
-            "run_name": self.name,
-        })
+            "run_name": self.full_name,
+        }
+        # Update values for experiment
+        descr.update(self.description())
         # Write description to file
         out_path.parent.mkdir(parents=True, exist_ok=True)
         with open(out_path, "w", encoding="utf8") as out_file:
