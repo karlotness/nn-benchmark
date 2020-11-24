@@ -484,3 +484,43 @@ class KNNRegressor(TrainedNetwork):
             },
         }
         return template
+
+
+class KNNPredictor(TrainedNetwork):
+    def __init__(self, experiment, training_set):
+        super().__init__(experiment=experiment,
+                         method="knn-predictor",
+                         name_tail=f"{training_set.name}")
+
+    def description(self):
+        template = {
+            "phase_args": {
+                "network": {
+                    "arch": "knn-predictor",
+                    "arch_args": {},
+                },
+                "training": {
+                    "max_epochs": 0,
+                    "try_gpu": False,
+                    "train_dtype": "double",
+                    "train_type": "knn-predictor",
+                    "train_type_args": {},
+                },
+                "train_data": {
+                    "data_dir": self.training_set.path,
+                    "dataset": "snapshot",
+                    "dataset_args": {},
+                    "loader": {
+                        "batch_size": 750,
+                        "shuffle": False,
+                    },
+                },
+            },
+            "slurm_args": {
+                "gpu": False,
+                "time": "01:30:00",
+                "cpus": 8,
+                "mem": 32,
+            },
+        }
+        return template
