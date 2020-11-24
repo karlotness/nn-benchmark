@@ -451,6 +451,7 @@ class KNNRegressor(TrainedNetwork):
         super().__init__(experiment=experiment,
                          method="knn-regressor",
                          name_tail=f"{training_set.name}")
+        self.training_set = training_set
 
     def description(self):
         template = {
@@ -491,6 +492,7 @@ class KNNPredictor(TrainedNetwork):
         super().__init__(experiment=experiment,
                          method="knn-predictor",
                          name_tail=f"{training_set.name}")
+        self.training_set = training_set
 
     def description(self):
         template = {
