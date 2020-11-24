@@ -129,6 +129,9 @@ class Dataset(WritableDescription):
     def data_dir(self):
         return self.path
 
+    def input_size(self):
+        raise NotImplementedError("Subclass this")
+
 
 class SpringDataset(Dataset):
     def __init__(self, experiment, initial_cond_source, num_traj,
@@ -175,6 +178,9 @@ class SpringDataset(Dataset):
             },
         }
         return template
+
+    def input_size(self):
+        return 2
 
 
 class WaveDataset(Dataset):
@@ -228,3 +234,7 @@ class WaveDataset(Dataset):
             },
         }
         return template
+
+    def input_size(self):
+        return 2 * self.n_grid
+
