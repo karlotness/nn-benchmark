@@ -138,8 +138,12 @@ def run_phase(base_dir, out_dir, phase_args):
         # Use the time_derivative
         SystemDerivative = namedtuple("SystemDerivative", ["dq_dt", "dp_dt"])
         def system_derivative(p, q):
-            derivative = system.derivative(p, q)
-            return SystemDerivative(dp_dt=derivative.p, dq_dt=derivative.q)
+            p = p.detach().cpu().numpy()
+            q = q.detach().cpu().numpy()
+            derivative = system.derivative(p=p, q=q)
+            dp_dt = torch.from_numpy(derivative.p).to(device, dtype=eval_dtype)
+            dq_dt = torch.from_numpy(derivative.q).to(device, dtype=eval_dtype)
+            return SystemDerivative(dp_dt=dp_dt, dq_dt=dq_dt)
         time_deriv_func = system_derivative
         time_deriv_method = METHOD_DIRECT_DERIV
     elif eval_type == "hogn":
