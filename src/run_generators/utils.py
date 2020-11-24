@@ -326,7 +326,7 @@ class SRNN(TrainedNetwork):
                  integrator="leapfrog"):
         super().__init__(experiment=experiment,
                          method="srnn",
-                         name_tail=f"{training_set.name}-d{depth}-h{hidden_dim}")
+                         name_tail=f"{training_set.name}-d{depth}-h{hidden_dim}-i{integrator}")
         self.training_set = training_set
         self.gpu = gpu
         self.learning_rate = learning_rate
