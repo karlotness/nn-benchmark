@@ -75,7 +75,7 @@ class SpringInitialConditionSource(InitialConditionSource):
         return np.stack((x, y), axis=-1)
 
     def _generate_initial_condition(self):
-        pt = self._sample_ring_uniform(*self.radius_range)
+        pt = self._sample_ring_uniform(*self.radius_range)[0]
         p = pt[0].item()
         q = pt[1].item()
         state = {
@@ -149,7 +149,7 @@ class SpringDataset(Dataset):
         self.rtol = rtol
         self.noise_sigma = noise_sigma
         self.initial_conditions = self.initial_cond_source.sample_initial_conditions(self.num_traj)
-        assert isinstance(self.initial_conditions, SpringInitialConditionSource)
+        assert isinstance(self.initial_cond_source, SpringInitialConditionSource)
 
     def description(self):
         # Build trajectories
@@ -202,7 +202,7 @@ class WaveDataset(Dataset):
         self.time_step_size = time_step_size
         self.noise_sigma = noise_sigma
         self.initial_conditions = self.initial_cond_source.sample_initial_conditions(self.num_traj)
-        assert isinstance(self.initial_conditions, WaveInitialConditionSource)
+        assert isinstance(self.initial_cond_source, WaveInitialConditionSource)
 
     def description(self):
         trajectories = []
@@ -550,6 +550,8 @@ class NetworkEvaluation(Evaluation):
         else:
             self.eval_dtype = eval_dtype
         self.integrator = integrator
+        if self.network.method == "knn-predictor":
+            self.integrator = "null"
         # Validate inputs
         assert isinstance(self.network, TrainedNetwork)
         if self.eval_set.system != self.network.training_set.system:
