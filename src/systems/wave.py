@@ -66,6 +66,7 @@ class WaveSystem(System):
                             subsample=1, noise_sigma=0.0):
         # Process arguments for subsampling
         num_steps = num_time_steps * subsample
+        orig_time_step_size = time_step_size
         time_step_size = time_step_size / subsample
 
         eqn_known, eqn_unknown = _build_update_matrices(n_grid=self.n_grid, space_max=self.space_max,
@@ -75,11 +76,11 @@ class WaveSystem(System):
         x0 = np.stack((q0, p0))
         steps = [x0]
         step = x0
-        for _ in range(num_steps - 1):
+        for step_idx in range(1, num_steps):
             step = self._compute_next_step(step, eqn_known, eqn_unknown_factor)
-            steps.append(step)
+            if step_idx % subsample == 0:
+                steps.append(step)
         steps = np.stack(steps)
-        steps = steps[::subsample]
 
         q = steps[:, 0]
         p = steps[:, 1]
@@ -94,8 +95,7 @@ class WaveSystem(System):
 
         dqdt = derivatives.q
         dpdt = derivatives.p
-        t_steps = (np.arange(num_steps) * time_step_size).astype(np.float64)
-        t_steps = t_steps[::subsample]
+        t_steps = (np.arange(num_time_steps) * orig_time_step_size).astype(np.float64)
 
         return TrajectoryResult(q=q_noisy, p=p_noisy, dq_dt=dqdt, dp_dt=dpdt,
                                 t_steps=t_steps,
