@@ -238,3 +238,79 @@ class WaveDataset(Dataset):
     def input_size(self):
         return 2 * self.n_grid
 
+
+class TrainedNetwork(WritableDescription):
+    def __init__(self, experiment, method, name_tail):
+        super().__init__(experiment=experiment,
+                         phase="train",
+                         name=f"{method}-{name_tail}")
+        self.method = method
+
+
+class HNN(TrainedNetwork):
+    def __init__(self, experiment, training_set, gpu=True, learning_rate=1e-3,
+                 output_dim=2, hidden_dim=200, depth=3, train_dtype="float",
+                 field_type="solenoidal", batch_size=750,
+                 epochs=1000):
+        super().__init__(experiment=experiment,
+                         method="hnn",
+                         name_tail=f"{training_set.name}")
+        self.training_set = training_set
+        self.gpu = gpu
+        self.learning_rate = learning_rate
+        self.epochs = epochs
+        self.output_dim = output_dim
+        self.hidden_dim = hidden_dim
+        self.depth = depth
+        self.train_dtype = train_dtype
+        self.field_type = field_type
+        self.batch_size = batch_size
+
+    def description(self):
+        template = {
+            "phase_args": {
+                "network": {
+                    "arch": "hnn",
+                    "arch_args": {
+                        "base_model": "mlp",
+                        "input_dim": self.training_set.input_size(),
+                        "base_model_args": {
+                            "hidden_dim": self.hidden_dim,
+                            "output_dim": self.output_dim,
+                            "depth": self.depth,
+                            "nonlinearity": "tanh",
+                        },
+                        "hnn_args": {
+                            "field_type": self.field_type,
+                        },
+                    },
+                },
+                "training": {
+                    "optimizer": "adam",
+                    "optimizer_args": {
+                        "learning_rate": self.learning_rate,
+                    },
+                    "max_epochs": self.epochs,
+                    "try_gpu": self.gpu,
+                    "train_dtype": self.train_dtype,
+                    "train_type": "hnn",
+                    "train_type_args": {},
+                },
+                "train_data": {
+                    "data_dir": self.training_set.path,
+                    "dataset": "snapshot",
+                    "dataset_args": {},
+                    "loader": {
+                        "batch_size": self.batch_size,
+                        "shuffle": True,
+                    },
+                },
+                "slurm_args": {
+                    "gpu": self.gpu,
+                    "time": "08:00:00",
+                    "cpus": 8,
+                    "mem": 32,
+                },
+            }
+        }
+        return template
