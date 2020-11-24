@@ -305,12 +305,82 @@ class HNN(TrainedNetwork):
                         "shuffle": True,
                     },
                 },
-                "slurm_args": {
-                    "gpu": self.gpu,
-                    "time": "08:00:00",
-                    "cpus": 8,
-                    "mem": 32,
+            },
+            "slurm_args": {
+                "gpu": self.gpu,
+                "time": "08:00:00",
+                "cpus": 8,
+                "mem": 32,
+            },
+        }
+        return template
+
+
+class SRNN(TrainedNetwork):
+    def __init__(self, experiment, training_set, gpu=True, learning_rate=1e-3,
+                 output_dim=2, hidden_dim=2048, depth=2, train_dtype="float",
+                 batch_size=750, epochs=1000, rollout_length=10,
+                 integrator="leapfrog"):
+        super().__init__(experiment=experiment,
+                         method="srnn",
+                         name_tail=f"{training_set.name}")
+        self.training_set = training_set
+        self.gpu = gpu
+        self.learning_rate = learning_rate
+        self.output_dim = output_dim
+        self.hidden_dim = hidden_dim
+        self.depth = depth
+        self.train_dtype = train_dtype
+        self.batch_size = batch_size
+        self.epochs = epochs
+        self.rollout_length = rollout_length
+        self.integrator = integrator
+
+    def description(self):
+        template = {
+            "phase_args": {
+                "network": {
+                    "arch": "srnn",
+                    "arch_args": {
+                        "base_model": "mlp",
+                        "input_dim": self.training_set.input_size() // 2,
+                        "hidden_dim": self.hidden_dim,
+                        "output_dim": self.output_dim,
+                        "depth": self.depth,
+                        "nonlinearity": "tanh",
+                    },
                 },
-            }
+                "training": {
+                    "optimizer": "adam",
+                    "optimizer_args": {
+                        "learning_rate": self.learning_rate,
+                    },
+                    "max_epochs": self.epochs,
+                    "try_gpu": self.gpu,
+                    "train_dtype": self.train_dtype,
+                    "train_type": "srnn",
+                    "train_type_args": {
+                        "rollout_length": self.rollout_length,
+                        "integrator": self.integrator,
+                    },
+                },
+                "train_data": {
+                    "data_dir": self.training_set.path,
+                    "dataset": "rollout-chunk",
+                    "dataset_args": {
+                        "rollout_length": self.rollout_length,
+                    },
+                    "loader": {
+                        "batch_size": self.batch_size,
+                        "shuffle": True,
+                    },
+                },
+            },
+            "slurm_args": {
+                "gpu": self.gpu,
+                "time": "08:00:00",
+                "cpus": 8,
+                "mem": 32,
+            },
         }
         return template
