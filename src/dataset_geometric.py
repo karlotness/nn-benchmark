@@ -48,6 +48,15 @@ def particle_type_one_dim(p, q, dp_dt, dq_dt, masses):
         masses=process_elem(masses))
 
 
+def particle_type_identity(p, q, dp_dt, dq_dt, masses):
+    return ProcessedParticles(
+        p=p,
+        q=q,
+        dp_dt=dp_dt,
+        dq_dt=dq_dt,
+        masses=masses.reshape((-1, 1)))
+
+
 def package_data(data_set, package_args):
     particle_process_type = package_args["particle_processing"]
     package_type = package_args["package_type"]
@@ -61,6 +70,8 @@ def package_data(data_set, package_args):
 
     if particle_process_type == "one-dim":
         particle_process_func = particle_type_one_dim
+    elif particle_process_type == "identity":
+        particle_process_func = particle_type_identity
     else:
         raise ValueError(f"Unknown particle processing type {particle_process_type}")
 
