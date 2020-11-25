@@ -389,6 +389,98 @@ class SRNN(TrainedNetwork):
         return template
 
 
+class HOGN(TrainedNetwork):
+    def __init__(self, experiment, training_set, gpu=True, hidden_dim=64,
+                 connection_radius=5, learning_rate=1e-3, epochs=200,
+                 train_dtype="float", batch_size=100):
+        super().__init__(experiment=experiment,
+                         method="hogn",
+                         name_tail=f"{training_set.name}-h{hidden_dim}")
+        self.training_set = training_set
+        self.hidden_dim = hidden_dim
+        self.gpu = gpu
+        self.connection_radius = connection_radius
+        self.learning_rate = learning_rate
+        self.epochs = epochs
+        self.train_dtype = train_dtype
+        self.batch_size = batch_size
+        # Infer values from training set
+        if self.training_set.system == "wave":
+            self.particle_process_type = "one-dim"
+            self.adjacency_args = {
+                "type": "circular-local",
+                "dim": self.training_set.input_size() // 2,
+                "degree": connection_radius,
+            }
+            self.input_dim = 3
+            self.ndim = 1
+        elif self.training_set.system == "spring":
+            self.particle_process_type = "one-dim"
+            self.adjacency_args = {
+                "type": "fully-connected",
+                "dim": self.training_set.input_size() // 2,
+            }
+            self.input_dim = 3
+            self.ndim = 1
+        elif self.training_set.system == "particle":
+            self.particle_process_type = "identity"
+            self.adjacency_args = self.adjacency_args = {
+                "type": "fully-connected",
+                "dim": self.training_set.input_size() // 2,
+            }
+            self.ndim = self.training_set.input_size() // 2
+            self.input_dim = 2 * self.ndim + 1
+        else:
+            raise ValueError(f"Invalid system {self.training_set.system}")
+
+    def description(self):
+        template = {
+            "phase_args": {
+                "network": {
+                    "arch": "hogn",
+                    "arch_args": {
+                        "input_dim": self.input_dim,
+                        "ndim": self.ndim,
+                        "hidden_dim": self.hidden_dim,
+                    },
+                },
+                "training": {
+                    "optimizer": "adam",
+                    "optimizer_args": {
+                        "learning_rate": self.learning_rate,
+                    },
+                    "max_epochs": self.epochs,
+                    "try_gpu": self.gpu,
+                    "train_dtype": self.train_dtype,
+                    "train_type": "hogn",
+                    "train_type_args": {},
+                },
+                "train_data": {
+                    "data_dir": self.training_set.path,
+                    "dataset": "snapshot",
+                    "dataset_args": {},
+                    "loader": {
+                        "type": "pytorch-geometric",
+                        "batch_size": self.batch_size,
+                        "shuffle": True,
+                        "package_args": {
+                            "particle_processing": self.particle_process_type,
+                            "package_type": "hogn",
+                            "adjacency_args": self.adjacency_args,
+                        },
+                    },
+                },
+            },
+            "slurm_args": {
+                "gpu": self.gpu,
+                "time": "12:00:00",
+                "cpus": 8,
+                "mem": 32,
+            },
+        }
+        return template
+
+
 class MLP(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, learning_rate=1e-3,
                  hidden_dim=2048, depth=2, train_dtype="float",
