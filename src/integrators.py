@@ -185,13 +185,14 @@ def scipy_integrator(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, devic
 
     dt = dt.item()
     T = T.item()
+    torch_dtype = p_0.dtype
     p_0 = p_0.detach().cpu().numpy()
     q_0 = q_0.detach().cpu().numpy()
 
     def scipy_wrapper(_time, y):
         p, q = np.split(y, 2, axis=-1)
-        p = torch.from_numpy(p).to(device)
-        q = torch.from_numpy(q).to(device)
+        p = torch.from_numpy(p).to(device, dtype=torch_dtype)
+        q = torch.from_numpy(q).to(device, dtype=torch_dtype)
         if is_Hamilt:
             # Do backprop for hamiltonian
             p.requires_grad_()
@@ -222,8 +223,8 @@ def scipy_integrator(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, devic
     # Read out results
     y = np.moveaxis(ivp_res["y"], 0, -1)
     ps, qs = np.split(y, 2, axis=-1)
-    ps = torch.from_numpy(ps).to(device).unsqueeze(0)
-    qs = torch.from_numpy(qs).to(device).unsqueeze(0)
+    ps = torch.from_numpy(ps).to(device, dtype=torch_dtype).unsqueeze(0)
+    qs = torch.from_numpy(qs).to(device, dtype=torch_dtype).unsqueeze(0)
     return IntegrationResult(q=qs, p=ps)
 
 
