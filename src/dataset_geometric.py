@@ -82,10 +82,7 @@ def package_data(data_set, package_args):
         q = batch.q
         dp_dt = batch.dp_dt
         dq_dt = batch.dq_dt
-        if hasattr(batch, "masses") and batch["masses"] is not None:
-            masses = batch.masses
-        else:
-            masses = np.ones(p.shape[0])
+        masses = batch.masses
         proc_part = particle_process_func(p=p, q=q,
                                           dp_dt=dp_dt, dq_dt=dq_dt,
                                           masses=masses)
