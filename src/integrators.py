@@ -180,7 +180,7 @@ def null_integrator(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=False, devic
 def scipy_integrator(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu', method="RK45"):
     if not volatile:
         raise ValueError("SciPy integrators cannot create graph")
-    if len(p_0.shape) > 2:
+    if len(p_0.shape) > 2 or (len(p_0.shape) > 1 and p_0.shape[0] != 1):
         raise ValueError("SciPy integrators do not support batching")
 
     dt = dt.item()
@@ -193,6 +193,9 @@ def scipy_integrator(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, devic
         p, q = np.split(y, 2, axis=-1)
         p = torch.from_numpy(p).to(device, dtype=torch_dtype)
         q = torch.from_numpy(q).to(device, dtype=torch_dtype)
+        if len(p.shape) < 2:
+            p = p.unsqueeze(0)
+            q = q.unsqueeze(0)
         if is_Hamilt:
             # Do backprop for hamiltonian
             p.requires_grad_()
@@ -200,15 +203,18 @@ def scipy_integrator(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, devic
             hamilt = Func(p=p, q=q)
             dpdt = -grad(hamilt.sum(), q, create_graph=not volatile)[0]
             dqdt = grad(hamilt.sum(), p, create_graph=not volatile)[0]
-            dpdt = dpdt.detach().cpu().numpy()
-            dqdt = dqdt.detach().cpu().numpy()
-            return np.concatenate((dpdt, dqdt), axis=-1)
         else:
             # Do direct integration
             deriv = Func(p=p, q=q)
-            dpdt = deriv.dp_dt.detach().cpu().numpy()
-            dqdt = deriv.dq_dt.detach().cpu().numpy()
-            return np.concatenate((dpdt, dqdt), axis=-1)
+            dpdt = deriv.dp_dt
+            dqdt = deriv.dq_dt
+        # Process return values
+        dpdt = dpdt.detach().cpu().numpy()
+        dqdt = dqdt.detach().cpu().numpy()
+        if len(dpdt.shape) > 1:
+            dpdt = dpdt[0]
+            dqdt = dqdt[0]
+        return np.concatenate((dpdt, dqdt), axis=-1)
 
     t_span = (0, dt * T)
     t_eval = np.arange(T).astype(np.float64) * dt
