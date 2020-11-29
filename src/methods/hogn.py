@@ -103,7 +103,8 @@ class HGN(MessagePassing):
     def loss(self, g, augment=True, square=False, reg=True, augmentation=3, **kwargs):
         all_derivatives = self.just_derivative(g, augment=augment, augmentation=augmentation)
         ndim = self.ndim
-        dv_dt = all_derivatives[:, self.ndim:]
+        #dv_dt = all_derivatives[:, self.ndim:]
+        dv_dt = all_derivatives
 
         if reg:
             ## If predicting dq_dt too, the following regularization is important:
