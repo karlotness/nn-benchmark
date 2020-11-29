@@ -96,6 +96,15 @@ def select_device(try_gpu, base_logger):
     return device
 
 
+class TorchTypeConverter:
+    def __init__(self, device, dtype):
+        self.device = device
+        self.dtype = dtype
+
+    def __call__(self, x):
+        return x.to(self.device, dtype=self.dtype)
+
+
 def run_phase(base_dir, out_dir, phase_args):
     logger = logging.getLogger("train")
     base_dir = pathlib.Path(base_dir)
