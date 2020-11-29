@@ -392,6 +392,7 @@ class HNN(TrainedNetwork):
                 "train_data": {
                     "data_dir": self.training_set.path,
                     "dataset": "snapshot",
+                    "linearize": True,
                     "dataset_args": {},
                     "loader": {
                         "batch_size": self.batch_size,
@@ -464,6 +465,7 @@ class SRNN(TrainedNetwork):
                 "train_data": {
                     "data_dir": self.training_set.path,
                     "dataset": "rollout-chunk",
+                    "linearize": True,
                     "dataset_args": {
                         "rollout_length": self.rollout_length,
                     },
@@ -626,6 +628,7 @@ class MLP(TrainedNetwork):
                 "train_data": {
                     "data_dir": self.training_set.path,
                     "dataset": "snapshot",
+                    "linearize": True,
                     "dataset_args": {},
                     "loader": {
                         "batch_size": self.batch_size,
@@ -670,6 +673,7 @@ class KNNRegressor(TrainedNetwork):
                 "train_data": {
                     "data_dir": self.training_set.path,
                     "dataset": "snapshot",
+                    "linearize": True,
                     "dataset_args": {},
                     "loader": {
                         "batch_size": 750,
@@ -712,6 +716,7 @@ class KNNPredictor(TrainedNetwork):
                 "train_data": {
                     "data_dir": self.training_set.path,
                     "dataset": "snapshot",
+                    "linearize": True,
                     "dataset_args": {},
                     "loader": {
                         "batch_size": 750,
