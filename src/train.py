@@ -78,7 +78,7 @@ def create_dataset(base_dir, data_args):
     # End of inner dataset
     data_dir = base_dir / data_args["data_dir"]
     train_data_set, train_loader = _create_dataset_inner(data_dir, base_dir, data_args)
-    if "val_data_dir" in data_args:
+    if "val_data_dir" in data_args and data_args["val_data_dir"] is not None:
         val_data_dir = base_dir / data_args["val_data_dir"]
         val_data_set, val_loader = _create_dataset_inner(val_data_dir, base_dir, data_args)
     else:
