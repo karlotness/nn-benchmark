@@ -85,8 +85,6 @@ def create_dataset(base_dir, data_args):
     return train_data_set, train_loader, val_data_set, val_loader
 
 
-
-
 def select_device(try_gpu, base_logger):
     logger = base_logger.getChild("select_device")
     device = torch.device("cpu")
