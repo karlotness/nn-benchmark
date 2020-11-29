@@ -258,7 +258,7 @@ def run_phase(base_dir, out_dir, phase_args):
         true_hamilt_net_traj = system.hamiltonian(p=int_p, q=int_q).squeeze()
         # Compute network hamiltonians
         net_hamilt_true_traj, net_hamilt_net_traj = None, None
-        if eval_type in ("srnn", "hnn", "hogn"):
+        if eval_type in {"srnn", "hnn", "hogn"}:
             net_hamilt_true_traj = hamiltonian_func(p=p[0], q=q[0]).sum(axis=-1).detach().cpu().numpy()
             int_p_torch = torch.from_numpy(int_p).to(device, dtype=eval_dtype)
             int_q_torch = torch.from_numpy(int_q).to(device, dtype=eval_dtype)
