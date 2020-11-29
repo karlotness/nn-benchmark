@@ -769,6 +769,7 @@ class NetworkEvaluation(Evaluation):
                 "eval_net": self.network.path,
                 "eval_data": {
                     "data_dir": self.eval_set.path,
+                    "linearize": (self.network.method != "hogn"),
                 },
                 "eval": {
                     "eval_type": eval_type,
