@@ -101,8 +101,8 @@ class ParticleInitialConditionSource(InitialConditionSource):
         assert self.masses.shape[0] == self.n_particles
 
     def _generate_initial_condition(self):
-        p0 = np.random.normal((self.n_particles, self.n_dim))
-        q0 = np.random.normal((self.n_particles, self.n_dim))
+        p0 = np.random.normal(size=(self.n_particles, self.n_dim))
+        q0 = np.random.normal(size=(self.n_particles, self.n_dim))
         state = {
             "p0": p0.tolist(),
             "q0": q0.tolist(),
