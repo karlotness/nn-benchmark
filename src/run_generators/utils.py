@@ -93,7 +93,6 @@ class ParticleInitialConditionSource(InitialConditionSource):
         super().__init__()
         self.n_particles = n_particles
         self.n_dim = n_dim
-        self.g = g
         if masses is None:
             self.masses = np.ones(self.n_particles)
         else:
