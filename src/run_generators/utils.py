@@ -330,12 +330,18 @@ class TrainedNetwork(WritableDescription):
                          name=f"{method}-{name_tail}")
         self.method = method
 
+    def _check_val_set(self, train_set, val_set):
+        if val_set is None:
+            return
+        assert val_set.set_type == train_set.set_type
+        assert val_set.input_size() == train_set.input_size()
+
 
 class HNN(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, learning_rate=1e-3,
                  output_dim=2, hidden_dim=200, depth=3, train_dtype="float",
                  field_type="solenoidal", batch_size=750,
-                 epochs=1000):
+                 epochs=1000, validation_set=None):
         super().__init__(experiment=experiment,
                          method="hnn",
                          name_tail=f"{training_set.name}-d{depth}-h{hidden_dim}")
@@ -349,6 +355,9 @@ class HNN(TrainedNetwork):
         self.train_dtype = train_dtype
         self.field_type = field_type
         self.batch_size = batch_size
+        self.validation_set = validation_set
+        self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
+
 
     def description(self):
         template = {
@@ -397,6 +406,8 @@ class HNN(TrainedNetwork):
                 "mem": 32,
             },
         }
+        if self.validation_set is not None:
+            template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
         return template
 
 
@@ -404,7 +415,7 @@ class SRNN(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, learning_rate=1e-3,
                  output_dim=2, hidden_dim=2048, depth=2, train_dtype="float",
                  batch_size=750, epochs=1000, rollout_length=10,
-                 integrator="leapfrog"):
+                 integrator="leapfrog", validation_set=None):
         super().__init__(experiment=experiment,
                          method="srnn",
                          name_tail=f"{training_set.name}-d{depth}-h{hidden_dim}-i{integrator}")
@@ -419,6 +430,8 @@ class SRNN(TrainedNetwork):
         self.epochs = epochs
         self.rollout_length = rollout_length
         self.integrator = integrator
+        self.validation_set = validation_set
+        self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
 
     def description(self):
         template = {
@@ -467,13 +480,15 @@ class SRNN(TrainedNetwork):
                 "mem": 32,
             },
         }
+        if self.validation_set is not None:
+            template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
         return template
 
 
 class HOGN(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, hidden_dim=64,
                  connection_radius=5, learning_rate=1e-3, epochs=200,
-                 train_dtype="float", batch_size=100):
+                 train_dtype="float", batch_size=100, validation_set=None):
         super().__init__(experiment=experiment,
                          method="hogn",
                          name_tail=f"{training_set.name}-h{hidden_dim}")
@@ -485,6 +500,8 @@ class HOGN(TrainedNetwork):
         self.epochs = epochs
         self.train_dtype = train_dtype
         self.batch_size = batch_size
+        self.validation_set = validation_set
+        self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
         # Infer values from training set
         if self.training_set.system == "wave":
             self.particle_process_type = "one-dim"
@@ -559,13 +576,15 @@ class HOGN(TrainedNetwork):
                 "mem": 32,
             },
         }
+        if self.validation_set is not None:
+            template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
         return template
 
 
 class MLP(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, learning_rate=1e-3,
                  hidden_dim=2048, depth=2, train_dtype="float",
-                 batch_size=750, epochs=1000):
+                 batch_size=750, epochs=1000, validation_set=None):
         super().__init__(experiment=experiment,
                          method="mlp",
                          name_tail=f"{training_set.name}-d{depth}-h{hidden_dim}")
@@ -577,6 +596,8 @@ class MLP(TrainedNetwork):
         self.train_dtype = train_dtype
         self.batch_size = batch_size
         self.epochs = epochs
+        self.validation_set = validation_set
+        self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
 
     def description(self):
         template = {
@@ -619,6 +640,8 @@ class MLP(TrainedNetwork):
                 "mem": 32,
             },
         }
+        if self.validation_set is not None:
+            template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
         return template
 
 
