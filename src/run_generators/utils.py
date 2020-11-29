@@ -333,7 +333,7 @@ class TrainedNetwork(WritableDescription):
     def _check_val_set(self, train_set, val_set):
         if val_set is None:
             return
-        assert val_set.set_type == train_set.set_type
+        assert val_set.system == train_set.system
         assert val_set.input_size() == train_set.input_size()
 
 
