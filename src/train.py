@@ -179,7 +179,7 @@ def train_hogn(net, batch, loss_fn, train_type_args, tensor_converter):
     graph_batch = batch
     graph_batch.x = tensor_converter(graph_batch.x)
     graph_batch.y = tensor_converter(graph_batch.y)
-    graph_batch.edge_index = tensor_converter(graph_batch.edge_index)
+    graph_batch.edge_index = graph_batch.edge_index.to(tensor_converter.device)
     # Perform training
     # HOGN training with graph_batch
     loss = net.loss(graph_batch)
