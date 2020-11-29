@@ -221,7 +221,6 @@ def run_phase(base_dir, out_dir, phase_args):
 
         if eval_type == "hogn":
             # Pull out masses for HOGN
-            masses = getattr(trajectory, "masses", None)
             time_deriv_func = hogn_time_deriv_func(masses=masses)
             hamiltonian_func = hogn_hamiltonian_func(masses=masses)
 
