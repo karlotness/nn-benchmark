@@ -509,7 +509,7 @@ class HOGN(TrainedNetwork):
                 "type": "fully-connected",
                 "dimension": self.training_set.n_particles
             }
-            self.ndim = self.training_set.input_size() // 2
+            self.ndim = self.training_set.n_dim
             self.input_dim = 2 * self.ndim + 1
         else:
             raise ValueError(f"Invalid system {self.training_set.system}")
