@@ -499,7 +499,7 @@ class HOGN(TrainedNetwork):
             self.particle_process_type = "one-dim"
             self.adjacency_args = {
                 "type": "fully-connected",
-                "dim": self.training_set.input_size() // 2,
+                "dimension": self.training_set.input_size() // 2,
             }
             self.input_dim = 3
             self.ndim = 1
@@ -507,7 +507,7 @@ class HOGN(TrainedNetwork):
             self.particle_process_type = "identity"
             self.adjacency_args = self.adjacency_args = {
                 "type": "fully-connected",
-                "dim": self.training_set.input_size() // 2,
+                "dimension": self.training_set.n_particles
             }
             self.ndim = self.training_set.input_size() // 2
             self.input_dim = 2 * self.ndim + 1
