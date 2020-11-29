@@ -260,12 +260,17 @@ def run_phase(base_dir, out_dir, phase_args):
         optimizer = training_args["optimizer"]
         optim_args = training_args["optimizer_args"]
         optim = create_optimizer(net, optimizer, optim_args)
+        torch_converter = TorchTypeConverter(device=device, dtype=train_dtype)
 
         # Move network to device and convert to dtype
-        net = net.to(device, dtype=train_dtype)
+        net = torch_converter(net)
 
-        # Declare loss function
+        # Declare loss and training functions
         loss_fn = torch.nn.MSELoss()
+        try:
+            train_fn = TRAIN_FUNCTIONS[train_type]
+        except KeyError as exc:
+            raise ValueError(f"Invalid train type: {train_type}") from exc
 
         # Run training epochs
         logger.info("Starting training")
@@ -278,76 +283,20 @@ def run_phase(base_dir, out_dir, phase_args):
             total_loss = 0
             total_loss_denom = 0
             for batch_num, batch in enumerate(train_loader):
-                if train_type == "hogn":
-                    graph_batch = batch
-                    graph_batch.x = graph_batch.x.to(device, dtype=train_dtype)
-                    graph_batch.y = graph_batch.y.to(device, dtype=train_dtype)
-                    graph_batch.edge_index = graph_batch.edge_index.to(device)
-                else:
-                    # Standard batch
-                    p = batch.p.to(device, dtype=train_dtype)
-                    q = batch.q.to(device, dtype=train_dtype)
-                    p_noiseless = batch.p_noiseless.to(device, dtype=train_dtype)
-                    q_noiseless = batch.q_noiseless.to(device, dtype=train_dtype)
-                    dp_dt = batch.dp_dt.to(device, dtype=train_dtype)
-                    dq_dt = batch.dq_dt.to(device, dtype=train_dtype)
-                    trajectory_meta = batch.trajectory_meta
-
-                # Reset optimizer
                 optim.zero_grad()
-
                 time_forward_start = time.perf_counter()
-                if train_type == "hnn":
-                    # Assume snapshot dataset (shape [batch_size, n_grid])
-                    deriv_pred = net.time_derivative(p=p, q=q)
-                    dx_dt = torch.cat([dp_dt, dq_dt], dim=-1)
-                    dx_dt_pred = torch.cat([deriv_pred.dp_dt, deriv_pred.dq_dt], dim=-1)
-                    loss = loss_fn(dx_dt_pred, dx_dt)
-                    total_loss_denom += p.shape[0]
-                elif train_type == "srnn":
-                    # Assume rollout dataset (shape [batch_size, dataset rollout_length, n_grid])
-                    training_steps = train_type_args["rollout_length"]
-                    time_step_size = float(trajectory_meta["time_step_size"][0])
-                    # Check that all time step sizes are equal
-                    if not torch.all(trajectory_meta["time_step_size"] == time_step_size):
-                        raise ValueError("Inconsistent time step sizes in batch")
-                    int_res = integrators.numerically_integrate(
-                        train_type_args["integrator"],
-                        p_0=p[:, 0],
-                        q_0=q[:, 0],
-                        model=net,
-                        method=integrators.IntegrationScheme.HAMILTONIAN,
-                        T=training_steps,
-                        dt=time_step_size,
-                        volatile=False,
-                        device=device,
-                        coarsening_factor=1)
-                    x = torch.cat([p_noiseless, q_noiseless], dim=-1)
-                    x_pred = torch.cat([int_res.p, int_res.q], dim=-1)
-                    loss = loss_fn(x_pred, x)
-                    total_loss_denom += p.shape[0] * p.shape[1]
-                elif train_type == "mlp":
-                    # Assume snapshot dataset (shape [batch_size, n_grid])
-                    deriv_pred = net(p=p, q=q)
-                    dx_dt = torch.cat([dp_dt, dq_dt], dim=-1)
-                    dx_dt_pred = torch.cat([deriv_pred.dp_dt, deriv_pred.dq_dt], dim=-1)
-                    loss = loss_fn(dx_dt_pred, dx_dt)
-                    total_loss_denom += p.shape[0]
-                elif train_type == "hogn":
-                    # HOGN training with graph_batch
-                    loss = net.loss(graph_batch)
-                    total_loss_denom += graph_batch.num_graphs
-                else:
-                    raise ValueError(f"Invalid train type: {train_type}")
+                train_result = train_fn(net=net, batch=batch, loss_fn=loss_fn,
+                                        train_type_args=train_type_args,
+                                        tensor_converter=torch_converter)
                 total_forward_time += time.perf_counter() - time_forward_start
-
+                loss = train_result.loss
+                total_loss_denom += train_result.total_loss_denom_incr
                 # Training step
                 time_backward_start = time.perf_counter()
                 loss.backward()
                 optim.step()
                 total_backward_time += time.perf_counter() - time_backward_start
                 total_loss += loss.item()
-
             total_epoch_time = time.perf_counter() - time_epoch_start
             avg_loss = total_loss / total_loss_denom
             logger.info(f"Epoch complete. Avg loss: {avg_loss}, time: {total_epoch_time}")
