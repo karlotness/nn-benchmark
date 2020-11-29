@@ -88,6 +88,30 @@ class SpringInitialConditionSource(InitialConditionSource):
         return state
 
 
+class ParticleInitialConditionSource(InitialConditionSource):
+    def __init__(self, n_particles, n_dim, masses=None):
+        super().__init__()
+        self.n_particles = n_particles
+        self.n_dim = n_dim
+        self.g = g
+        if masses is None:
+            self.masses = np.ones(self.n_particles)
+        else:
+            self.masses = masses
+        assert len(self.masses.shape) == 1
+        assert self.masses.shape[0] == self.n_particles
+
+    def _generate_initial_condition(self):
+        p0 = np.random.normal((self.n_particles, self.n_dim))
+        q0 = np.random.normal((self.n_particles, self.n_dim))
+        state = {
+            "p0": p0.tolist(),
+            "q0": q0.tolist(),
+            "masses": self.masses.tolist(),
+        }
+        return state
+
+
 class WritableDescription:
     def __init__(self, experiment, phase, name):
         self.experiment = experiment
