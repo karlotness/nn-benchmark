@@ -277,11 +277,15 @@ def run_phase(base_dir, out_dir, phase_args):
         epoch_stats = []
         for epoch in range(max_epochs):
             logger.info(f"Epoch {epoch} of {max_epochs}")
+            this_epoch_stats = {}
+            this_epoch_timing = {}
             total_forward_time = 0
             total_backward_time = 0
             time_epoch_start = time.perf_counter()
             total_loss = 0
             total_loss_denom = 0
+            time_train_start = time.perf_counter()
+            # Do training
             for batch_num, batch in enumerate(train_loader):
                 optim.zero_grad()
                 time_forward_start = time.perf_counter()
@@ -297,19 +301,60 @@ def run_phase(base_dir, out_dir, phase_args):
                 optim.step()
                 total_backward_time += time.perf_counter() - time_backward_start
                 total_loss += loss.item()
-            total_epoch_time = time.perf_counter() - time_epoch_start
+            total_train_time = time.perf_counter() - time_train_start
             avg_loss = total_loss / total_loss_denom
-            logger.info(f"Epoch complete. Avg loss: {avg_loss}, time: {total_epoch_time}")
-            # Compute per-epoch statistics
-            epoch_stats.append({
+
+            this_epoch_stats.update({
                 "num_batches": batch_num + 1,
                 "avg_loss": avg_loss,
-                "timing": {
-                    "total_forward": total_forward_time,
-                    "total_backward": total_backward_time,
-                    "total_epoch": total_epoch_time,
-                }
+                "train_total_loss": total_loss,
+                "train_loss_denom": total_loss_denom,
             })
+            this_epoch_timing.update({
+                "total_forward": total_forward_time,
+                "total_backward": total_backward_time,
+                "total_train": total_train_time,
+            })
+
+            optim.zero_grad()
+
+            # Do validation, if we have a validation loader
+            if val_loader:
+                val_total_loss = 0
+                val_total_loss_denom = 0
+                time_val_start = time.perf_counter()
+                for val_batch_num, val_batch in enumerate(val_loader):
+                    val_result = train_fn(net=net, batch=val_batch,
+                                          loss_fn=loss_fn,
+                                          train_type_args=train_type_args,
+                                          tensor_converter=torch_converter)
+                    val_loss = val_result.loss
+                    val_total_loss_denom += val_result.total_loss_denom_incr
+                    val_total_loss += val_loss.item()
+                total_val_time = time.perf_counter() - time_val_start
+                # Store validation results
+                this_epoch_stats.update({
+                    "val_batches": val_batch_num + 1,
+                    "val_total_loss": val_total_loss,
+                    "val_loss_denom": val_total_loss_denom,
+                })
+                this_epoch_timing.update({
+                    "total_val": total_val_time,
+                })
+
+            # Compute total epoch time
+            total_epoch_time = time.perf_counter() - time_epoch_start
+
+            # Report epoch statistics
+            logger.info(f"Epoch complete. Avg loss: {avg_loss}, time: {total_epoch_time}")
+            # Compute per-epoch statistics and store
+            this_epoch_timing.update({
+                "total_epoch": total_epoch_time,
+            })
+            this_epoch_stats.update({
+                "timing": this_epoch_timing,
+            })
+            epoch_stats.append(this_epoch_stats)
 
         logger.info("Training done")
         total_epoch_count = epoch + 1
