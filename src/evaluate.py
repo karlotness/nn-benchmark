@@ -47,7 +47,8 @@ def create_dataset(base_dir, data_args):
     dataset_type = data_args.get("dataset", None)
     if dataset_type is None:
         data_dir = base_dir / data_args["data_dir"]
-        data_set = dataset.TrajectoryDataset(data_dir=data_dir)
+        linearize = data_args.get("linearize", False)
+        data_set = dataset.TrajectoryDataset(data_dir=data_dir, linearize=linearize)
         loader = utils.data.DataLoader(data_set, batch_size=1, shuffle=False)
         return data_set, loader
     else:
