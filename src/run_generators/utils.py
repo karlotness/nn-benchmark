@@ -257,7 +257,7 @@ class WaveDataset(Dataset):
                 "gpu": False,
                 "time": "05:00:00",
                 "cpus": 16,
-                "mem": 128,
+                "mem": 64,
             },
         }
         return template
