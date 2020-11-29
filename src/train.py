@@ -114,11 +114,8 @@ def train_hnn(net, batch, loss_fn, train_type_args, tensor_converter):
     # Extract values from batch
     p = tensor_converter(batch.p)
     q = tensor_converter(batch.q)
-    p_noiseless = tensor_converter(batch.p_noiseless)
-    q_noiseless = tensor_converter(batch.q_noiseless)
     dp_dt = tensor_converter(batch.dp_dt)
     dq_dt = tensor_converter(batch.dq_dt)
-    trajectory_meta = batch.trajectory_meta
     # Perform training
     # Assume snapshot dataset (shape [batch_size, n_grid])
     deriv_pred = net.time_derivative(p=p, q=q)
@@ -135,8 +132,6 @@ def train_srnn(net, batch, loss_fn, train_type_args, tensor_converter):
     q = tensor_converter(batch.q)
     p_noiseless = tensor_converter(batch.p_noiseless)
     q_noiseless = tensor_converter(batch.q_noiseless)
-    dp_dt = tensor_converter(batch.dp_dt)
-    dq_dt = tensor_converter(batch.dq_dt)
     trajectory_meta = batch.trajectory_meta
     # Perform training
     # Assume rollout dataset (shape [batch_size, dataset rollout_length, n_grid])
@@ -167,11 +162,8 @@ def train_mlp(net, batch, loss_fn, train_type_args, tensor_converter):
     # Extract values from batch
     p = tensor_converter(batch.p)
     q = tensor_converter(batch.q)
-    p_noiseless = tensor_converter(batch.p_noiseless)
-    q_noiseless = tensor_converter(batch.q_noiseless)
     dp_dt = tensor_converter(batch.dp_dt)
     dq_dt = tensor_converter(batch.dq_dt)
-    trajectory_meta = batch.trajectory_meta
     # Perform training
     # Assume snapshot dataset (shape [batch_size, n_grid])
     deriv_pred = net(p=p, q=q)
