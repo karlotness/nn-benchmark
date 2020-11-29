@@ -41,7 +41,9 @@ def create_optimizer(net, optimizer, optim_args):
 
 def create_dataset(base_dir, data_args):
     data_dir = base_dir / data_args["data_dir"]
-    base_data_set = dataset.TrajectoryDataset(data_dir=data_dir)
+    linearize = data_args.get("linearize", False)
+    base_data_set = dataset.TrajectoryDataset(data_dir=data_dir,
+                                              linearize=linearize)
     dataset_type = data_args["dataset"]
     if dataset_type == "trajectory":
         data_set = base_data_set
