@@ -195,6 +195,7 @@ def run_phase(base_dir, out_dir, phase_args):
         q = trajectory.q.to(device, dtype=eval_dtype)
         p_noiseless = trajectory.p_noiseless.to(device, dtype=eval_dtype)
         q_noiseless = trajectory.q_noiseless.to(device, dtype=eval_dtype)
+        masses = trajectory.masses.to(device, dtype=eval_dtype)
         num_time_steps = trajectory.trajectory_meta["num_time_steps"][0]
         time_step_size = trajectory.trajectory_meta["time_step_size"][0]
 
@@ -255,9 +256,16 @@ def run_phase(base_dir, out_dir, phase_args):
         int_q = int_res_raw.q[0].detach().cpu().numpy()
 
         # Compute true hamiltonians
+        additional_hamilt_args = {}
+        if isinstance(system, particle.ParticleSystem):
+            additional_hamilt_args = {
+                "masses": masses.detach().cpu().numpy(),
+            }
         true_hamilt_true_traj = system.hamiltonian(p=p_noiseless.cpu().numpy()[0],
-                                                   q=q_noiseless.cpu().numpy()[0]).squeeze()
-        true_hamilt_net_traj = system.hamiltonian(p=int_p, q=int_q).squeeze()
+                                                   q=q_noiseless.cpu().numpy()[0],
+                                                   **additional_hamilt_args).squeeze()
+        true_hamilt_net_traj = system.hamiltonian(p=int_p, q=int_q,
+                                                  **additional_hamilt_args).squeeze()
         # Compute network hamiltonians
         net_hamilt_true_traj, net_hamilt_net_traj = None, None
         if eval_type in {"srnn", "hnn", "hogn"}:
