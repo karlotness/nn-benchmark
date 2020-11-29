@@ -53,7 +53,8 @@ def create_dataset(base_dir, data_args):
     else:
         # Non-default data set for evaluation
         # Use this for creating more complex datasets, like pytorch-geometric
-        return train_create_dataset(base_dir=base_dir, data_args=data_args)
+        train_dataset, train_loader, _val_dataset, _val_loader = train_create_dataset(base_dir=base_dir, data_args=data_args)
+        return train_dataset, train_loader
 
 
 def raw_err(approx, true, norm=2):

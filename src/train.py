@@ -40,40 +40,51 @@ def create_optimizer(net, optimizer, optim_args):
 
 
 def create_dataset(base_dir, data_args):
+    def _create_dataset_inner(data_dir, base_dir, data_args):
+        linearize = data_args.get("linearize", False)
+        base_data_set = dataset.TrajectoryDataset(data_dir=data_dir,
+                                                  linearize=linearize)
+        dataset_type = data_args["dataset"]
+        if dataset_type == "trajectory":
+            data_set = base_data_set
+        elif dataset_type == "snapshot":
+            data_set = dataset.SnapshotDataset(traj_dataset=base_data_set)
+        elif dataset_type == "rollout-chunk":
+            rollout_length = int(data_args["dataset_args"]["rollout_length"])
+            data_set = dataset.RolloutChunkDataset(traj_dataset=base_data_set,
+                                                   rollout_length=rollout_length)
+        else:
+            raise ValueError(f"Invalid dataset type {dataset_type}")
+        loader_args = data_args["loader"]
+        loader_type = loader_args.get("type", "pytorch")
+        if loader_type == "pytorch":
+            loader = utils.data.DataLoader(data_set,
+                                           batch_size=loader_args["batch_size"],
+                                           shuffle=loader_args["shuffle"])
+        elif loader_type == "pytorch-geometric":
+            # Lazy import to avoid pytorch-geometric if possible
+            import dataset_geometric
+            from torch_geometric import data as geometric_data
+            package_args = loader_args["package_args"]
+            loader = geometric_data.DataLoader(
+                dataset=dataset_geometric.package_data(data_set,
+                                                       package_args=package_args),
+                batch_size=loader_args["batch_size"],
+                shuffle=loader_args["shuffle"])
+        else:
+            raise ValueError(f"Invalid loader type {loader_type}")
+        return data_set, loader
+    # End of inner dataset
     data_dir = base_dir / data_args["data_dir"]
-    linearize = data_args.get("linearize", False)
-    base_data_set = dataset.TrajectoryDataset(data_dir=data_dir,
-                                              linearize=linearize)
-    dataset_type = data_args["dataset"]
-    if dataset_type == "trajectory":
-        data_set = base_data_set
-    elif dataset_type == "snapshot":
-        data_set = dataset.SnapshotDataset(traj_dataset=base_data_set)
-    elif dataset_type == "rollout-chunk":
-        rollout_length = int(data_args["dataset_args"]["rollout_length"])
-        data_set = dataset.RolloutChunkDataset(traj_dataset=base_data_set,
-                                               rollout_length=rollout_length)
+    train_data_set, train_loader = _create_dataset_inner(data_dir, base_dir, data_args)
+    if "val_data_dir" in data_args:
+        val_data_dir = base_dir / data_args["val_data_dir"]
+        val_data_set, val_loader = _create_dataset_inner(val_data_dir, base_dir, data_args)
     else:
-        raise ValueError(f"Invalid dataset type {dataset_type}")
-    loader_args = data_args["loader"]
-    loader_type = loader_args.get("type", "pytorch")
-    if loader_type == "pytorch":
-        loader = utils.data.DataLoader(data_set,
-                                       batch_size=loader_args["batch_size"],
-                                       shuffle=loader_args["shuffle"])
-    elif loader_type == "pytorch-geometric":
-        # Lazy import to avoid pytorch-geometric if possible
-        import dataset_geometric
-        from torch_geometric import data as geometric_data
-        package_args = loader_args["package_args"]
-        loader = geometric_data.DataLoader(
-            dataset=dataset_geometric.package_data(data_set,
-                                                   package_args=package_args),
-            batch_size=loader_args["batch_size"],
-            shuffle=loader_args["shuffle"])
-    else:
-        raise ValueError(f"Invalid loader type {loader_type}")
-    return data_set, loader
+        val_data_set, val_loader = None, None
+    return train_data_set, train_loader, val_data_set, val_loader
+
+
 
 
 def select_device(try_gpu, base_logger):
@@ -108,7 +119,7 @@ def run_phase(base_dir, out_dir, phase_args):
 
     # Load the data
     logger.info("Constructing dataset")
-    train_dataset, train_loader = create_dataset(base_dir, phase_args["train_data"])
+    train_dataset, train_loader, val_dataset, val_loader = create_dataset(base_dir, phase_args["train_data"])
 
     # If training a knn, this is all we need.
     if train_type == "knn-regressor":
