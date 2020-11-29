@@ -142,7 +142,7 @@ class SpringDataset(Dataset):
                  num_time_steps=30, time_step_size=0.3, rtol=1e-10,
                  noise_sigma=0.0):
         super().__init__(experiment=experiment,
-                         name_tail=f"n{num_traj}-t{num_time_steps}",
+                         name_tail=f"n{num_traj}-t{num_time_steps}-n{noise_sigma}",
                          system="spring",
                          set_type=set_type)
         self.num_traj = num_traj
@@ -192,7 +192,7 @@ class WaveDataset(Dataset):
                  num_time_steps=200, time_step_size=0.1, wave_speed=0.1,
                  subsampling=1000, noise_sigma=0.0):
         super().__init__(experiment=experiment,
-                         name_tail=f"n{num_traj}-t{num_time_steps}",
+                         name_tail=f"n{num_traj}-t{num_time_steps}-n{noise_sigma}",
                          system="wave",
                          set_type=set_type)
         self.space_max = 1
