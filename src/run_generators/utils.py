@@ -266,6 +266,63 @@ class WaveDataset(Dataset):
         return 2 * self.n_grid
 
 
+class ParticleDataset(Dataset):
+    def __init__(self, experiment, initial_cond_source, num_traj,
+                 set_type="train", n_dim=2, n_particles=2,
+                 num_time_steps=200, time_step_size=0.1, noise_sigma=0.0,
+                 g=1.0, rtol=1e-6):
+        super().__init__(experiment=experiment,
+                         name_tail=f"n{num_traj}-t{num_time_steps}-n{noise_sigma}",
+                         system="particle",
+                         set_type=set_type)
+        self.num_traj = num_traj
+        self.num_time_steps = num_time_steps
+        self.time_step_size = time_step_size
+        self.rtol = rtol
+        self.noise_sigma = noise_sigma
+        self.n_particles = n_particles
+        self.n_dim = n_dim
+        self.g = g
+        self.initial_cond_source = initial_cond_source
+        self.initial_conditions = self.initial_cond_source.sample_initial_conditions(self.num_traj)
+        assert isinstance(self.initial_cond_source, ParticleInitialConditionSource)
+        assert self.initial_cond_source.n_particles == self.n_particles
+        assert self.initial_cond_source.n_dim == self.n_dim
+
+    def description(self):
+        trajectories = []
+        for icond in self.initial_conditions:
+            traj = {
+                "num_time_steps": self.num_time_steps,
+                "time_step_size": self.time_step_size,
+                "rtol": self.rtol,
+                "noise_sigma": self.noise_sigma,
+            }
+            traj.update(icond)
+            trajectories.append(traj)
+        template = {
+            "phase_args": {
+                "system": "particle",
+                "system_args": {
+                    "n_particles": self.n_particles,
+                    "n_dim": self.n_dim,
+                    "g": self.g,
+                    "trajectory_defs": trajectories,
+                }
+            },
+            "slurm_args": {
+                "gpu": False,
+                "time": "00:30:00",
+                "cpus": 8,
+                "mem": 6,
+            },
+        }
+        return template
+
+    def input_size(self):
+        return 2 * self.n_dim * self.n_particles
+
+
 class TrainedNetwork(WritableDescription):
     def __init__(self, experiment, method, name_tail):
         super().__init__(experiment=experiment,
