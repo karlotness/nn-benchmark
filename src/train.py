@@ -319,6 +319,7 @@ def run_phase(base_dir, out_dir, phase_args):
             optim.zero_grad()
 
             # Do validation, if we have a validation loader
+            avg_val_loss = None
             if val_loader:
                 val_total_loss = 0
                 val_total_loss_denom = 0
@@ -332,6 +333,7 @@ def run_phase(base_dir, out_dir, phase_args):
                     val_total_loss_denom += val_result.total_loss_denom_incr
                     val_total_loss += val_loss.item()
                 total_val_time = time.perf_counter() - time_val_start
+                avg_val_loss = val_total_loss / val_total_loss_denom
                 # Store validation results
                 this_epoch_stats.update({
                     "val_batches": val_batch_num + 1,
@@ -346,7 +348,7 @@ def run_phase(base_dir, out_dir, phase_args):
             total_epoch_time = time.perf_counter() - time_epoch_start
 
             # Report epoch statistics
-            logger.info(f"Epoch complete. Avg loss: {avg_loss}, time: {total_epoch_time}")
+            logger.info(f"Epoch complete. Avg loss: {avg_loss}, time: {total_epoch_time}, val loss: {avg_val_loss}")
             # Compute per-epoch statistics and store
             this_epoch_timing.update({
                 "total_epoch": total_epoch_time,
