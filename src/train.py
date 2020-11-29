@@ -9,6 +9,7 @@ import time
 import joblib
 import integrators
 import numpy as np
+from collections import namedtuple
 
 
 TRAIN_DTYPES = {
@@ -103,6 +104,103 @@ class TorchTypeConverter:
 
     def __call__(self, x):
         return x.to(self.device, dtype=self.dtype)
+
+
+TrainLossResult = namedtuple("TrainLossResult",
+                             ["loss", "total_loss_denom_incr"])
+
+
+def train_hnn(net, batch, loss_fn, train_type_args, tensor_converter):
+    # Extract values from batch
+    p = tensor_converter(batch.p)
+    q = tensor_converter(batch.q)
+    p_noiseless = tensor_converter(batch.p_noiseless)
+    q_noiseless = tensor_converter(batch.q_noiseless)
+    dp_dt = tensor_converter(batch.dp_dt)
+    dq_dt = tensor_converter(batch.dq_dt)
+    trajectory_meta = batch.trajectory_meta
+    # Perform training
+    # Assume snapshot dataset (shape [batch_size, n_grid])
+    deriv_pred = net.time_derivative(p=p, q=q)
+    dx_dt = torch.cat([dp_dt, dq_dt], dim=-1)
+    dx_dt_pred = torch.cat([deriv_pred.dp_dt, deriv_pred.dq_dt], dim=-1)
+    loss = loss_fn(dx_dt_pred, dx_dt)
+    return TrainLossResult(loss=loss,
+                           total_loss_denom_incr=p.shape[0])
+
+
+def train_srnn(net, batch, loss_fn, train_type_args, tensor_converter):
+    # Extract values from batch
+    p = tensor_converter(batch.p)
+    q = tensor_converter(batch.q)
+    p_noiseless = tensor_converter(batch.p_noiseless)
+    q_noiseless = tensor_converter(batch.q_noiseless)
+    dp_dt = tensor_converter(batch.dp_dt)
+    dq_dt = tensor_converter(batch.dq_dt)
+    trajectory_meta = batch.trajectory_meta
+    # Perform training
+    # Assume rollout dataset (shape [batch_size, dataset rollout_length, n_grid])
+    training_steps = train_type_args["rollout_length"]
+    time_step_size = float(trajectory_meta["time_step_size"][0])
+    # Check that all time step sizes are equal
+    if not torch.all(trajectory_meta["time_step_size"] == time_step_size):
+        raise ValueError("Inconsistent time step sizes in batch")
+    int_res = integrators.numerically_integrate(
+        train_type_args["integrator"],
+        p_0=p[:, 0],
+        q_0=q[:, 0],
+        model=net,
+        method=integrators.IntegrationScheme.HAMILTONIAN,
+        T=training_steps,
+        dt=time_step_size,
+        volatile=False,
+        device=tensor_converter.device,
+        coarsening_factor=1)
+    x = torch.cat([p_noiseless, q_noiseless], dim=-1)
+    x_pred = torch.cat([int_res.p, int_res.q], dim=-1)
+    loss = loss_fn(x_pred, x)
+    return TrainLossResult(loss=loss,
+                           total_loss_denom_incr=p.shape[0] * p.shape[1])
+
+
+def train_mlp(net, batch, loss_fn, train_type_args, tensor_converter):
+    # Extract values from batch
+    p = tensor_converter(batch.p)
+    q = tensor_converter(batch.q)
+    p_noiseless = tensor_converter(batch.p_noiseless)
+    q_noiseless = tensor_converter(batch.q_noiseless)
+    dp_dt = tensor_converter(batch.dp_dt)
+    dq_dt = tensor_converter(batch.dq_dt)
+    trajectory_meta = batch.trajectory_meta
+    # Perform training
+    # Assume snapshot dataset (shape [batch_size, n_grid])
+    deriv_pred = net(p=p, q=q)
+    dx_dt = torch.cat([dp_dt, dq_dt], dim=-1)
+    dx_dt_pred = torch.cat([deriv_pred.dp_dt, deriv_pred.dq_dt], dim=-1)
+    loss = loss_fn(dx_dt_pred, dx_dt)
+    return TrainLossResult(loss=loss,
+                           total_loss_denom_incr=p.shape[0])
+
+
+def train_hogn(net, batch, loss_fn, train_type_args, tensor_converter):
+    # Extract values from batch
+    graph_batch = batch
+    graph_batch.x = tensor_converter(graph_batch.x)
+    graph_batch.y = tensor_converter(graph_batch.y)
+    graph_batch.edge_index = tensor_converter(graph_batch.edge_index)
+    # Perform training
+    # HOGN training with graph_batch
+    loss = net.loss(graph_batch)
+    return TrainLossResult(loss=loss,
+                           total_loss_denom_incr=graph_batch.num_graphs)
+
+
+TRAIN_FUNCTIONS = {
+    "hnn": train_hnn,
+    "srnn": train_srnn,
+    "mlp": train_mlp,
+    "hogn": train_hogn,
+}
 
 
 def run_phase(base_dir, out_dir, phase_args):
