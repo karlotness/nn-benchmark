@@ -509,7 +509,7 @@ class HOGN(TrainedNetwork):
             self.particle_process_type = "one-dim"
             self.adjacency_args = {
                 "type": "circular-local",
-                "dim": self.training_set.input_size() // 2,
+                "dimension": self.training_set.input_size() // 2,
                 "degree": connection_radius,
             }
             self.input_dim = 3
