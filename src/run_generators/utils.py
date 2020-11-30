@@ -489,7 +489,7 @@ class SRNN(TrainedNetwork):
 
 class HOGN(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, hidden_dim=64,
-                 connection_radius=5, learning_rate=1e-3, epochs=200,
+                 connection_radius=5, learning_rate=1e-3, epochs=300,
                  train_dtype="float", batch_size=100, validation_set=None):
         super().__init__(experiment=experiment,
                          method="hogn",
@@ -573,7 +573,7 @@ class HOGN(TrainedNetwork):
             },
             "slurm_args": {
                 "gpu": self.gpu,
-                "time": "12:00:00",
+                "time": "14:00:00",
                 "cpus": 8,
                 "mem": 32,
             },
