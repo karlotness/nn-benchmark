@@ -58,10 +58,14 @@ def create_dataset(base_dir, data_args):
             raise ValueError(f"Invalid dataset type {dataset_type}")
         loader_args = data_args["loader"]
         loader_type = loader_args.get("type", "pytorch")
+        pin_memory = loader_args.get("pin_memory", False)
+        num_workers = loader_args.get("num_workers", 0)
         if loader_type == "pytorch":
             loader = utils.data.DataLoader(data_set,
                                            batch_size=loader_args["batch_size"],
-                                           shuffle=loader_args["shuffle"])
+                                           shuffle=loader_args["shuffle"],
+                                           pin_memory=pin_memory,
+                                           num_workers=num_workers)
         elif loader_type == "pytorch-geometric":
             # Lazy import to avoid pytorch-geometric if possible
             import dataset_geometric

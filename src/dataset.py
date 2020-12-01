@@ -5,15 +5,15 @@ import numpy as np
 import torch
 from torch.utils import data
 
+Trajectory = namedtuple("Trajectory", ["name", "p", "q", "dp_dt", "dq_dt",
+                                       "t", "trajectory_meta",
+                                       "p_noiseless", "q_noiseless",
+                                       "masses"])
+
 
 class TrajectoryDataset(data.Dataset):
     """Returns batches of full trajectories.
     dataset[idx] -> a set of snapshots for a full trajectory"""
-
-    Trajectory = namedtuple("Trajectory", ["name", "p", "q", "dp_dt", "dq_dt",
-                                           "t", "trajectory_meta",
-                                           "p_noiseless", "q_noiseless",
-                                           "masses"])
 
     def __init__(self, data_dir, linearize=False):
         super().__init__()
@@ -59,25 +59,25 @@ class TrajectoryDataset(data.Dataset):
             num_particles = p.shape[1]
             masses = np.ones(num_particles)
         # Package and return
-        return self.Trajectory(name=name, trajectory_meta=meta,
-                               p=self.__linearize(p),
-                               q=self.__linearize(q),
-                               dp_dt=self.__linearize(dp_dt),
-                               dq_dt=self.__linearize(dq_dt),
-                               t=t,
-                               p_noiseless=self.__linearize(p_noiseless),
-                               q_noiseless=self.__linearize(q_noiseless),
-                               masses=masses)
+        return Trajectory(name=name, trajectory_meta=meta,
+                          p=self.__linearize(p),
+                          q=self.__linearize(q),
+                          dp_dt=self.__linearize(dp_dt),
+                          dq_dt=self.__linearize(dq_dt),
+                          t=t,
+                          p_noiseless=self.__linearize(p_noiseless),
+                          q_noiseless=self.__linearize(q_noiseless),
+                          masses=masses)
 
     def __len__(self):
         return len(self._trajectory_meta)
 
+Snapshot = namedtuple("Snapshot", ["name", "p", "q", "dp_dt", "dq_dt",
+                                   "t", "trajectory_meta",
+                                   "p_noiseless", "q_noiseless",
+                                   "masses"])
 
 class SnapshotDataset(data.Dataset):
-    Snapshot = namedtuple("Snapshot", ["name", "p", "q", "dp_dt", "dq_dt",
-                                       "t", "trajectory_meta",
-                                       "p_noiseless", "q_noiseless",
-                                       "masses"])
 
     def __init__(self, traj_dataset):
         super().__init__()
@@ -125,24 +125,25 @@ class SnapshotDataset(data.Dataset):
         self._masses = masses
 
     def __getitem__(self, idx):
-        return self.Snapshot(name=self._name[idx],
-                             trajectory_meta=self._traj_meta[idx],
-                             p=self._p[idx], q=self._q[idx],
-                             dp_dt=self._dp_dt[idx], dq_dt=self._dq_dt[idx],
-                             t=self._t[idx],
-                             p_noiseless=self._p_noiseless[idx],
-                             q_noiseless=self._q_noiseless[idx],
-                             masses=self._masses[idx])
+        return Snapshot(name=self._name[idx],
+                        trajectory_meta=self._traj_meta[idx],
+                        p=self._p[idx], q=self._q[idx],
+                        dp_dt=self._dp_dt[idx], dq_dt=self._dq_dt[idx],
+                        t=self._t[idx],
+                        p_noiseless=self._p_noiseless[idx],
+                        q_noiseless=self._q_noiseless[idx],
+                        masses=self._masses[idx])
 
     def __len__(self):
         return len(self._traj_meta)
 
 
+Rollout = namedtuple("Rollout", ["name", "p", "q", "dp_dt", "dq_dt",
+                                 "t", "trajectory_meta",
+                                 "p_noiseless", "q_noiseless",
+                                 "masses"])
+
 class RolloutChunkDataset(data.Dataset):
-    Rollout = namedtuple("Rollout", ["name", "p", "q", "dp_dt", "dq_dt",
-                                     "t", "trajectory_meta",
-                                     "p_noiseless", "q_noiseless",
-                                     "masses"])
 
     def __init__(self, traj_dataset, rollout_length):
         super().__init__()
@@ -195,14 +196,14 @@ class RolloutChunkDataset(data.Dataset):
         self._masses = masses
 
     def __getitem__(self, idx):
-        return self.Rollout(name=self._name[idx],
-                            trajectory_meta=self._traj_meta[idx],
-                            p=self._p[idx], q=self._q[idx],
-                            dp_dt=self._dp_dt[idx], dq_dt=self._dq_dt[idx],
-                            t=self._t[idx],
-                            p_noiseless=self._p_noiseless[idx],
-                            q_noiseless=self._q_noiseless[idx],
-                            masses=self._masses[idx])
+        return Rollout(name=self._name[idx],
+                       trajectory_meta=self._traj_meta[idx],
+                       p=self._p[idx], q=self._q[idx],
+                       dp_dt=self._dp_dt[idx], dq_dt=self._dq_dt[idx],
+                       t=self._t[idx],
+                       p_noiseless=self._p_noiseless[idx],
+                       q_noiseless=self._q_noiseless[idx],
+                       masses=self._masses[idx])
 
     def __len__(self):
         return len(self._traj_meta)
