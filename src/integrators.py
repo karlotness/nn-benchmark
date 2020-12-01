@@ -319,6 +319,8 @@ def numerically_integrate(integrator, p_0, q_0, model, method, T, dt, volatile, 
             trajectory_simulated = leapfrog(p_0, q_0, model, T, dt, volatile=volatile, device=device)
         elif (integrator == 'euler'):
             trajectory_simulated = euler(p_0, q_0, model, T, dt, volatile=volatile, device=device)
+        elif integrator == 'rk4':
+            trajectory_simulated = rk4(p_0, q_0, model, T, dt, volatile=volatile, device=device)
         elif integrator.startswith("scipy-"):
             # Handle SciPy integration
             method = integrator.split("-")[1]
@@ -332,6 +334,8 @@ def numerically_integrate(integrator, p_0, q_0, model, method, T, dt, volatile, 
             trajectory_simulated = euler(p_0, q_0, model, T, dt, volatile=volatile, is_Hamilt=False, device=device)
         elif integrator == 'null':
             trajectory_simulated = null_integrator(p_0, q_0, model, T, dt, volatile=volatile, is_Hamilt=False, device=device)
+        elif integrator == 'rk4':
+            trajectory_simulated = rk4(p_0, q_0, model, T, dt, volatile=volatile, is_Hamilt=False, device=device)
         elif integrator.startswith("scipy-"):
             # Handle SciPy integration
             method = integrator.split("-")[1]
