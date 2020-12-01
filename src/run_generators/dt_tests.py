@@ -31,7 +31,10 @@ for mult in [500, 250, 125, 100, 10]:
     rk45 = utils.BaselineIntegrator(experiment=experiment,
                                     eval_set=data,
                                     integrator="scipy-RK45")
-    writable_objects.extend([data, euler, leapfrog, rk45])
+    rk4 = utils.BaselineIntegrator(experiment=experiment,
+                                   eval_set=data,
+                                   integrator="rk4")
+    writable_objects.extend([data, euler, leapfrog, rk45, rk4])
 
 # Spring integration tests
 for mult in [1, 10, 50, 100, 200]:
@@ -50,7 +53,10 @@ for mult in [1, 10, 50, 100, 200]:
     rk45 = utils.BaselineIntegrator(experiment=experiment,
                                     eval_set=data,
                                     integrator="scipy-RK45")
-    writable_objects.extend([data, euler, leapfrog, rk45])
+    rk4 = utils.BaselineIntegrator(experiment=experiment,
+                                   eval_set=data,
+                                   integrator="rk4")
+    writable_objects.extend([data, euler, leapfrog, rk45, rk4])
 
 if __name__ == "__main__":
     args = parser.parse_args()
