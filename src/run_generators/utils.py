@@ -402,9 +402,9 @@ class HNN(TrainedNetwork):
             },
             "slurm_args": {
                 "gpu": self.gpu,
-                "time": "08:00:00",
-                "cpus": 8,
-                "mem": 32,
+                "time": "10:00:00",
+                "cpus": 8 if self.gpu else 32,
+                "mem": 64 if self.training_set.system == "wave" else 32,
             },
         }
         if self.validation_set is not None:
@@ -477,9 +477,9 @@ class SRNN(TrainedNetwork):
             },
             "slurm_args": {
                 "gpu": self.gpu,
-                "time": "08:00:00",
-                "cpus": 8,
-                "mem": 32,
+                "time": "10:00:00",
+                "cpus": 8 if self.gpu else 32,
+                "mem": 64 if self.training_set.system == "wave" else 32,
             },
         }
         if self.validation_set is not None:
@@ -574,8 +574,8 @@ class HOGN(TrainedNetwork):
             "slurm_args": {
                 "gpu": self.gpu,
                 "time": "14:00:00",
-                "cpus": 8,
-                "mem": 32,
+                "cpus": 8 if self.gpu else 32,
+                "mem": 64 if self.training_set.system == "wave" else 32,
             },
         }
         if self.validation_set is not None:
@@ -638,9 +638,9 @@ class MLP(TrainedNetwork):
             },
             "slurm_args": {
                 "gpu": self.gpu,
-                "time": "08:00:00",
-                "cpus": 8,
-                "mem": 32,
+                "time": "10:00:00",
+                "cpus": 8 if self.gpu else 32,
+                "mem": 64 if self.training_set.system == "wave" else 32,
             },
         }
         if self.validation_set is not None:
