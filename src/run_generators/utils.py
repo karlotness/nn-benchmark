@@ -705,7 +705,7 @@ class KNNRegressor(TrainedNetwork):
                 "gpu": False,
                 "time": "01:30:00",
                 "cpus": 8,
-                "mem": 32,
+                "mem": 64 if self.training_set.system == "wave" else 32,
             },
         }
         return template
@@ -748,7 +748,7 @@ class KNNPredictor(TrainedNetwork):
                 "gpu": False,
                 "time": "01:30:00",
                 "cpus": 8,
-                "mem": 32,
+                "mem": 64 if self.training_set.system == "wave" else 32,
             },
         }
         return template
@@ -800,9 +800,9 @@ class NetworkEvaluation(Evaluation):
             },
             "slurm_args": {
                 "gpu": gpu,
-                "time": "03:00:00",
+                "time": "04:00:00",
                 "cpus": 16,
-                "mem": 32,
+                "mem": 64 if self.eval_set.system == "wave" else 32,
             },
         }
         return template
@@ -833,9 +833,9 @@ class BaselineIntegrator(Evaluation):
             },
             "slurm_args": {
                 "gpu": False,
-                "time": "03:00:00",
+                "time": "04:00:00",
                 "cpus": 16,
-                "mem": 32,
+                "mem": 64 if self.eval_set.system == "wave" else 32,
             },
         }
         return template
