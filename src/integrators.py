@@ -222,8 +222,6 @@ def rk4(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
     return IntegrationResult(q=ret_q, p=ret_p)
 
 
-
-
 def null_integrator(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=False, device='cpu'):
     # Integrator performs no actual integration, function provides next states
     if not volatile or is_Hamilt:
