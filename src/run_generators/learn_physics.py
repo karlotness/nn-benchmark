@@ -8,6 +8,8 @@ parser = argparse.ArgumentParser(description="Generate run descriptions")
 parser.add_argument("base_dir", type=str,
                     help="Base directory for run descriptions")
 
+EPOCHS = 325
+
 # Wave base parameters
 WAVE_DT = 0.1 / 250
 WAVE_STEPS = 100 * 250
@@ -176,9 +178,9 @@ for num_traj, step_factor in itertools.product([10, 25, 50, 100],
                                                 eval_set=eval_set)
         writable_objects.extend([knn_pred_train, knn_pred_eval])
         # CASE: all others
-        hnn_train = utils.HNN(experiment=experiment, training_set=train_set, validation_set=val_set)
-        mlp_train = utils.MLP(experiment=experiment, training_set=train_set, validation_set=val_set)
-        hogn_train = utils.HOGN(experiment=experiment, training_set=train_set, validation_set=val_set)
+        hnn_train = utils.HNN(experiment=experiment, training_set=train_set, validation_set=val_set, epochs=EPOCHS)
+        mlp_train = utils.MLP(experiment=experiment, training_set=train_set, validation_set=val_set, epochs=EPOCHS)
+        hogn_train = utils.HOGN(experiment=experiment, training_set=train_set, validation_set=val_set, epochs=EPOCHS)
         knn_train = utils.KNNRegressor(experiment=experiment, training_set=train_set)
         writable_objects.extend([hnn_train, mlp_train, hogn_train, knn_train])
         for eval_integrator in ["leapfrog", "euler", "rk4", "scipy-RK45"]:
