@@ -147,6 +147,83 @@ def euler(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
     return IntegrationResult(q=ret_q, p=ret_p)
 
 
+def rk4(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
+
+    trajectories = torch.empty((T, p_0.shape[0], 2 * p_0.shape[1]), requires_grad=False).to(device)
+
+    p = p_0
+    q = q_0
+    p.requires_grad_()
+    q.requires_grad_()
+
+    range_of_for_loop = range(T)
+
+    if is_Hamilt:
+
+        for i in range_of_for_loop:
+
+            if volatile:
+                trajectories[i, :, :p_0.shape[1]] = p.detach()
+                trajectories[i, :, p_0.shape[1]:] = q.detach()
+            else:
+                trajectories[i, :, :p_0.shape[1]] = p
+                trajectories[i, :, p_0.shape[1]:] = q
+
+            def dpdt_dqdt(p_, q_):
+                hamilt = Func(p=p_, q=q_)
+                dpdt = -grad(hamilt.sum(), q_, create_graph=not volatile)[0]
+                dqdt = grad(hamilt.sum(), p_, create_graph=not volatile)[0]
+                return dpdt, dqdt
+
+            p_k1, q_k1 = dpdt_dqdt(p, q)
+            p_k2, q_k2 = dpdt_dqdt(p + 0.5*dt*p_k1, q + 0.5*dt*q_k1)
+            p_k3, q_k3 = dpdt_dqdt(p + 0.5*dt*p_k2, q + 0.5*dt*q_k2)
+            p_k4, q_k4 = dpdt_dqdt(p + dt*p_k3, q + dt*q_k3)
+
+            p_next = p + (1./6.) * dt * (p_k1 + 2 * p_k2 + 3 * p_k3 + p_k4)
+            q_next = q + (1./6.) * dt * (q_k1 + 2 * q_k2 + 3 * q_k3 + q_k4)
+
+            p = p_next
+            q = q_next
+
+    else:
+        dim = p_0.shape[1]
+
+        for i in range_of_for_loop:
+
+            if volatile:
+                trajectories[i, :, :dim] = p.detach()
+                trajectories[i, :, dim:] = q.detach()
+            else:
+                trajectories[i, :, :dim] = p
+                trajectories[i, :, dim:] = q
+
+            def dpdt_dqdt(p_, q_):
+                time_drvt = Func(p=p_, q=q_)
+                dpdt = time_drvt.dp_dt
+                dqdt = time_drvt.dq_dt
+                return dpdt, dqdt
+
+            p_k1, q_k1 = dpdt_dqdt(p, q)
+            p_k2, q_k2 = dpdt_dqdt(p + 0.5*dt*p_k1, q + 0.5*dt*q_k1)
+            p_k3, q_k3 = dpdt_dqdt(p + 0.5*dt*p_k2, q + 0.5*dt*q_k2)
+            p_k4, q_k4 = dpdt_dqdt(p + dt*p_k3, q + dt*q_k3)
+
+            p_next = p + (1./6.) * dt * (p_k1 + 2 * p_k2 + 3 * p_k3 + p_k4)
+            q_next = q + (1./6.) * dt * (q_k1 + 2 * q_k2 + 3 * q_k3 + q_k4)
+
+            p = p_next
+            q = q_next
+
+    trajectories = trajectories.permute(1, 0, 2)
+    n = p_0.shape[1]
+    ret_p = trajectories[:, :, :n]
+    ret_q = trajectories[:, :, n:]
+    return IntegrationResult(q=ret_q, p=ret_p)
+
+
+
+
 def null_integrator(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=False, device='cpu'):
     # Integrator performs no actual integration, function provides next states
     if not volatile or is_Hamilt:
