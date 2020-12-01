@@ -209,8 +209,8 @@ def rk4(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
             p_k3, q_k3 = dpdt_dqdt(p + 0.5*dt*p_k2, q + 0.5*dt*q_k2)
             p_k4, q_k4 = dpdt_dqdt(p + dt*p_k3, q + dt*q_k3)
 
-            p_next = p + (1./6.) * dt * (p_k1 + 2 * p_k2 + 3 * p_k3 + p_k4)
-            q_next = q + (1./6.) * dt * (q_k1 + 2 * q_k2 + 3 * q_k3 + q_k4)
+            p_next = p + (1./6.) * dt * (p_k1 + 2 * p_k2 + 2 * p_k3 + p_k4)
+            q_next = q + (1./6.) * dt * (q_k1 + 2 * q_k2 + 2 * q_k3 + q_k4)
 
             p = p_next
             q = q_next
