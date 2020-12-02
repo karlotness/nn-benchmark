@@ -64,14 +64,24 @@ def build_experiment_dataframe(input_args):
             results_metadata = json.load(file_)
         with (path / metadata["phase_args"]["eval_data"]["data_dir"] / "system_meta.json").open() as file_:
             system_metadata = json.load(file_)
-        with (path / metadata["phase_args"]["eval_net"] / "train_stats.json").open() as file_:
-            train_stats = json.load(file_)
-        with (path / metadata["phase_args"]["eval_net"] / "model.json").open() as file_:
-            model_config = json.load(file_)
-        with (path / metadata["phase_args"]["eval_net"] / "launch" / "run_description.json").open() as file_:
-            train_run_description = json.load(file_)
-        with (path / train_run_description["phase_args"]["train_data"]["data_dir"] / "system_meta.json").open() as file_:
-            train_system_metadata = json.load(file_)
+
+        if metadata["phase_args"]["eval_net"]:
+            # A model was trained.
+            with (path / metadata["phase_args"]["eval_net"] / "train_stats.json").open() as file_:
+                train_stats = json.load(file_)
+            with (path / metadata["phase_args"]["eval_net"] / "model.json").open() as file_:
+                model_config = json.load(file_)
+            with (path / metadata["phase_args"]["eval_net"] / "launch" / "run_description.json").open() as file_:
+                train_run_description = json.load(file_)
+            with (path / train_run_description["phase_args"]["train_data"]["data_dir"] / "system_meta.json").open() as file_:
+                train_system_metadata = json.load(file_)
+        else:
+            # No model was trained; this is a baseline.
+            train_stats = None
+            model_config = None
+            train_run_description = None
+            train_system_metadata = None
+
     except FileNotFoundError as e:
         return [], [], []
 
@@ -82,19 +92,27 @@ def build_experiment_dataframe(input_args):
     df_row_dict["method_name"] = metadata["phase_args"]["eval"]["eval_type"]
     df_row_dict["integrator_name"] = metadata["phase_args"]["eval"]["integrator"]
     df_row_dict["precision_type"] = metadata["phase_args"]["eval"]["eval_dtype"]
+
+    # Store model hyperparameters and configurations if neural network.
     if df_row_dict["method_name"] == "hnn":
         df_row_dict["network_hidden_dim"] = model_config["arch_args"]["base_model_args"]["hidden_dim"]
         df_row_dict["network_depth"] = model_config["arch_args"]["base_model_args"]["depth"]
-    elif df_row_dict["method_name"] == "knn-regressor":
+    elif df_row_dict["method_name"] in ["knn-regressor", "knn-predictor", "integrator-baseline"]:
         df_row_dict["network_hidden_dim"] = None
         df_row_dict["network_depth"] = None
     else:
         df_row_dict["network_hidden_dim"] = model_config["arch_args"]["hidden_dim"]
         df_row_dict["network_depth"] = model_config["arch_args"]["depth"]
 
-    df_row_dict["num_train_trajectories"] = len(train_system_metadata["system_args"]["trajectory_defs"])
+    # Store training stats if trained.
+    if df_row_dict["method_name"] == "integrator-baseline":
+        df_row_dict["num_train_trajectories"] = None
+        df_row_dict["num_epochs"] = None
+    else:
+        df_row_dict["num_train_trajectories"] = len(train_system_metadata["system_args"]["trajectory_defs"])
+        df_row_dict["num_epochs"] = train_stats["num_epochs"]
+
     df_row_dict["num_eval_trajectories"] = len(system_metadata["system_args"]["trajectory_defs"])
-    df_row_dict["num_epochs"] = train_stats["num_epochs"]
     df_row_dict["inference_time"] = np.mean([
         i["timing"]["integrate_elapsed"]
         for i in results_metadata["integration_stats"]
