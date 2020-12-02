@@ -2,6 +2,7 @@ import copy
 import numpy as np
 import pathlib
 import json
+import math
 
 
 class Experiment:
@@ -336,6 +337,14 @@ class TrainedNetwork(WritableDescription):
         assert val_set.system == train_set.system
         assert val_set.input_size() == train_set.input_size()
 
+    def _get_mem_requirement(self, train_set):
+        system = train_set.system
+        if system == "wave":
+            base = 16
+            num_traj = train_set.num_traj
+            return math.ceil(base + num_traj * 0.44)
+        return 16
+
 
 class HNN(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, learning_rate=1e-3,
@@ -404,7 +413,7 @@ class HNN(TrainedNetwork):
                 "gpu": self.gpu,
                 "time": "10:00:00",
                 "cpus": 8 if self.gpu else 32,
-                "mem": 64 if self.training_set.system == "wave" else 32,
+                "mem": self._get_mem_requirement(train_set=self.training_set),
             },
         }
         if self.validation_set is not None:
@@ -484,7 +493,7 @@ class SRNN(TrainedNetwork):
                 "gpu": self.gpu,
                 "time": "10:00:00",
                 "cpus": 8 if self.gpu else 32,
-                "mem": 64 if self.training_set.system == "wave" else 32,
+                "mem": self._get_mem_requirement(train_set=self.training_set),
             },
         }
         if self.validation_set is not None:
@@ -585,7 +594,7 @@ class HOGN(TrainedNetwork):
                 "gpu": self.gpu,
                 "time": "14:00:00",
                 "cpus": 8 if self.gpu else 32,
-                "mem": 64 if self.training_set.system == "wave" else 32,
+                "mem": self._get_mem_requirement(train_set=self.training_set),
             },
         }
         if self.validation_set is not None:
@@ -655,7 +664,7 @@ class MLP(TrainedNetwork):
                 "gpu": self.gpu,
                 "time": "10:00:00",
                 "cpus": 8 if self.gpu else 32,
-                "mem": 64 if self.training_set.system == "wave" else 32,
+                "mem": self._get_mem_requirement(train_set=self.training_set),
             },
         }
         if self.validation_set is not None:
@@ -705,7 +714,7 @@ class KNNRegressor(TrainedNetwork):
                 "gpu": False,
                 "time": "01:30:00",
                 "cpus": 8,
-                "mem": 64 if self.training_set.system == "wave" else 32,
+                "mem": self._get_mem_requirement(train_set=self.training_set),
             },
         }
         return template
@@ -748,7 +757,7 @@ class KNNPredictor(TrainedNetwork):
                 "gpu": False,
                 "time": "01:30:00",
                 "cpus": 8,
-                "mem": 64 if self.training_set.system == "wave" else 32,
+                "mem": self._get_mem_requirement(train_set=self.training_set),
             },
         }
         return template
@@ -759,6 +768,14 @@ class Evaluation(WritableDescription):
         super().__init__(experiment=experiment,
                          phase="eval",
                          name=f"eval-{name_tail}")
+
+    def _get_mem_requirement(self, eval_set):
+        system = eval_set.system
+        if system == "wave":
+            base = 16
+            num_traj = eval_set.num_traj
+            return math.ceil(base + num_traj * 0.44)
+        return 16
 
 
 class NetworkEvaluation(Evaluation):
@@ -802,7 +819,7 @@ class NetworkEvaluation(Evaluation):
                 "gpu": gpu,
                 "time": "04:00:00",
                 "cpus": 16,
-                "mem": 64 if self.eval_set.system == "wave" else 32,
+                "mem": self._get_mem_requirement(eval_set=self.eval_set),
             },
         }
         return template
@@ -835,7 +852,7 @@ class BaselineIntegrator(Evaluation):
                 "gpu": False,
                 "time": "04:00:00",
                 "cpus": 16,
-                "mem": 64 if self.eval_set.system == "wave" else 32,
+                "mem": self._get_mem_requirement(eval_set=self.eval_set),
             },
         }
         return template
