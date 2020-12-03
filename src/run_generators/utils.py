@@ -340,9 +340,7 @@ class TrainedNetwork(WritableDescription):
     def _get_mem_requirement(self, train_set):
         system = train_set.system
         if system == "wave":
-            base = 16
-            num_traj = train_set.num_traj
-            return math.ceil(base + num_traj * 0.44)
+            return 32
         return 16
 
 
@@ -772,9 +770,7 @@ class Evaluation(WritableDescription):
     def _get_mem_requirement(self, eval_set):
         system = eval_set.system
         if system == "wave":
-            base = 16
-            num_traj = eval_set.num_traj
-            return math.ceil(base + num_traj * 0.44)
+            return 64
         return 16
 
 
