@@ -3,6 +3,7 @@ import numpy as np
 import pathlib
 import json
 import math
+import re
 
 
 class Experiment:
@@ -20,6 +21,10 @@ class Experiment:
         suffix = self._get_run_suffix(name=name_core)
         name = f"{self.name}_{name_core}_{suffix:05}"
         return name
+
+    @staticmethod
+    def get_name_core(self, name):
+        return re.match(r"^.+?_(?P<name>.+?)_\d{5}$", name).group("name")
 
 
 class InitialConditionSource:
@@ -322,6 +327,39 @@ class ParticleDataset(Dataset):
 
     def input_size(self):
         return 2 * self.n_dim * self.n_particles
+
+
+class ExistingDataset:
+    def __init__(self, descr_path):
+        self._descr_path = pathlib.Path(descr_path)
+        # Load the data
+        with open(self._descr_path, 'r', encoding='utf8') as in_file:
+            self._descr = json.load(in_file)
+        # Extract relevant measures
+        self.system = self._descr["phase_args"]["system"]
+        self.path = self._descr["out_dir"]
+        self.name = Experiment.get_name_core(self._descr["run_name"])
+        # Handle system-specific values
+        if self.system == "spring":
+            self.input_size = 2
+        elif self.system == "wave":
+            self.n_grid = self._descr["phase_args"]["system_args"]["n_grid"]
+            self.input_size = 2 * self.n_grid
+        elif self.system == "particle":
+            # Handle particle-specific values
+            self.n_particles = self._descr["phase_args"]["system_args"]["n_particles"]
+            self.n_dim = self._descr["phase_args"]["system_args"]["n_dim"]
+            self.input_size = 2 * self.n_dim * self.n_particles
+        else:
+            raise ValueError(f"Unknown system {self.system}")
+        # Check some basic values
+        assert self._descr["phase"] == "data_gen"
+
+    def input_size(self):
+        return self.input_size
+
+    def data_dir(self):
+        return self.path
 
 
 class TrainedNetwork(WritableDescription):
