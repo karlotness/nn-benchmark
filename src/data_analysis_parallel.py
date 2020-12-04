@@ -30,6 +30,7 @@ def get_aggregate_data_dict():
         "num_eval_trajectories" : None,
         "num_epochs" : None,
         "inference_time" : None,
+        "integrator_timestep_size" : None,
     }
 
 def get_ground_truth_data_dict(experiment_name=None, trajectory_number=None, timestep_number=None):
@@ -92,6 +93,7 @@ def build_experiment_dataframe(input_args):
     df_row_dict["method_name"] = metadata["phase_args"]["eval"]["eval_type"]
     df_row_dict["integrator_name"] = metadata["phase_args"]["eval"]["integrator"]
     df_row_dict["precision_type"] = metadata["phase_args"]["eval"]["eval_dtype"]
+    df_row_dict["integrator_timestep_size"] = system_metadata["trajectories"][0]["time_step_size"]
 
     # Store model hyperparameters and configurations if neural network.
     if df_row_dict["method_name"] == "hnn":
