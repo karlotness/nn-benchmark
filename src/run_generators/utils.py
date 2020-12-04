@@ -24,7 +24,11 @@ class Experiment:
 
     @staticmethod
     def get_name_core(name):
-        return re.match(r"^.+?_(?P<name>.+?)_\d{5}$", name).group("name")
+        match = re.match(r"^[^_]+_(?P<name>.+?)_\d{5}$", name)
+        if match is None:
+            raise ValueError(f"Invalid name format: {name}")
+        else:
+            return match.group("name")
 
 
 class InitialConditionSource:
