@@ -75,8 +75,7 @@ class SpringInitialConditionSource(InitialConditionSource):
 
     def _sample_ring_uniform(self, inner_r, outer_r, num_pts=1):
         theta = np.random.uniform(0, 2*np.pi, num_pts)
-        unifs = np.random.uniform(size=num_pts)
-        r = np.sqrt(unifs * (outer_r**2 - inner_r**2) + inner_r**2)
+        r = np.random.uniform(low=inner_r, high=outer_r, size=num_pts)
         x = r * np.cos(theta)
         y = r * np.sin(theta)
         return np.stack((x, y), axis=-1)
