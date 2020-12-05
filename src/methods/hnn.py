@@ -28,19 +28,19 @@ class HNN(torch.nn.Module):
         y = self.base_model(x)
         return y.split(1, 1)
 
-    def time_derivative(self, q, p):
+    def time_derivative(self, q, p, create_graph=True):
         x = self._build_x(p=p, q=q)
         x.requires_grad_()
         f1, f2 = self._forward_coords(x=x)
 
         if self.field_type != "solenoidal":
-            d_f1 = torch.autograd.grad(f1.sum(), x, create_graph=True)[0]
+            d_f1 = torch.autograd.grad(f1.sum(), x, create_graph=create_graph)[0]
             conservative_field = d_f1 @ torch.eye(*self._permute_mat.shape, device=d_f1.device)
         else:
             conservative_field = torch.zeros_like(x)
 
         if self.field_type != "conservative":
-            d_f2 = torch.autograd.grad(f2.sum(), x, create_graph=True)[0]
+            d_f2 = torch.autograd.grad(f2.sum(), x, create_graph=create_graph)[0]
             solenoidal_field = d_f2 @ self._permute_mat.t().to(d_f2.device)
         else:
             solenoidal_field = torch.zeros_like(x)

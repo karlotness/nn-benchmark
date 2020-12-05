@@ -105,7 +105,10 @@ def run_phase(base_dir, out_dir, phase_args):
         def model_hamiltonian(p, q):
             hamilt = net(p=p, q=q)
             return hamilt[0] + hamilt[1]
-        time_deriv_func = net.time_derivative
+
+        def hnn_model_time_deriv(p, q):
+            return net.time_derivative(p=p, q=q, create_graph=False)
+        time_deriv_func = hnn_model_time_deriv
         time_deriv_method = METHOD_DIRECT_DERIV
         hamiltonian_func = model_hamiltonian
     elif eval_type == "mlp":
