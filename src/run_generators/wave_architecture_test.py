@@ -32,7 +32,7 @@ initial_condition_sources = {
 
 eval_set = utils.WaveDataset(experiment=experiment,
                              initial_cond_source=initial_condition_sources["wave-eval"],
-                             num_traj=10,
+                             num_traj=3,
                              set_type="eval",
                              n_grid=WAVE_N_GRID,
                              num_time_steps=WAVE_EVAL_STEPS,
