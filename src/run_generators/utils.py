@@ -868,7 +868,7 @@ class KNNOneshotEvaluation(NetworkEvaluation):
     def __init__(self, experiment, training_set, eval_set, knn_type,
                  eval_dtype="double", integrator="leapfrog"):
         method = f"knn-{knn_type}-oneshot"
-        self._mock_network = self.MockNetwork(name="{method}-{training_set.name}",
+        self._mock_network = self.MockNetwork(name=f"{method}-{training_set.name}",
                                               train_dtype=eval_dtype,
                                               training_set=training_set,
                                               method=method,
