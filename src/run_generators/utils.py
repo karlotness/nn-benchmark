@@ -4,6 +4,7 @@ import pathlib
 import json
 import math
 import re
+import dataclasses
 
 
 class Experiment:
@@ -828,7 +829,7 @@ class NetworkEvaluation(Evaluation):
         else:
             self.eval_dtype = eval_dtype
         self.integrator = integrator
-        if self.network.method == "knn-predictor":
+        if self.network.method in {"knn-predictor", "knn-predictor-oneshot"}:
             self.integrator = "null"
         # Validate inputs
         assert isinstance(self.network, TrainedNetwork)
@@ -837,7 +838,7 @@ class NetworkEvaluation(Evaluation):
 
     def description(self):
         eval_type = self.network.method
-        gpu = self.gpu and (eval_type not in {"knn-predictor", "knn-regressor"})
+        gpu = self.gpu and (eval_type not in {"knn-predictor", "knn-regressor", "knn-predictor-oneshot", "knn-regressor-oneshot"})
         template = {
             "phase_args": {
                 "eval_net": self.network.path,
@@ -854,12 +855,66 @@ class NetworkEvaluation(Evaluation):
             },
             "slurm_args": {
                 "gpu": gpu,
-                "time": "12:00:00",
+                "time": "16:00:00",
                 "cpus": 16,
                 "mem": self._get_mem_requirement(eval_set=self.eval_set),
             },
         }
         return template
+
+
+class KNNOneshotEvaluation(NetworkEvaluation):
+    MockNetwork = dataclasses.make_dataclass("MockNetwork", ["name", "train_dtype", "training_set", "method", "path"])
+
+    def __init__(self, experiment, training_set, eval_set, knn_type,
+                 eval_dtype="double", integrator="leapfrog"):
+        method = f"knn-{knn_type}-oneshot"
+        self._mock_network = self.MockNetwork(name="{method}-{training_set.name}",
+                                              train_dtype=eval_dtype,
+                                              training_set=training_set,
+                                              method=method,
+                                              path=None)
+        super().__init__(experiment=experiment, network=self._mock_network,
+                         eval_set=eval_set, gpu=False, integrator=integrator,
+                         eval_dtype=eval_dtype)
+        self.training_set = training_set
+
+    def description(self):
+        template = super().description()
+        # Add arguments to construct the training set
+        template["phase_args"]["eval"]["train_data"] = {
+            "data_dir": self.training_set.path,
+            "dataset": "snapshot",
+            "linearize": True,
+            "dataset_args": {},
+            "loader": {
+                "batch_size": 750,
+                "shuffle": False,
+            },
+        }
+        return template
+
+
+class KNNPredictorOneshot(KNNOneshotEvaluation):
+    def __init__(self, experiment, training_set, eval_set,
+                 eval_dtype="double"):
+        super().__init__(experiment=experiment,
+                         training_set=training_set,
+                         eval_set=eval_set,
+                         eval_dtype=eval_dtype,
+                         integrator="null",
+                         knn_type="predictor")
+
+
+class KNNRegressorOneshot(KNNOneshotEvaluation):
+    def __init__(self, experiment, training_set, eval_set,
+                 eval_dtype="double", integrator="leapfrog"):
+        super().__init__(experiment=experiment,
+                         training_set=training_set,
+                         eval_set=eval_set,
+                         eval_dtype=eval_dtype,
+                         integrator=integrator,
+                         knn_type="regressor")
 
 
 class BaselineIntegrator(Evaluation):
