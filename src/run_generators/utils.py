@@ -832,7 +832,6 @@ class NetworkEvaluation(Evaluation):
         if self.network.method in {"knn-predictor", "knn-predictor-oneshot"}:
             self.integrator = "null"
         # Validate inputs
-        assert isinstance(self.network, TrainedNetwork)
         if self.eval_set.system != self.network.training_set.system:
             raise ValueError(f"Inconsistent systems {self.eval_set.system} and {self.network.training_set.system}")
 
