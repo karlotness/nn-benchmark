@@ -120,7 +120,7 @@ def run_phase(base_dir, out_dir, phase_args):
     # Load the network
     if eval_type in {"knn-regressor-oneshot", "knn-predictor-oneshot"}:
         logger.info(f"Doing \"oneshot\" KNN training: {eval_type}")
-        net = methods.build_network(net_args={"arch": eval_type})
+        net = methods.build_network(net_args={"arch": eval_type, "arch_args": None})
     else:
         # Normal network load process
         net = load_network(phase_args["eval_net"], base_dir=base_dir, base_logger=logger)
