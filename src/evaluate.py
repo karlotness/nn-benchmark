@@ -74,6 +74,38 @@ def mean_square_err(approx, true):
     return np.mean(diff, axis=1)
 
 
+def train_knn(net, eval_args, base_dir, base_logger):
+    # Load the training data
+    logger = base_logger.getChild("knn_train")
+    eval_type = eval_args["eval_type"]
+    train_dataset, train_loader = create_dataset(base_dir, eval_args["train_data"])
+    # Train the KNN
+    if eval_type == "knn-regressor-oneshot":
+        logger.info("Starting fitting of dataset for KNN Regressor.")
+        data_x = []
+        data_y = []
+        for batch in train_loader:
+            data_x.append(np.concatenate([batch.p, batch.q], axis=-1))
+            data_y.append(np.concatenate([batch.dp_dt, batch.dq_dt], axis=-1))
+        data_x = np.concatenate(data_x, axis=0)
+        data_y = np.concatenate(data_y, axis=0)
+        net.fit(data_x, data_y)
+        logger.info("Finished fitting of dataset for KNN Regressor.")
+    elif eval_type == "knn-predictor-oneshot":
+        logger.info("Starting fitting of dataset for KNN Predictor.")
+        data_x = []
+        data_y = []
+        for batch in train_loader:
+            data_x.append(np.concatenate([batch.p, batch.q], axis=-1))
+            data_y.append(np.concatenate([batch.p_noiseless, batch.q_noiseless], axis=-1))
+        data_x = np.concatenate(data_x, axis=0)
+        data_y = np.concatenate(data_y, axis=0)
+        net.fit(data_x[:-1, ...], data_y[1:, ...])
+        logger.info("Finished fitting of dataset for KNN Predictor.")
+    # Return the KNN
+    return net
+
+
 def run_phase(base_dir, out_dir, phase_args):
     logger = logging.getLogger("eval")
     base_dir = pathlib.Path(base_dir)
@@ -86,9 +118,21 @@ def run_phase(base_dir, out_dir, phase_args):
     eval_dtype, eval_dtype_np = TRAIN_DTYPES[eval_args.get("eval_dtype", "float")]
 
     # Load the network
-    net = load_network(phase_args["eval_net"], base_dir=base_dir, base_logger=logger)
+    if eval_type in {"knn-regressor-oneshot", "knn-predictor-oneshot"}:
+        logger.info(f"Doing \"oneshot\" KNN training: {eval_type}")
+        net = methods.build_network(net_args={"arch": eval_type})
+    else:
+        # Normal network load process
+        net = load_network(phase_args["eval_net"], base_dir=base_dir, base_logger=logger)
+
+    # Send network to correct device if PyTorch
     if isinstance(net, (torch.nn.Module, torch.Tensor)):
         net = net.to(device, dtype=eval_dtype)
+
+    # Handle possible knn "oneshot" training before evaluation
+    if eval_type in {"knn-regressor-oneshot", "knn-predictor-oneshot"}:
+        net = train_knn(net=net, eval_args=eval_args,
+                        base_dir=base_dir, base_logger=logger)
 
     # Load the evaluation data
     eval_dataset, eval_loader = create_dataset(base_dir, phase_args["eval_data"])
@@ -114,7 +158,7 @@ def run_phase(base_dir, out_dir, phase_args):
     elif eval_type == "mlp":
         time_deriv_func = net
         time_deriv_method = METHOD_DIRECT_DERIV
-    elif eval_type == "knn-regressor":
+    elif eval_type in {"knn-regressor", "knn-regressor-oneshot"}:
         # Use the time_derivative
         KNNDerivative = namedtuple("KNNDerivative", ["dq_dt", "dp_dt"])
         def model_time_deriv(p, q):
@@ -126,7 +170,7 @@ def run_phase(base_dir, out_dir, phase_args):
             return KNNDerivative(dq_dt=dqdt, dp_dt=dpdt)
         time_deriv_func = model_time_deriv
         time_deriv_method = METHOD_DIRECT_DERIV
-    elif eval_type == "knn-predictor":
+    elif eval_type in {"knn-predictor", "knn-predictor-oneshot"}:
         KNNPrediction = namedtuple("KNNPrediction", ["q", "p"])
         def model_next_step(p, q):
             x = torch.cat([p, q], axis=-1).detach().cpu().numpy()
