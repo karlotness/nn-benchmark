@@ -812,7 +812,7 @@ class Evaluation(WritableDescription):
     def _get_mem_requirement(self, eval_set):
         system = eval_set.system
         if system == "wave":
-            return 64
+            return 32
         return 16
 
 
@@ -855,7 +855,7 @@ class NetworkEvaluation(Evaluation):
             "slurm_args": {
                 "gpu": gpu,
                 "time": "16:00:00",
-                "cpus": 16,
+                "cpus": 8 if gpu else 32,
                 "mem": self._get_mem_requirement(eval_set=self.eval_set),
             },
         }
