@@ -382,7 +382,10 @@ class TrainedNetwork(WritableDescription):
     def _get_mem_requirement(self, train_set):
         system = train_set.system
         if system == "wave":
-            return 32
+            if train_set.num_traj > 100 and train_set.num_time_steps > 8500:
+                return 73
+            else:
+                return 37
         return 16
 
 
