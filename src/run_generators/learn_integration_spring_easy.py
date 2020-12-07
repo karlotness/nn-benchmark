@@ -34,11 +34,11 @@ for dt_factor in [1, 2, 4, 8, 16]:
                                          set_type=f"eval-dtfactor{dt_factor}",
                                          num_time_steps=SPRING_STEPS,
                                          time_step_size=time_step_size)
-    writable_objects.extend([small_train_set, small_eval_set])
+    #writable_objects.extend([small_train_set, small_eval_set])
     for train_integrator in ["leapfrog", "euler", "rk4"]:
         small_srnn_train = utils.SRNN(experiment_integration_small_train, training_set=small_train_set,
                                       integrator=train_integrator,
-                                      hidden_dim=2048, depth=2,
+                                      hidden_dim=200, depth=3,
                                       validation_set=None,
                                       epochs=EPOCHS)
         small_srnn_eval_match = utils.NetworkEvaluation(experiment=experiment_integration_small_train,
@@ -57,8 +57,8 @@ for dt_factor in [1, 2, 4, 8, 16]:
         integration_run_eval = utils.BaselineIntegrator(experiment=experiment_integration_small_train,
                                                         eval_set=small_eval_set,
                                                         integrator=train_integrator)
-        writable_objects.extend([small_srnn_train, small_srnn_eval_match, small_srnn_eval_match_2,
-                                 integration_run_eval, integration_run_train])
+        writable_objects.extend([small_srnn_train, small_srnn_eval_match, small_srnn_eval_match_2,])
+                                 #integration_run_eval, integration_run_train])
 
 
 if __name__ == "__main__":
