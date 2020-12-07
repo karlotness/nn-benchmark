@@ -42,7 +42,7 @@ for dt_factor in DT_FACTORS:
     # Generate eval and val sets
     key = DatasetKey(type="val", dt_factor=dt_factor, n_traj=3)
     dset = utils.WaveDataset(experiment=experiment_general,
-                             initial_cond_source=train_source,
+                             initial_cond_source=val_source,
                              num_traj=3,
                              set_type=f"val-dtfactor{dt_factor}",
                              n_grid=WAVE_N_GRID,
@@ -53,7 +53,7 @@ for dt_factor in DT_FACTORS:
     data_sets[key] = dset
     key = DatasetKey(type="eval", dt_factor=dt_factor, n_traj=6)
     dset = utils.WaveDataset(experiment=experiment_general,
-                             initial_cond_source=train_source,
+                             initial_cond_source=eval_source,
                              num_traj=6,
                              set_type=f"eval-dtfactor{dt_factor}",
                              n_grid=WAVE_N_GRID,
