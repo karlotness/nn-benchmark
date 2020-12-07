@@ -461,11 +461,6 @@ class HNN(TrainedNetwork):
         }
         if self.validation_set is not None:
             template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
-        if self.gpu:
-            template["phase_args"]["train_data"]["loader"].update({
-                "pin_memory": True,
-                "num_workers": 8,
-            })
         return template
 
 
@@ -541,11 +536,6 @@ class SRNN(TrainedNetwork):
         }
         if self.validation_set is not None:
             template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
-        if self.gpu:
-            template["phase_args"]["train_data"]["loader"].update({
-                "pin_memory": True,
-                "num_workers": 8,
-            })
         return template
 
 
@@ -642,11 +632,6 @@ class HOGN(TrainedNetwork):
         }
         if self.validation_set is not None:
             template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
-        if self.gpu:
-            template["phase_args"]["train_data"]["loader"].update({
-                "pin_memory": True,
-                "num_workers": 8,
-            })
         return template
 
 
@@ -712,11 +697,6 @@ class MLP(TrainedNetwork):
         }
         if self.validation_set is not None:
             template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
-        if self.gpu:
-            template["phase_args"]["train_data"]["loader"].update({
-                "pin_memory": True,
-                "num_workers": 8,
-            })
         return template
 
 
