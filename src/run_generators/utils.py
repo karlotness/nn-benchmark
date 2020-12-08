@@ -455,7 +455,7 @@ class HNN(TrainedNetwork):
             "slurm_args": {
                 "gpu": self.gpu,
                 "time": "15:00:00",
-                "cpus": 8 if self.gpu else 32,
+                "cpus": 8 if self.gpu else 20,
                 "mem": self._get_mem_requirement(train_set=self.training_set),
             },
         }
@@ -530,7 +530,7 @@ class SRNN(TrainedNetwork):
             "slurm_args": {
                 "gpu": self.gpu,
                 "time": "15:00:00",
-                "cpus": 8 if self.gpu else 32,
+                "cpus": 8 if self.gpu else 20,
                 "mem": self._get_mem_requirement(train_set=self.training_set),
             },
         }
@@ -626,7 +626,7 @@ class HOGN(TrainedNetwork):
             "slurm_args": {
                 "gpu": self.gpu,
                 "time": "14:00:00",
-                "cpus": 8 if self.gpu else 32,
+                "cpus": 8 if self.gpu else 20,
                 "mem": self._get_mem_requirement(train_set=self.training_set),
             },
         }
@@ -691,7 +691,7 @@ class MLP(TrainedNetwork):
             "slurm_args": {
                 "gpu": self.gpu,
                 "time": "15:00:00",
-                "cpus": 8 if self.gpu else 32,
+                "cpus": 8 if self.gpu else 20,
                 "mem": self._get_mem_requirement(train_set=self.training_set),
             },
         }
@@ -838,7 +838,7 @@ class NetworkEvaluation(Evaluation):
             "slurm_args": {
                 "gpu": gpu,
                 "time": "16:00:00",
-                "cpus": 8 if gpu else 32,
+                "cpus": 8 if gpu else 20,
                 "mem": self._get_mem_requirement(eval_set=self.eval_set),
             },
         }
