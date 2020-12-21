@@ -2,8 +2,13 @@ Bootstrap: docker
 From: continuumio/miniconda3
 
 %files
-environment.yml /environment.yml
+environment.yml
 
 %post
-conda env create -f /environment.yml
+conda env create -f environment.yml
 conda clean --all
+
+%runscript
+#! /bin/bash
+source activate nn-benchmark
+exec /bin/bash -c "${@:-/bin/bash}"
