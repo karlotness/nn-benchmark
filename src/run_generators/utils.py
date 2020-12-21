@@ -73,6 +73,48 @@ class WaveInitialConditionSource(InitialConditionSource):
         return state
 
 
+class WaveDisjointInitialConditionSource(WaveInitialConditionSource):
+    def __init__(self,
+                 height_range=((0.75, 1.25),),
+                 width_range=((0.75, 1.25),),
+                 position_range=((0.5, 0.5),)):
+        super().__init__(height_range=height_range,
+                         width_range=width_range,
+                         position_range=position_range)
+        for ranges in [self.height_range, self.width_range,
+                       self.position_range]:
+            for a, b in ranges:
+                assert a <= b
+
+    def __in_range(self, value, ranges):
+        for minv, maxv in ranges:
+            if minv <= value <= maxv:
+                return True
+        return False
+
+    def __rejection_sample_value(self, ranges):
+        minv = min(a for a, _b in ranges)
+        maxv = max(b for _a, b in ranges)
+        while True:
+            value = np.random.uniform(minv, maxv)
+            if self.__in_range(value, ranges):
+                return value
+
+    def _generate_initial_condition(self):
+        width = self.__rejection_sample_value(self.width_range)
+        height = self.__rejection_sample_value(self.height_range)
+        position = self.__rejection_sample_value(self.position_range)
+        state = {
+            "start_type": "cubic_splines",
+            "start_type_args": {
+                "width": width,
+                "height": height,
+                "position": position,
+            }
+        }
+        return state
+
+
 class SpringInitialConditionSource(InitialConditionSource):
     def __init__(self, radius_range=(0.2, 1)):
         super().__init__()
@@ -784,6 +826,31 @@ class KNNPredictor(TrainedNetwork):
             },
         }
         return template
+
+
+class ExistingNetwork:
+    def __init__(self, descr_path, root_dir=None):
+        self._descr_path = pathlib.Path(descr_path)
+        if root_dir is None:
+            root_dir = self._descr_path.parent.parent.parent
+        # Load the data
+        with open(self._descr_path, 'r', encoding='utf8') as in_file:
+            self._descr = json.load(in_file)
+        # Extract relevant measures
+        self.path = self._descr["out_dir"]
+        self.name = Experiment.get_name_core(self._descr["run_name"])
+        # Create data set
+        # Hack: get name of the description from output dir
+        train_set_path = list(pathlib.Path(self._descr["phase_args"]["train_data"]["data_dir"]).parts)
+        train_set_path[0] = "descr"
+        train_set_path[-1] = train_set_path[-1] + ".json"
+        train_set_path = pathlib.Path(*train_set_path)
+        self.training_set = ExistingDataset(root_dir / train_set_path)
+        # Handle system-specific details
+        self.method = self._descr["phase_args"]["network"]["arch"]
+        self.train_dtype = self._descr["phase_args"]["training"]["train_dtype"]
+        # Check some basic values
+        assert self._descr["phase"] == "train"
 
 
 class Evaluation(WritableDescription):
