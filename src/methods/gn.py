@@ -33,37 +33,30 @@ def unpackage_time_derivative(input_data, deriv):
                           dp_dt=dp_dt.reshape((1, -1)))
 
 
-class Residual(torch.nn.Module):
-    def __init__(self, module):
-        super().__init__()
-        self.module = module
-
-    def forward(self, inputs):
-        return self.module(inputs) + inputs
-
-
 class EdgeModel(torch.nn.Module):
-    def __init__(self, input_dim, output_dim, hidden=128):
+    def __init__(self, v_features, e_features, hidden=128):
         super(EdgeModel, self).__init__()
-        self.edge_mlp = Residual(Seq(Lin(input_dim, hidden),
-                                     ReLU(), Lin(hidden, output_dim)))
+        self.edge_mlp = Seq(Lin(e_features + 2 * v_features, hidden),
+                            ReLU(), Lin(hidden, e_features))
 
     def forward(self, src, dest, edge_attr, u, batch):
         # source, target: [E, F_x], where E is the number of edges.
         # edge_attr: [E, F_e]
         # u: [B, F_u], where B is the number of graphs.
         # batch: [E] with max entry B - 1.
-        out = torch.cat([src, dest, edge_attr, u[batch]], 1)
-        return self.edge_mlp(out)
+        out = torch.cat([src, dest, edge_attr], dim=1)
+        out = self.edge_mlp(out)
+        out += edge_attr
+        return out
 
 
 class NodeModel(torch.nn.Module):
-    def __init__(self, input_dim, output_dim, hidden=128):
+    def __init__(self, v_features, e_features, hidden=128):
         super(NodeModel, self).__init__()
         # self.node_mlp_1 = Residual(Seq(Lin(..., hidden),
         #                                ReLU(), Lin(hidden, ...)))
-        self.node_mlp_2 = Residual(Seq(Lin(input_dim, hidden),
-                                       ReLU(), Lin(hidden, output_dim)))
+        self.node_mlp_2 = Seq(Lin(v_features + e_features, hidden), 
+                              ReLU(), Lin(hidden, v_features))
 
     def forward(self, x, edge_index, edge_attr, u, batch):
         # x: [N, F_x], where N is the number of nodes.
@@ -80,38 +73,40 @@ class NodeModel(torch.nn.Module):
         # out = torch.cat([x, out, u[batch]], dim=1)
 
         # Custom
-        edge_attr_sum = scatter_sum(edge_attr, row, dim=0) #, dim_size=x.size(0))
+        edge_attr_sum = scatter_sum(edge_attr, row, dim=0, dim_size=x.size(0))
         out = torch.cat([x, edge_attr_sum], dim=1)
-        return self.node_mlp_2(out)
+        out = self.node_mlp_2(out)
+        out += x
+        return out
 
 
 class GN:
-    def __init__(self, num_v_features, num_e_features, mesh_coords,
-                 static_nodes, weights, hidden=128):
+    def __init__(self, v_features, e_features, mesh_coords,
+                 static_nodes, constant_vertex_features, hidden=128):
         super().__init__()
 
         self.mesh_coords = mesh_coords
-        self.static_nodes = torch.nn.functional.one_hot(static_nodes, 2)
-        self.weights = weights
+        self.static_nodes = torch.nn.functional.one_hot(static_nodes, 2).float()
+        self.constant_vertex_features = constant_vertex_features
 
         self.process = MetaLayer(
-            EdgeModel(num_e_features, num_e_features, hidden),
-            NodeModel(num_v_features, num_v_features, hidden),
+            EdgeModel(v_features, e_features, hidden),
+            NodeModel(v_features, e_features, hidden),
             None)
-        self.decode = Seq(Lin(num_v_features, hidden), ReLU(),
-                          Lin(hidden, num_v_features))
+        self.decode = Seq(Lin(v_features, hidden), ReLU(),
+                          Lin(hidden, v_features))
 
-    def encode(self, world_coords, prev_world_coords, edge_index):
+    def encode(self, world_coords, vertex_features, edge_index):
         vertices = torch.cat([self.static_nodes,
-                              world_coords - prev_world_coords], dim=-1)
-        if self.weights:
-            vertices = torch.cat([vertices, self.weights], dim=-1)
+                              vertex_features], dim=-1)
+        if self.constant_vertex_features is not None:
+            vertices = torch.cat([vertices, self.constant_vertex_features], dim=-1)
 
         row, col = edge_index
         edge_vectors = world_coords[col] - world_coords[row]
-        edge_vectors_norm = torch.norm(edge_vectors, dim=-1, keepdims=True)
+        edge_vectors_norm = torch.norm(edge_vectors, dim=-1, keepdim=True)
         edge_attr = torch.cat([edge_vectors, edge_vectors_norm], dim=-1)
-        if self.mesh_coords:
+        if self.mesh_coords is not None:
             mesh_vectors = self.mesh_coords[col] - self.mesh_coords[row]
             mesh_vectors_norm = torch.norm(mesh_vectors, dim=-1, keepdim=True)
             edge_attr = torch.cat([edge_attr, mesh_vectors, mesh_vectors_norm],
@@ -119,13 +114,13 @@ class GN:
 
         return vertices, edge_attr
 
-    def forward(self, world_coords, prev_world_coords, edge_index):
+    def forward(self, world_coords, vertex_features, edge_index):
         # x is [n, n_f]
-        vertices, edge_attr = self.encode(world_coords, prev_world_coords,
-                                          edge_index)
+        vertices, edge_attr = self.encode(world_coords, vertex_features, edge_index)
         L = 10
         for i in range(L):
-            vertices, edge_attr, _ = self.op(vertices, edge_index, edge_attr)
+            print(i)
+            vertices, edge_attr, _ = self.process(vertices, edge_index, edge_attr)
         x = self.decode(vertices)
         return x
 
