@@ -90,7 +90,7 @@ class GN:
                  static_nodes, weights, hidden=128):
         super().__init__()
 
-        self.world_coords = mesh_coords
+        self.mesh_coords = mesh_coords
         self.static_nodes = torch.nn.functional.one_hot(static_nodes, 2)
         self.weights = weights
 
@@ -113,7 +113,7 @@ class GN:
         edge_attr = torch.cat([edge_vectors, edge_vectors_norm], dim=-1)
         if self.mesh_coords:
             mesh_vectors = self.mesh_coords[col] - self.mesh_coords[row]
-            mesh_vectors_norm = torch.norm(mesh_vectors, dim=-1, keepdims=True)
+            mesh_vectors_norm = torch.norm(mesh_vectors, dim=-1, keepdim=True)
             edge_attr = torch.cat([edge_attr, mesh_vectors, mesh_vectors_norm],
                                   dim=-1)
 
