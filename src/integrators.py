@@ -13,6 +13,37 @@ class IntegrationScheme(enum.IntEnum):
     HAMILTONIAN = 5
 
 
+def backward_euler(p_0, q_0, Func, T, dt, system, volatile=True, is_Hamilt=True, device='cpu'):
+    trajectories = torch.empty((T, p_0.shape[0], 2 * p_0.shape[1]), requires_grad=False).to(device)
+
+    x = system.implicit_matrix_package(q=q_0, p=p_0)
+    x.requires_grad_()
+
+    deriv_eye = torch.eye(2 * p_0.shape[1])
+
+    range_of_for_loop = range(T)
+    if is_Hamilt:
+        raise ValueError("Backward Euler does not support Hamiltonian systems")
+
+    for i in range_of_for_loop:
+        if volatile:
+            trajectories[i, :, :] = x.detach()
+        else:
+            trajectories[i, :, :] = x
+
+        # Update value of x
+        deriv_mat = system.implicit_matrix(x).to(device)
+        unknown_mat = (deriv_eye - dt * deriv_mat).unsqueeze(0)
+        x_next, _ = torch.solve(torch.transpose(x, -1, -2), unknown_mat)
+        x = torch.transpose(x_next, -1, -2)
+
+    # Unpackage result and return
+    ret_split = system.implicit_matrix_unpackage(trajectories)
+    ret_q = ret_split.q
+    ret_p = ret_split.p
+    return IntegrationResult(q=ret_q, p=ret_p)
+
+
 def leapfrog(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
 
     trajectories = torch.empty((T, p_0.shape[0], 2 * p_0.shape[1]), requires_grad=False).to(device)
