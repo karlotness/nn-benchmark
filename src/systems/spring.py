@@ -3,11 +3,14 @@ from scipy.integrate import solve_ivp
 from .defs import System, TrajectoryResult, SystemResult, StatePair
 import logging
 import time
+import torch
 
 
 class SpringSystem(System):
     def __init__(self):
         super().__init__()
+        # Build "derivative matrix" for implicit integrators
+        self._deriv_mat = np.array([[0, 2], [-2, 0]], dtype=np.float64)
 
     def hamiltonian(self, q, p):
         return q**2 + p**2
@@ -24,6 +27,15 @@ class SpringSystem(System):
         grad = self._hamiltonian_grad(q=q, p=p)
         dqdt, dpdt = grad.q, grad.p
         return StatePair(q=dpdt, p=-dqdt)
+
+    def implicit_matrix_package(self, q, p):
+        return torch.cat((q, p), dim=-1)
+
+    def implicit_matrix_unpackage(self, x):
+        return StatePair(q=x[..., 0], p=x[..., 1])
+
+    def implicit_matrix(self, x):
+        return torch.from_numpy(self._deriv_mat)
 
     def generate_trajectory(self, q0, p0, t_span, time_step_size, rtol=1e-10,
                             noise_sigma=0.0):

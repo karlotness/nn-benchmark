@@ -207,8 +207,8 @@ def run_phase(base_dir, out_dir, phase_args):
             def model_time_deriv(p, q):
                 mocked = HognMockDataset(p=p, q=q, masses=masses,
                                          dp_dt=None, dq_dt=None)
-                bundled = dataset_geometric(dataset=[mocked],
-                                            package_args=package_args)[0]
+                bundled = dataset_geometric.package_data(dataset=[mocked],
+                                                         package_args=package_args)[0]
                 derivs = net.just_derivative(bundled)
                 unbundled = hogn.unpackage_time_derivative(input_data=bundled,
                                                            deriv=derivs)
@@ -222,8 +222,8 @@ def run_phase(base_dir, out_dir, phase_args):
                     # Break out batches separately
                     mocked = HognMockDataset(p=p[i], q=q[i], masses=masses[i],
                                              dp_dt=None, dq_dt=None)
-                    bundled = dataset_geometric(dataset=[mocked],
-                                                package_args=package_args)[0]
+                    bundled = dataset_geometric.package_data(dataset=[mocked],
+                                                             package_args=package_args)[0]
                     h = net(bundled).sum()
                     hamilts.append(h)
                 return np.array(hamilts)
