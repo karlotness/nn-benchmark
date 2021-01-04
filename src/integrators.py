@@ -44,6 +44,65 @@ def backward_euler(p_0, q_0, Func, T, dt, system, volatile=True, is_Hamilt=True,
     return IntegrationResult(q=ret_q, p=ret_p)
 
 
+def implicit_rk_gauss2(p_0, q_0, Func, T, dt, system, volatile=True, is_Hamilt=True, device='cpu'):
+    # Coefficients:
+    # coeff_a = np.array([[1/4, 1/4 - np.sqrt(3) / 6],
+    #                     [1/4 + np.sqrt(3) / 6, 1/4]])
+    # coeff_b = np.array([1/2, 1/2])
+    # coeff_c = np.array([1/2 - np.sqrt(3) / 6, 1/2 + np.sqrt(3) / 6])
+
+    trajectories = torch.empty((T, p_0.shape[0], 2 * p_0.shape[1]), requires_grad=False).to(device)
+
+    x = system.implicit_matrix_package(q=q_0, p=p_0)
+    x.requires_grad_()
+    n = x.shape[-1]
+    n_batch = p_0.shape[0]
+
+    range_of_for_loop = range(T)
+    if is_Hamilt:
+        raise ValueError("Backward Euler does not support Hamiltonian systems")
+
+    unknown_eye = torch.eye(2 * n).unsqueeze(0).to(device)
+    step_matrix = dt * torch.from_numpy(
+        np.block([0.5 * np.eye(n), 0.5 * np.eye(n)])
+    ).to(device)
+
+    for i in range_of_for_loop:
+        if volatile:
+            trajectories[i, :, :] = x.detach()
+        else:
+            trajectories[i, :, :] = x
+
+        # Update value of x
+        x = torch.transpose(x, -1, -2)
+
+        # TODO: Handle non-linear system (non-constant matrix)
+        deriv_mat = system.implicit_matrix(x).to(device)
+        target_value = torch.matmul(deriv_mat, x)
+        known = target_value.repeat(2, 1)
+        # Compute the "unknown" matrix
+        tiled_deriv = (dt * deriv_mat).repeat(2, 2)
+        # First row
+        tiled_deriv[:n, :n] *= 1/4
+        tiled_deriv[:n, n:] *= 1/4 - np.sqrt(3) / 6
+        # Second row
+        tiled_deriv[n:, :n] *= 1/4 + np.sqrt(3) / 6
+        tiled_deriv[n:, n:] *= 1/4
+        unknown = (unknown_eye - tiled_deriv).repeat((n_batch, 1, 1))
+
+        # Solve
+        solns, _ = torch.solve(known, unknown)
+        # Compute the next value for x from solutions
+        x = x + torch.matmul(step_matrix, solns)
+        x = torch.transpose(x[0], -1, -2)
+
+    # Unpackage result and return
+    ret_split = system.implicit_matrix_unpackage(trajectories)
+    ret_q = ret_split.q
+    ret_p = ret_split.p
+    return IntegrationResult(q=ret_q, p=ret_p)
+
+
 def leapfrog(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
 
     trajectories = torch.empty((T, p_0.shape[0], 2 * p_0.shape[1]), requires_grad=False).to(device)
