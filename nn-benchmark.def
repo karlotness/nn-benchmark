@@ -12,4 +12,4 @@ bash -c 'source activate nn-benchmark && jupyter labextension install @jupyter-w
 %runscript
 #! /bin/bash
 source activate nn-benchmark
-exec /bin/bash -c "${@:-/bin/bash}"
+exec "${@:-/bin/bash}"
