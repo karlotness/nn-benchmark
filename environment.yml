@@ -2,6 +2,7 @@ name: nn-benchmark
 channels:
   - pytorch
   - defaults
+  - gpytorch
 dependencies:
   - python=3.8
   - scipy
@@ -14,4 +15,5 @@ dependencies:
   - numpy
   - scikit-learn
   - pandas
+  - gpytorch
   - git
