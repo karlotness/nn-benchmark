@@ -227,7 +227,7 @@ def do_slurm_launch(run_descr, root_directory):
     container_path = (scratch_dir / "nn-benchmark.sif").resolve()
     try:
         subprocess.run(["sbatch",
-                        "--wrap", f"singularity exec --nv '{container_path}' python3 main.py '{run_descr}' '{root_directory}'",
+                        "--wrap", f"singularity run --nv '{container_path}' python3 main.py '{run_descr}' '{root_directory}'",
                         "--job-name", f"{shortname}",
                         "--time", f"{slurm_time}",
                         "--cpus-per-task", f"{slurm_cpus}",
