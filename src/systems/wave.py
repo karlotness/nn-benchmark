@@ -3,6 +3,7 @@ from scipy.linalg import circulant, lu_factor, lu_solve
 from .defs import System, TrajectoryResult, SystemResult, StatePair
 import time
 import logging
+import torch
 
 
 def _build_update_matrices(n_grid, space_max, wave_speed, time_step):
@@ -43,6 +44,15 @@ class WaveSystem(System):
         self.wave_speed = wave_speed
         self.d_x = self.space_max / self.n_grid
         self.k = _get_k(n_grid=n_grid, space_max=space_max, wave_speed=wave_speed)
+
+    def implicit_matrix_package(self, q, p):
+        return torch.cat((q, p), dim=-1)
+
+    def implicit_matrix_unpackage(self, x):
+        return StatePair(q=x[..., :self.n_grid], p=x[..., self.n_grid:])
+
+    def implicit_matrix(self, x):
+        return torch.from_numpy(self.k)
 
     def hamiltonian(self, q, p):
         denom = 4 * self.d_x**2
