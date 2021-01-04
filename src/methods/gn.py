@@ -34,10 +34,10 @@ def unpackage_time_derivative(input_data, deriv):
 
 
 class EdgeModel(torch.nn.Module):
-    def __init__(self, v_features, e_features, hidden=128):
+    def __init__(self, hidden=128):
         super(EdgeModel, self).__init__()
-        self.edge_mlp = Seq(Lin(e_features + 2 * v_features, hidden),
-                            ReLU(), Lin(hidden, e_features))
+        self.edge_mlp = Seq(Lin(3 * hidden, hidden),
+                            ReLU(), Lin(hidden, hidden))
 
     def forward(self, src, dest, edge_attr, u, batch):
         # source, target: [E, F_x], where E is the number of edges.
@@ -51,12 +51,12 @@ class EdgeModel(torch.nn.Module):
 
 
 class NodeModel(torch.nn.Module):
-    def __init__(self, v_features, e_features, hidden=128):
+    def __init__(self, hidden=128):
         super(NodeModel, self).__init__()
         # self.node_mlp_1 = Residual(Seq(Lin(..., hidden),
         #                                ReLU(), Lin(hidden, ...)))
-        self.node_mlp_2 = Seq(Lin(v_features + e_features, hidden), 
-                              ReLU(), Lin(hidden, v_features))
+        self.node_mlp_2 = Seq(Lin(2 * hidden, hidden), 
+                              ReLU(), Lin(hidden, hidden))
 
     def forward(self, x, edge_index, edge_attr, u, batch):
         # x: [N, F_x], where N is the number of nodes.
@@ -89,11 +89,13 @@ class GN:
         self.static_nodes = torch.nn.functional.one_hot(static_nodes, 2).float()
         self.constant_vertex_features = constant_vertex_features
 
+        self.encode_mlps = {"vertex" : Seq(Lin(v_features, hidden), ReLU(), Lin(hidden, hidden)),
+            "edge" : Seq(Lin(e_features, hidden), ReLU(), Lin(hidden, hidden))}
         self.process = MetaLayer(
-            EdgeModel(v_features, e_features, hidden),
-            NodeModel(v_features, e_features, hidden),
+            EdgeModel(hidden),
+            NodeModel(hidden),
             None)
-        self.decode = Seq(Lin(v_features, hidden), ReLU(),
+        self.decode = Seq(Lin(hidden, hidden), ReLU(),
                           Lin(hidden, v_features))
 
     def encode(self, world_coords, vertex_features, edge_index):
@@ -112,11 +114,15 @@ class GN:
             edge_attr = torch.cat([edge_attr, mesh_vectors, mesh_vectors_norm],
                                   dim=-1)
 
+        vertices = self.encode_mlps["vertex"].forward(vertices)
+        edge_attr = self.encode_mlps["edge"].forward(edge_attr)
         return vertices, edge_attr
 
     def forward(self, world_coords, vertex_features, edge_index):
         # x is [n, n_f]
         vertices, edge_attr = self.encode(world_coords, vertex_features, edge_index)
+        print(vertices.size())
+        print(edge_attr.size())
         L = 10
         for i in range(L):
             print(i)
