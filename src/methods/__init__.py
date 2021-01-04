@@ -1,5 +1,5 @@
 from sklearn import neighbors
-from . import hnn, srnn, mlp
+from . import hnn, srnn, mlp, gp
 
 def build_network(net_args):
     arch = net_args["arch"]
@@ -17,5 +17,7 @@ def build_network(net_args):
         # Lazy import HOGN to avoid pytorch-geometric if possible
         from . import hogn
         return hogn.build_network(arch_args)
+    elif arch == "gp":
+        return gp.build_network(arch_args)
     else:
         raise ValueError(f"Invalid architecture: {arch}")
