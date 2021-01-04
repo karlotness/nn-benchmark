@@ -14,10 +14,6 @@ class MultitaskGPModel(gpytorch.models.ExactGP):
             kernel, num_tasks=self.num_tasks, rank=1
         )
 
-    def package_state(self, q, p):
-        x = torch.cat([q, p], dim=-1)
-        return x
-
     def forward(self, x):
         mean_x = self.mean_module(x)
         covar_x = self.covar_module(x)
