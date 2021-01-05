@@ -155,7 +155,7 @@ def run_phase(base_dir, out_dir, phase_args):
         time_deriv_func = hnn_model_time_deriv
         time_deriv_method = METHOD_DIRECT_DERIV
         hamiltonian_func = model_hamiltonian
-    elif eval_type == "mlp":
+    elif eval_type in {"mlp", "nn-kernel"}:
         time_deriv_func = net
         time_deriv_method = METHOD_DIRECT_DERIV
     elif eval_type in {"knn-regressor", "knn-regressor-oneshot"}:
