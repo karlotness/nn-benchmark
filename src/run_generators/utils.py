@@ -742,6 +742,71 @@ class MLP(TrainedNetwork):
         return template
 
 
+class NNKernel(TrainedNetwork):
+    def __init__(self, experiment, training_set, gpu=True, learning_rate=1e-3,
+                 hidden_dim=2048, train_dtype="float",
+                 batch_size=750, epochs=1000, validation_set=None,
+                 nonlinearity="relu"):
+        super().__init__(experiment=experiment,
+                         method="nn-kernel",
+                         name_tail=f"{training_set.name}-h{hidden_dim}")
+        self.training_set = training_set
+        self.gpu = gpu
+        self.learning_rate = learning_rate
+        self.hidden_dim = hidden_dim
+        self.train_dtype = train_dtype
+        self.batch_size = batch_size
+        self.epochs = epochs
+        self.nonlinearity = nonlinearity
+        self.validation_set = validation_set
+        self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
+
+    def description(self):
+        template = {
+            "phase_args": {
+                "network": {
+                    "arch": "nn-kernel",
+                    "arch_args": {
+                        "input_dim": self.training_set.input_size(),
+                        "hidden_dim": self.hidden_dim,
+                        "output_dim": self.training_set.input_size(),
+                        "nonlinearity": self.nonlinearity,
+                    },
+                },
+                "training": {
+                    "optimizer": "adam",
+                    "optimizer_args": {
+                        "learning_rate": self.learning_rate,
+                    },
+                    "max_epochs": self.epochs,
+                    "try_gpu": self.gpu,
+                    "train_dtype": self.train_dtype,
+                    "train_type": "mlp",
+                    "train_type_args": {},
+                },
+                "train_data": {
+                    "data_dir": self.training_set.path,
+                    "dataset": "snapshot",
+                    "linearize": True,
+                    "dataset_args": {},
+                    "loader": {
+                        "batch_size": self.batch_size,
+                        "shuffle": True,
+                    },
+                },
+            },
+            "slurm_args": {
+                "gpu": self.gpu,
+                "time": "15:00:00",
+                "cpus": 8 if self.gpu else 20,
+                "mem": self._get_mem_requirement(train_set=self.training_set),
+            },
+        }
+        if self.validation_set is not None:
+            template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
+        return template
+
+
 class KNNRegressor(TrainedNetwork):
     def __init__(self, experiment, training_set):
         super().__init__(experiment=experiment,
