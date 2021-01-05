@@ -3,7 +3,7 @@ from torch.nn import Sequential as Seq, Linear as Lin, ReLU
 from torch_geometric.nn import MetaLayer
 from torch.autograd import grad
 from torch_geometric.data import data
-from torch_scatter import scatter_mean, scatter_sum
+from torch_scatter import scatter_sum
 import numpy as np
 from collections import namedtuple
 
@@ -11,16 +11,21 @@ from collections import namedtuple
 TimeDerivative = namedtuple("TimeDerivative", ["dq_dt", "dp_dt"])
 
 
-def package_batch(p, q, dp_dt, dq_dt, masses, edge_index):
+def package_batch(p, q, dp_dt, dq_dt, masses, edge_index, boundary_vertices):
+    vertices = torch.linspace(0, 1, step=p.shape[-1])
+    x = torch.from_numpy(np.concatenate((vertices, q), axis=-1))
+
+    if boundary_vertices is not None:
+        p = torch.nn.functional.pad(p, (1, 1), "constant", 0)
+        boundary_vertices = torch.unsqueeze(boundary_vertices, 0).repeat_interleave(x.shape[0], dim=0)
+        x = torch.concatenate((boundary_vertices[:, 0, :], x, boundary_vertices[:, 1, :]), axis=-2)
+
     # convert momenta to velocities
+    print(masses)
+    masses = np.ones_like(p)
     v = p / masses
-    x = torch.from_numpy(np.concatenate((q, v, masses), axis=-1))
-    if dp_dt is not None and dq_dt is not None:
-        dv_dt = dp_dt / masses
-        y = torch.from_numpy(np.concatenate((dq_dt, dv_dt), axis=-1))
-    else:
-        y = None
-    ret = data.Data(x=x, edge_index=edge_index, y=y)
+    v = torch.from_numpy(np.concatenate((torch.zeros_like(v), v), axis=-1))
+    ret = data.Data(x=v, edge_index=edge_index, pos=x)
     return ret
 
 
@@ -55,7 +60,7 @@ class NodeModel(torch.nn.Module):
         super(NodeModel, self).__init__()
         # self.node_mlp_1 = Residual(Seq(Lin(..., hidden),
         #                                ReLU(), Lin(hidden, ...)))
-        self.node_mlp_2 = Seq(Lin(v_features + e_features, hidden), 
+        self.node_mlp_2 = Seq(Lin(v_features + e_features, hidden),
                               ReLU(), Lin(hidden, v_features))
 
     def forward(self, x, edge_index, edge_attr, u, batch):
@@ -82,11 +87,12 @@ class NodeModel(torch.nn.Module):
 
 class GN:
     def __init__(self, v_features, e_features, mesh_coords,
-                 static_nodes, constant_vertex_features, hidden=128):
+                 static_nodes, constant_vertex_features=None, hidden=128):
         super().__init__()
 
         self.mesh_coords = mesh_coords
-        self.static_nodes = torch.nn.functional.one_hot(static_nodes, 2).float()
+        self.static_nodes = torch.nn.functional.one_hot(static_nodes,
+                                                        2).float()
         self.constant_vertex_features = constant_vertex_features
 
         self.process = MetaLayer(
@@ -100,7 +106,8 @@ class GN:
         vertices = torch.cat([self.static_nodes,
                               vertex_features], dim=-1)
         if self.constant_vertex_features is not None:
-            vertices = torch.cat([vertices, self.constant_vertex_features], dim=-1)
+            vertices = torch.cat([vertices, self.constant_vertex_features],
+                                 dim=-1)
 
         row, col = edge_index
         edge_vectors = world_coords[col] - world_coords[row]
@@ -116,23 +123,31 @@ class GN:
 
     def forward(self, world_coords, vertex_features, edge_index):
         # x is [n, n_f]
-        vertices, edge_attr = self.encode(world_coords, vertex_features, edge_index)
+        vertices, edge_attr = self.encode(world_coords, vertex_features,
+                                          edge_index)
         L = 10
         for i in range(L):
             print(i)
-            vertices, edge_attr, _ = self.process(vertices, edge_index, edge_attr)
+            vertices, edge_attr, _ = self.process(vertices, edge_index,
+                                                  edge_attr)
         x = self.decode(vertices)
         return x
+
+    def loss(self, pred_batch, true_batch):
+        return
 
 
 def build_network(arch_args):
     # Input dim controls the actual vector shape accepted by the network
     # ndim is the number of positional dimensions for the system
     # Input dim = ndim + extra features (certainly at least one particle mass)
-    input_dim = arch_args["input_dim"]
-    ndim = arch_args["ndim"]
+    v_features = arch_args["v_features"]
+    e_features = arch_args["e_features"]
     hidden_dim = arch_args["hidden_dim"]
-    assert input_dim >= 2 * ndim + 1
+    mesh_coords = torch.tensor(arch_args["mesh_coords"])
+    static_nodes = torch.tensor(arch_args["static_nodes"], dtype=torch.int)
 
-    net = GN(n_f=input_dim, ndim=ndim)
+    net = GN(v_features=v_features, e_features=e_features,
+             hidden_dim=hidden_dim, mesh_coords=mesh_coords,
+             static_nodes=static_nodes)
     return net

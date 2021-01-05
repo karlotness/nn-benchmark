@@ -2,7 +2,7 @@ from collections import namedtuple
 import numpy as np
 import torch
 from scipy.linalg import circulant
-from methods import hogn
+from methods import hogn, gn
 
 
 ProcessedParticles = namedtuple("ProcessedParticles", ["p", "q", "dp_dt", "dq_dt", "masses"])
@@ -28,6 +28,21 @@ def get_edge_index(connection_args):
         template[1:degree+1] = 1
         template[-degree:] = 1
         adj = torch.from_numpy(np.array(np.where(circulant(template))))
+        return adj
+    elif conn_type == "regular-grid":
+        dim = connection_args["dimension"]
+        boundary_cond = connection_args["boundary_conditions"]
+        if boundary_cond == "periodic":
+            idx = torch.arange(dim)
+            adj = torch.stack((
+                torch.cat((torch.tensor([0., dim - 1.]), idx[:-1], idx[1:])),
+                torch.cat((torch.tensor([dim - 1., 0.]), idx[1:], idx[:-1]))),
+                              dim=0)
+        elif boundary_cond == "fixed":
+            idx = torch.range(dim + 2)
+            adj = torch.stack((
+                torch.cat((idx[:-1], idx[1:])),
+                torch.cat((idx[1:], idx[:-1]))), dim=0)
         return adj
     else:
         raise ValueError(f"Unknown connection type {conn_type}")
@@ -65,6 +80,10 @@ def package_data(data_set, package_args):
 
     if package_type == "hogn":
         package_func = hogn.package_batch
+        boundary_vertices = None
+    if package_type == "gn":
+        package_func = gn.package_batch
+        boundary_vertices = connection_args["boundary_vertices"]
     else:
         raise ValueError(f"Unknown package type {package_type}")
 
@@ -88,7 +107,8 @@ def package_data(data_set, package_args):
                                           masses=masses)
         packaged = package_func(p=proc_part.p, q=proc_part.q,
                                 dp_dt=proc_part.dp_dt, dq_dt=proc_part.dq_dt,
-                                masses=proc_part.masses, edge_index=edge_index)
+                                masses=proc_part.masses, edge_index=edge_index,
+                                boundary_vertices=boundary_vertices)
         data_elems.append(packaged)
 
     return data_elems

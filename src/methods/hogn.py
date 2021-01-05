@@ -10,7 +10,7 @@ from collections import namedtuple
 TimeDerivative = namedtuple("TimeDerivative", ["dq_dt", "dp_dt"])
 
 
-def package_batch(p, q, dp_dt, dq_dt, masses, edge_index):
+def package_batch(p, q, dp_dt, dq_dt, masses, edge_index, boundary_vertices=None):
     # convert momenta to velocities
     v = p / masses
     x = torch.from_numpy(np.concatenate((q, v, masses), axis=-1))

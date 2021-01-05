@@ -191,11 +191,26 @@ def train_hogn(net, batch, loss_fn, train_type_args, tensor_converter):
                            total_loss_denom_incr=graph_batch.num_graphs)
 
 
+def train_gn(net, batch, loss_fn, train_type_args, tensor_converter):
+    # Extract values from batch
+    graph_batch = batch
+    graph_batch.x = tensor_converter(graph_batch.x)
+    graph_batch.pos = tensor_converter(graph_batch.pos)
+    graph_batch.edge_index = graph_batch.edge_index.to(tensor_converter.device)
+    output = net.forward(graph_batch.pos,
+                         graph_batch.x,
+                         graph_batch.edge_index)
+    predicted = output + graph_batch.pos + graph_batch.x
+    return TrainLossResult(loss=None,
+                           total_loss_denom_incre=None)
+
+
 TRAIN_FUNCTIONS = {
     "hnn": train_hnn,
     "srnn": train_srnn,
     "mlp": train_mlp,
     "hogn": train_hogn,
+    "gn": train_gn,
 }
 
 

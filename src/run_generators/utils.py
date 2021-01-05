@@ -216,7 +216,8 @@ class SpringDataset(Dataset):
     def __init__(self, experiment, initial_cond_source, num_traj,
                  set_type="train",
                  num_time_steps=30, time_step_size=0.3, rtol=1e-10,
-                 noise_sigma=0.0):
+                 noise_sigma=0.0,
+                 mesh_based=False):
         super().__init__(experiment=experiment,
                          name_tail=f"n{num_traj}-t{num_time_steps}-n{noise_sigma}",
                          system="spring",
@@ -228,6 +229,7 @@ class SpringDataset(Dataset):
         self.rtol = rtol
         self.noise_sigma = noise_sigma
         self.initial_conditions = self.initial_cond_source.sample_initial_conditions(self.num_traj)
+        self.mesh_based = mesh_based
         assert isinstance(self.initial_cond_source, SpringInitialConditionSource)
 
     def description(self):
@@ -675,6 +677,93 @@ class HOGN(TrainedNetwork):
         if self.validation_set is not None:
             template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
         return template
+
+
+class GN(TrainedNetwork):
+    def __init__(self, experiment, training_set, gpu=True, hidden_dim=128,
+                 connection_radius=5, learning_rate=1e-3, epochs=300,
+                 train_dtype="float", batch_size=100, validation_set=None):
+        super().__init__(experiment=experiment,
+                         method="hogn",
+                         name_tail=f"{training_set.name}-h{hidden_dim}")
+        self.training_set = training_set
+        self.hidden_dim = hidden_dim
+        self.gpu = gpu
+        self.connection_radius = connection_radius
+        self.learning_rate = learning_rate
+        self.epochs = epochs
+        self.train_dtype = train_dtype
+        self.batch_size = batch_size
+        self.validation_set = validation_set
+        self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
+        # Infer values from training set
+        if self.training_set.system == "spring":
+            self.particle_process_type = "one-dim"
+            self.adjacency_args = {
+                "type": "regular-grid",
+                "boundary_conditions": "fixed",
+                "boundary_vertices": [[-1., 0.], [0., 1.]],
+                "dimension": self.training_set.input_size() // 2,
+            }
+            self.v_features = 4
+            self.e_features = 6
+            self.mesh_coords = [[-1., 0.], [0., 0.], [1., 0.]]
+            self.static_nodes = [1, 0, 1]
+        else:
+            raise ValueError(f"Invalid system {self.training_set.system}")
+
+    def description(self):
+        template = {
+            "phase_args": {
+                "network": {
+                    "arch": "hogn",
+                    "arch_args": {
+                        "v_features": self.v_features,
+                        "e_features": self.e_features,
+                        "hidden_dim": self.hidden_dim,
+                        "mesh_coords": self.mesh_coords,
+                        "static_nodes": self.static_nodes,
+                    },
+                },
+                "training": {
+                    "optimizer": "adam",
+                    "optimizer_args": {
+                        "learning_rate": self.learning_rate,
+                    },
+                    "max_epochs": self.epochs,
+                    "try_gpu": self.gpu,
+                    "train_dtype": self.train_dtype,
+                    "train_type": "hogn",
+                    "train_type_args": {},
+                },
+                "train_data": {
+                    "data_dir": self.training_set.path,
+                    "dataset": "snapshot",
+                    "dataset_args": {},
+                    "loader": {
+                        "type": "pytorch-geometric",
+                        "batch_size": self.batch_size,
+                        "shuffle": True,
+                        "package_args": {
+                            "particle_processing": self.particle_process_type,
+                            "package_type": "hogn",
+                            "adjacency_args": self.adjacency_args,
+                        },
+                    },
+                },
+            },
+            "slurm_args": {
+                "gpu": self.gpu,
+                "time": "14:00:00",
+                "cpus": 8 if self.gpu else 20,
+                "mem": self._get_mem_requirement(train_set=self.training_set),
+            },
+        }
+        if self.validation_set is not None:
+            template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
+        return template
+
+
 
 
 class MLP(TrainedNetwork):
