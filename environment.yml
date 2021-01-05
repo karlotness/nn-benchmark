@@ -2,12 +2,12 @@ name: nn-benchmark
 channels:
   - pytorch
   - defaults
+  - gpytorch
 dependencies:
-  - absl-py
-  - python=3.7
+  - python=3.8
   - scipy
-  - pytorch=1.5.1
-  - cudatoolkit=10.1
+  - pytorch=1.7.1
+  - cudatoolkit=11.0
   - nodejs
   - matplotlib
   - jupyterlab
@@ -15,16 +15,13 @@ dependencies:
   - numpy
   - scikit-learn
   - pandas
-  - joblib
+  - gpytorch
+  - git
   - pip
   - pip:
-    - https://pytorch-geometric.com/whl/torch-1.5.0/torch_scatter-latest+cu101-cp37-cp37m-linux_x86_64.whl
-    - https://pytorch-geometric.com/whl/torch-1.5.0/torch_sparse-latest+cu101-cp37-cp37m-linux_x86_64.whl
-    - https://pytorch-geometric.com/whl/torch-1.5.0/torch_cluster-latest+cu101-cp37-cp37m-linux_x86_64.whl
-    - https://pytorch-geometric.com/whl/torch-1.5.0/torch_spline_conv-latest+cu101-cp37-cp37m-linux_x86_64.whl
+    - '--find-links=https://pytorch-geometric.com/whl/torch-1.7.0+cu110.html'
+    - torch-scatter
+    - torch-sparse
+    - torch-cluster
+    - torch-spline-conv
     - torch-geometric
-    - tensorflow-gpu>=1.15,<2
-    - dm-sonnet<2
-    - graph-nets>=1.1
-    - tensorflow-probability<0.9
-    - dm-tree

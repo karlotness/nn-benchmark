@@ -7,8 +7,9 @@ environment.yml
 %post
 conda env create -f environment.yml
 conda clean --all
+bash -c 'source activate nn-benchmark && jupyter labextension install @jupyter-widgets/jupyterlab-manager'
 
 %runscript
 #! /bin/bash
 source activate nn-benchmark
-exec /bin/bash -c "${@:-/bin/bash}"
+exec "${@:-/bin/bash}"
