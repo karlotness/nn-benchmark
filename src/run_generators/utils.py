@@ -837,7 +837,7 @@ class NNKernel(TrainedNetwork):
                  nonlinearity="relu", optimizer="sgd", weight_decay=0):
         super().__init__(experiment=experiment,
                          method="nn-kernel",
-                         name_tail=f"{training_set.name}-h{hidden_dim}")
+                         name_tail=f"{training_set.name}-h{hidden_dim}-lr{learning_rate}-wd{weight_decay}")
         self.training_set = training_set
         self.gpu = gpu
         self.learning_rate = learning_rate

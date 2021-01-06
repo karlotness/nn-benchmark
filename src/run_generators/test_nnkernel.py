@@ -8,7 +8,7 @@ parser = argparse.ArgumentParser(description="Generate run descriptions")
 parser.add_argument("base_dir", type=str,
                     help="Base directory for run descriptions")
 
-EPOCHS = 400
+EPOCHS = 250
 
 # Spring base parameters
 SPRING_STEPS = 1100
@@ -56,7 +56,7 @@ for integrator in ["leapfrog", "euler", "rk4", "scipy-RK45"]:
                                                integrator=integrator)
     writable_objects.append(integration_run)
 
-for num_traj in [10, 100, 500, 1000, 2500]:
+for num_traj in [10, 100, 500]:
     val_set = val_sets[system]
     eval_set = eval_sets[system]
     # Construct training sets
@@ -68,25 +68,31 @@ for num_traj in [10, 100, 500, 1000, 2500]:
                                     time_step_size=SPRING_DT)
     writable_objects.append(train_set)
     # CASE: all others
-    nn_kern_train = utils.NNKernel(experiment=experiment,
-                                   training_set=train_set,
-                                   hidden_dim=4096, train_dtype="float",
-                                   batch_size=750, epochs=EPOCHS, validation_set=None,
-                                   nonlinearity="relu")
-    mlp_train = utils.MLP(experiment=experiment, training_set=train_set,
-                          hidden_dim=200, depth=3,
-                          validation_set=val_set, epochs=EPOCHS)
-    writable_objects.extend([nn_kern_train, mlp_train])
+    train_runs = []
+    for learning_rate in [1e-3, 1e-4, 1e-5, 1e-6]:
+        for weight_decay in [0.1, 0.01, 0.001, 0.0001]:
+            for retry in range(3):
+                nn_kern_train = utils.NNKernel(experiment=experiment,
+                                               training_set=train_set,
+                                               learning_rate=learning_rate, weight_decay=weight_decay,
+                                               hidden_dim=4096, train_dtype="float",
+                                               optimizer="sgd",
+                                               batch_size=750, epochs=EPOCHS, validation_set=val_set,
+                                               nonlinearity="relu")
+                train_runs.append(nn_kern_train)
+    for retry in range(3):
+        mlp_train = utils.MLP(experiment=experiment, training_set=train_set,
+                              hidden_dim=200, depth=3,
+                              validation_set=val_set, epochs=EPOCHS)
+        train_runs.append(mlp_train)
+    writable_objects.extend(train_runs)
     for eval_integrator in ["leapfrog", "euler", "rk4", "scipy-RK45"]:
-        mlp_eval = utils.NetworkEvaluation(experiment=experiment,
-                                           network=mlp_train,
-                                           eval_set=eval_set,
-                                           integrator=eval_integrator)
-        nn_kern_eval = utils.NetworkEvaluation(experiment=experiment,
-                                               network=nn_kern_train,
+        for train_run in train_runs:
+            eval_run = utils.NetworkEvaluation(experiment=experiment,
+                                               network=train_run,
                                                eval_set=eval_set,
                                                integrator=eval_integrator)
-        writable_objects.extend([mlp_eval, nn_kern_eval])
+            writable_objects.append(eval_run)
 
 
 if __name__ == "__main__":
