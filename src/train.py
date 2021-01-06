@@ -33,9 +33,16 @@ def save_network(net, network_args, train_type, out_dir, base_logger):
 
 
 def create_optimizer(net, optimizer, optim_args):
+    lr = optim_args["learning_rate"]
+    weight_decay = optim_args.get("weight_decay", 0)
     if optimizer == "adam":
         return torch.optim.Adam(net.parameters(),
-                                lr=optim_args["learning_rate"])
+                                lr=lr,
+                                weight_decay=weight_decay)
+    elif optimizer == "sgd":
+        return torch.optim.SGD(net.parameters(),
+                               lr=lr,
+                               weight_decay=weight_decay)
     else:
         raise ValueError(f"Invalid optimizer {optimizer}")
 
