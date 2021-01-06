@@ -834,7 +834,7 @@ class NNKernel(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, learning_rate=1e-3,
                  hidden_dim=2048, train_dtype="float",
                  batch_size=750, epochs=1000, validation_set=None,
-                 nonlinearity="relu"):
+                 nonlinearity="relu", optimizer="sgd", weight_decay=0):
         super().__init__(experiment=experiment,
                          method="nn-kernel",
                          name_tail=f"{training_set.name}-h{hidden_dim}")
@@ -847,6 +847,8 @@ class NNKernel(TrainedNetwork):
         self.epochs = epochs
         self.nonlinearity = nonlinearity
         self.validation_set = validation_set
+        self.optimizer = optimizer
+        self.weight_decay = weight_decay
         self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
 
     def description(self):
@@ -862,9 +864,10 @@ class NNKernel(TrainedNetwork):
                     },
                 },
                 "training": {
-                    "optimizer": "adam",
+                    "optimizer": self.optimizer,
                     "optimizer_args": {
                         "learning_rate": self.learning_rate,
+                        "weight_decay": self.weight_decay,
                     },
                     "max_epochs": self.epochs,
                     "try_gpu": self.gpu,
