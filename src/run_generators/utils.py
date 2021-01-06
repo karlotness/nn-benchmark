@@ -681,15 +681,14 @@ class HOGN(TrainedNetwork):
 
 class GN(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, hidden_dim=128,
-                 connection_radius=5, learning_rate=1e-3, epochs=300,
+                 learning_rate=1e-3, epochs=300,
                  train_dtype="float", batch_size=100, validation_set=None):
         super().__init__(experiment=experiment,
-                         method="hogn",
+                         method="gn",
                          name_tail=f"{training_set.name}-h{hidden_dim}")
         self.training_set = training_set
         self.hidden_dim = hidden_dim
         self.gpu = gpu
-        self.connection_radius = connection_radius
         self.learning_rate = learning_rate
         self.epochs = epochs
         self.train_dtype = train_dtype
@@ -703,7 +702,7 @@ class GN(TrainedNetwork):
                 "type": "regular-grid",
                 "boundary_conditions": "fixed",
                 "boundary_vertices": [[-1., 0.], [0., 1.]],
-                "dimension": self.training_set.input_size() // 2,
+                "dimension": 1,
             }
             self.v_features = 4
             self.e_features = 6
@@ -716,7 +715,7 @@ class GN(TrainedNetwork):
         template = {
             "phase_args": {
                 "network": {
-                    "arch": "hogn",
+                    "arch": "gn",
                     "arch_args": {
                         "v_features": self.v_features,
                         "e_features": self.e_features,
@@ -733,7 +732,7 @@ class GN(TrainedNetwork):
                     "max_epochs": self.epochs,
                     "try_gpu": self.gpu,
                     "train_dtype": self.train_dtype,
-                    "train_type": "hogn",
+                    "train_type": "gn",
                     "train_type_args": {},
                 },
                 "train_data": {
@@ -746,7 +745,7 @@ class GN(TrainedNetwork):
                         "shuffle": True,
                         "package_args": {
                             "particle_processing": self.particle_process_type,
-                            "package_type": "hogn",
+                            "package_type": "gn",
                             "adjacency_args": self.adjacency_args,
                         },
                     },

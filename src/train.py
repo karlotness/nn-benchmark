@@ -71,7 +71,7 @@ def create_dataset(base_dir, data_args):
             import dataset_geometric
             from torch_geometric import data as geometric_data
             package_args = loader_args["package_args"]
-            loader = geometric_data.DataLoader(
+            loader = geometric_data.DenseDataLoader(
                 dataset=dataset_geometric.package_data(data_set,
                                                        package_args=package_args),
                 batch_size=loader_args["batch_size"],
@@ -200,6 +200,9 @@ def train_gn(net, batch, loss_fn, train_type_args, tensor_converter):
     output = net.forward(graph_batch.pos,
                          graph_batch.x,
                          graph_batch.edge_index)
+    print(graph_batch.pos.shape)
+    print(graph_batch.x.shape)
+    print(output.shape)
     predicted = output + graph_batch.pos + graph_batch.x
     return TrainLossResult(loss=None,
                            total_loss_denom_incre=None)

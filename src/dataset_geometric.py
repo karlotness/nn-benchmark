@@ -35,14 +35,14 @@ def get_edge_index(connection_args):
         if boundary_cond == "periodic":
             idx = torch.arange(dim)
             adj = torch.stack((
-                torch.cat((torch.tensor([0., dim - 1.]), idx[:-1], idx[1:])),
-                torch.cat((torch.tensor([dim - 1., 0.]), idx[1:], idx[:-1]))),
+                torch.cat((torch.tensor([0., dim - 1.]), idx[1:], idx[:-1])),
+                torch.cat((torch.tensor([dim - 1., 0.]), idx[:-1], idx[1:]))),
                               dim=0)
         elif boundary_cond == "fixed":
-            idx = torch.range(dim + 2)
+            idx = torch.arange(dim + 2)
             adj = torch.stack((
-                torch.cat((idx[:-1], idx[1:])),
-                torch.cat((idx[1:], idx[:-1]))), dim=0)
+                torch.cat((idx[1:], idx[:-1])),
+                torch.cat((idx[:-1], idx[1:]))), dim=0)
         return adj
     else:
         raise ValueError(f"Unknown connection type {conn_type}")
@@ -81,9 +81,9 @@ def package_data(data_set, package_args):
     if package_type == "hogn":
         package_func = hogn.package_batch
         boundary_vertices = None
-    if package_type == "gn":
+    elif package_type == "gn":
         package_func = gn.package_batch
-        boundary_vertices = connection_args["boundary_vertices"]
+        boundary_vertices = adjacency_args["boundary_vertices"]
     else:
         raise ValueError(f"Unknown package type {package_type}")
 
