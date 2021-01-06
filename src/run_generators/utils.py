@@ -869,7 +869,7 @@ class NNKernel(TrainedNetwork):
                     "max_epochs": self.epochs,
                     "try_gpu": self.gpu,
                     "train_dtype": self.train_dtype,
-                    "train_type": "mlp",
+                    "train_type": "nn-kernel",
                     "train_type_args": {},
                 },
                 "train_data": {
