@@ -32,9 +32,14 @@ def save_network(net, network_args, train_type, out_dir, base_logger):
     logger.info("Saved network")
 
 
-def create_optimizer(net, optimizer, optim_args):
+def create_optimizer(net, optimizer, optim_args, base_logger=None):
+    if base_logger:
+        logger = base_logger.getChild("gitinfo")
+    else:
+        logger = logging.getLogger("gitinfo")
     lr = optim_args["learning_rate"]
     weight_decay = optim_args.get("weight_decay", 0)
+    logger.info(f"Using optimizer {optimizer} lr={lr} decay={weight_decay}")
     if optimizer == "adam":
         return torch.optim.Adam(net.parameters(),
                                 lr=lr,
