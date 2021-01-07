@@ -699,6 +699,7 @@ class HOGN(TrainedNetwork):
 class GN(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, hidden_dim=128,
                  learning_rate=1e-3, epochs=300,
+                 scheduler="none", scheduler_step="epoch", scheduler_args={},
                  train_dtype="float", batch_size=100, validation_set=None):
         super().__init__(experiment=experiment,
                          method="gn",
@@ -711,6 +712,9 @@ class GN(TrainedNetwork):
         self.train_dtype = train_dtype
         self.batch_size = batch_size
         self.validation_set = validation_set
+        self.scheduler = scheduler
+        self.scheduler_step = scheduler_step
+        self.scheduler_args = scheduler_args
         self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
         generate_packing_args(self, self.training_set.system)
 
@@ -737,6 +741,9 @@ class GN(TrainedNetwork):
                     "train_dtype": self.train_dtype,
                     "train_type": "gn",
                     "train_type_args": {},
+                    "scheduler": self.scheduler,
+                    "scheduler_step": self.scheduler_step,
+                    "scheduler_args": self.scheduler_args,
                 },
                 "train_data": {
                     "data_dir": self.training_set.path,

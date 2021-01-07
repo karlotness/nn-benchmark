@@ -69,14 +69,12 @@ class SchedulerWrapper:
             self.scheduler.step(*args, **kwargs)
 
 
-def create_scheduler(optimizer, optim_args, base_logger=None):
+def create_scheduler(optimizer, scheduler_type, scheduler_step, scheduler_args,
+                     base_logger=None):
     if base_logger:
         logger = base_logger.getChild("sched")
     else:
         logger = logging.getLogger("sched")
-    scheduler_type = optim_args.get("scheduler", "none")
-    scheduler_step = optim_args.get("scheduler_step", "epoch")
-    scheduler_args = optim_args.get("scheduler_args", {})
     if scheduler_type == "none":
         logger.info("No scheduler")
         return SchedulerWrapper(scheduler=None, step_period=None,
@@ -332,8 +330,15 @@ def run_phase(base_dir, out_dir, phase_args):
         logger.info("Creating optimizer")
         optimizer = training_args["optimizer"]
         optim_args = training_args["optimizer_args"]
+        scheduler_type = training_args.get("scheduler", "none")
+        scheduler_step = training_args.get("scheduler_step", "epoch")
+        scheduler_args = training_args.get("scheduler_args", {})
         optim = create_optimizer(net, optimizer, optim_args, base_logger=logger)
-        sched = create_scheduler(optim, optim_args, base_logger=logger)
+        sched = create_scheduler(optim,
+                                 scheduler_type=scheduler_type,
+                                 scheduler_step=scheduler_step,
+                                 scheduler_args=scheduler_args,
+                                 base_logger=logger)
         torch_converter = TorchTypeConverter(device=device, dtype=train_dtype)
 
         # Move network to device and convert to dtype
