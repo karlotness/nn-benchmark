@@ -1126,7 +1126,7 @@ class BaselineIntegrator(Evaluation):
     def __init__(self, experiment, eval_set, integrator="leapfrog",
                  eval_dtype="double"):
         super().__init__(experiment=experiment,
-                         name_tail=f"integrator-baseline-{eval_set.name}-{integrator}")
+                         name_tail=f"integrator-baseline-{eval_set.name}-{integrator}-{eval_dtype}")
         self.eval_set = eval_set
         self.eval_dtype = eval_dtype
         self.integrator = integrator
