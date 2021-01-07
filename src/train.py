@@ -34,9 +34,9 @@ def save_network(net, network_args, train_type, out_dir, base_logger):
 
 def create_optimizer(net, optimizer, optim_args, base_logger=None):
     if base_logger:
-        logger = base_logger.getChild("gitinfo")
+        logger = base_logger.getChild("optim")
     else:
-        logger = logging.getLogger("gitinfo")
+        logger = logging.getLogger("optim")
     lr = optim_args["learning_rate"]
     weight_decay = optim_args.get("weight_decay", 0)
     logger.info(f"Using optimizer {optimizer} lr={lr} decay={weight_decay}")
