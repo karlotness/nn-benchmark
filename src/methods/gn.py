@@ -36,6 +36,10 @@ def package_batch(p, q, dp_dt, dq_dt, masses, edge_index, boundary_vertices):
     return ret
 
 
+def unpack_results(result, package_args):
+    return result
+
+
 def index(input_tensor, index_tensor):
     return torch.gather(input_tensor, 1, index_tensor.permute(0, 2, 1).repeat(1, 1, input_tensor.shape[-1]))
 
