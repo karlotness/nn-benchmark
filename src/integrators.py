@@ -399,7 +399,7 @@ def scipy_integrator(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, devic
     return IntegrationResult(q=qs, p=ps)
 
 
-def numerically_integrate(integrator, p_0, q_0, model, method, T, dt, volatile, device, coarsening_factor=1):
+def numerically_integrate(integrator, p_0, q_0, model, method, T, dt, volatile, device, coarsening_factor=1, system=None):
     if (coarsening_factor > 1):
         fine_trajectory = numerically_integrate(integrator, p_0, q_0, model, method, T * coarsening_factor, dt / coarsening_factor, volatile, device)
         trajectory_simulated = fine_trajectory[np.arange(T) * coarsening_factor, :, :]
@@ -426,6 +426,10 @@ def numerically_integrate(integrator, p_0, q_0, model, method, T, dt, volatile, 
             trajectory_simulated = null_integrator(p_0, q_0, model, T, dt, volatile=volatile, is_Hamilt=False, device=device)
         elif integrator == 'rk4':
             trajectory_simulated = rk4(p_0, q_0, model, T, dt, volatile=volatile, is_Hamilt=False, device=device)
+        elif integrator == 'back-euler':
+            trajectory_simulated = backward_euler(p_0, q_0, model, T, dt, system=system, volatile=volatile, is_Hamilt=False, device=device)
+        elif integrator == 'implicit-rk':
+            trajectory_simulated = implicit_rk_gauss2(p_0, q_0, model, T, dt, system=system, volatile=volatile, is_Hamilt=False, device=device)
         elif integrator.startswith("scipy-"):
             # Handle SciPy integration
             method = integrator.split("-")[1]

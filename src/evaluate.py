@@ -282,6 +282,7 @@ def run_phase(base_dir, out_dir, phase_args):
             method=time_deriv_method,
             T=num_time_steps,
             dt=time_step_size,
+            system=system,
             volatile=True,
             device=device,
             coarsening_factor=1)
