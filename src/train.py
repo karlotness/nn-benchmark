@@ -52,6 +52,45 @@ def create_optimizer(net, optimizer, optim_args, base_logger=None):
         raise ValueError(f"Invalid optimizer {optimizer}")
 
 
+class SchedulerWrapper:
+    def __init__(self, scheduler, step_period, logger):
+        self.scheduler = scheduler
+        self.step_period
+        self.logger = logger
+
+    def step_batch(self, *args, **kwargs):
+        if self.scheduler is not None and self.step_period == "batch":
+            self.logger.debug("Stepping scheduler")
+            self.scheduler.step(*args, **kwargs)
+
+    def step_epoch(self, *args, **kwargs):
+        if self.scheduler is not None and self.step_period == "epoch":
+            self.logger.debug("Stepping scheduler")
+            self.scheduler.step(*args, **kwargs)
+
+
+def create_scheduler(optimizer, optim_args, base_logger=None):
+    if base_logger:
+        logger = base_logger.getChild("sched")
+    else:
+        logger = logging.getLogger("sched")
+    scheduler_type = optim_args.get("scheduler", "none")
+    scheduler_step = optim_args.get("scheduler_step", "epoch")
+    scheduler_args = optim_args.get("scheduler_args", {})
+    if scheduler_type == "none":
+        logger.info("No scheduler")
+        return SchedulerWrapper(scheduler=None, step_period=None,
+                                logger=logger)
+    if scheduler_type == "exponential":
+        scheduler_cls = torch.optim.lr_scheduler.ExponentialLR
+    else:
+        raise ValueError(f"Invalid scheduler {scheduler_type}")
+    logger.info(f"Using scheduler {scheduler_type} with step unit {scheduler_step}")
+    scheduler = scheduler_cls(optimizer, **scheduler_args)
+    return SchedulerWrapper(scheduler=scheduler, step_period=scheduler_step,
+                            logger=logger)
+
+
 def create_dataset(base_dir, data_args):
     def _create_dataset_inner(data_dir, base_dir, data_args):
         linearize = data_args.get("linearize", False)
@@ -293,7 +332,8 @@ def run_phase(base_dir, out_dir, phase_args):
         logger.info("Creating optimizer")
         optimizer = training_args["optimizer"]
         optim_args = training_args["optimizer_args"]
-        optim = create_optimizer(net, optimizer, optim_args)
+        optim = create_optimizer(net, optimizer, optim_args, base_logger=logger)
+        sched = create_scheduler(optim, optim_args, base_logger=logger)
         torch_converter = TorchTypeConverter(device=device, dtype=train_dtype)
 
         # Move network to device and convert to dtype
@@ -335,6 +375,8 @@ def run_phase(base_dir, out_dir, phase_args):
                 optim.step()
                 total_backward_time += time.perf_counter() - time_backward_start
                 total_loss += loss.item()
+                # Step optimizer for batch
+                sched.step_batch()
             total_train_time = time.perf_counter() - time_train_start
             avg_loss = total_loss / total_loss_denom
 
@@ -391,6 +433,8 @@ def run_phase(base_dir, out_dir, phase_args):
                 "timing": this_epoch_timing,
             })
             epoch_stats.append(this_epoch_stats)
+            # Step optimizer for epoch
+            sched.step_epoch()
 
         logger.info("Training done")
         total_epoch_count = epoch + 1
