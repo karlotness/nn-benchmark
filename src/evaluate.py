@@ -230,6 +230,33 @@ def run_phase(base_dir, out_dir, phase_args):
             return model_hamiltonian
 
         time_deriv_method = METHOD_DIRECT_DERIV
+    elif eval_type == "gn":
+        # Lazy import to avoid pytorch-geometric if possible
+        from methods import hogn
+        import dataset_geometric
+
+        package_args = eval_args["package_args"]
+        GnMockDataset = namedtuple("GnMockDataset", ["p", "q", "dp_dt", "dq_dt", "masses"])
+
+        GNPrediction = namedtuple("GNPrediction", ["q", "p"])
+        def model_next_step(p, q):
+            mocked = GnMockDataset(p=p.detach().numpy(), q=q.detach().numpy(),
+                masses=masses, dp_dt=None, dq_dt=None)
+            bundled = dataset_geometric.package_data([mocked],
+                package_args=package_args)[0]
+            accel = net(torch.unsqueeze(bundled.x, 0),
+                torch.unsqueeze(bundled.pos, 0),
+                torch.unsqueeze(bundled.edge_index, 0))
+
+            p_next = p + accel
+            q_next = q + p + accel
+
+            return GNPrediction(q=q_next[0, 1, 1], p=p_next[0, 1, 1])
+
+        time_deriv_func = model_next_step
+        time_deriv_method = METHOD_DIRECT_DERIV
+        if integrator_type != "null":
+          raise ValueError(f"GN predictions do not work with integrator {integrator_type}")
     else:
         logger.error(f"Invalid evaluation type: {eval_type}")
         raise ValueError(f"Invalid evaluation type: {eval_type}")
@@ -241,6 +268,7 @@ def run_phase(base_dir, out_dir, phase_args):
         p = trajectory.p.to(device, dtype=eval_dtype)
         q = trajectory.q.to(device, dtype=eval_dtype)
         p_noiseless = trajectory.p_noiseless.to(device, dtype=eval_dtype)
+
         q_noiseless = trajectory.q_noiseless.to(device, dtype=eval_dtype)
         masses = trajectory.masses.to(device, dtype=eval_dtype)
         num_time_steps = trajectory.trajectory_meta["num_time_steps"][0]

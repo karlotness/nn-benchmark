@@ -7,6 +7,23 @@ import re
 import dataclasses
 
 
+def generate_packing_args(instance, system):
+    if system == "spring":
+        instance.particle_process_type = "one-dim"
+        instance.adjacency_args = {
+            "type": "regular-grid",
+            "boundary_conditions": "fixed",
+            "boundary_vertices": [[-1., 0.], [0., 1.]],
+            "dimension": 1,
+            }
+        instance.v_features = 4
+        instance.e_features = 6
+        instance.mesh_coords = [[-1., 0.], [0., 0.], [1., 0.]]
+        instance.static_nodes = [1, 0, 1]
+    else:
+      raise ValueError(f"Invalid system {system}")
+
+
 class Experiment:
     def __init__(self, name):
         self.name = name
@@ -695,21 +712,7 @@ class GN(TrainedNetwork):
         self.batch_size = batch_size
         self.validation_set = validation_set
         self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
-        # Infer values from training set
-        if self.training_set.system == "spring":
-            self.particle_process_type = "one-dim"
-            self.adjacency_args = {
-                "type": "regular-grid",
-                "boundary_conditions": "fixed",
-                "boundary_vertices": [[-1., 0.], [0., 1.]],
-                "dimension": 1,
-            }
-            self.v_features = 4
-            self.e_features = 6
-            self.mesh_coords = [[-1., 0.], [0., 0.], [1., 0.]]
-            self.static_nodes = [1, 0, 1]
-        else:
-            raise ValueError(f"Invalid system {self.training_set.system}")
+        generate_packing_args(self, self.training_set.system)
 
     def description(self):
         template = {
@@ -1024,11 +1027,12 @@ class Evaluation(WritableDescription):
 
 class NetworkEvaluation(Evaluation):
     def __init__(self, experiment, network, eval_set, gpu=False, integrator="leapfrog",
-                 eval_dtype=None):
+                 eval_dtype=None, system=None):
         super().__init__(experiment=experiment,
                          name_tail=f"net-{network.name}-set-{eval_set.name}-{integrator}")
         self.network = network
         self.eval_set = eval_set
+        self.system = system
         self.gpu = gpu
         if eval_dtype is None:
             self.eval_dtype = self.network.train_dtype
@@ -1040,6 +1044,9 @@ class NetworkEvaluation(Evaluation):
         # Validate inputs
         if self.eval_set.system != self.network.training_set.system:
             raise ValueError(f"Inconsistent systems {self.eval_set.system} and {self.network.training_set.system}")
+
+        generate_packing_args(self, self.system)
+
 
     def description(self):
         eval_type = self.network.method
@@ -1056,6 +1063,11 @@ class NetworkEvaluation(Evaluation):
                     "integrator": self.integrator,
                     "eval_dtype": self.eval_dtype,
                     "try_gpu": gpu,
+                    "package_args": {
+                      "particle_processing": self.particle_process_type,
+                      "package_type": "gn",
+                      "adjacency_args": self.adjacency_args,
+                      },
                 }
             },
             "slurm_args": {

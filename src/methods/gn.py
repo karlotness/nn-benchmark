@@ -23,18 +23,17 @@ def package_batch(p, q, dp_dt, dq_dt, masses, edge_index, boundary_vertices):
     # convert momenta to velocities
     masses = np.ones_like(p)
     v = p / masses
+    v = torch.from_numpy(v)
+
+    # Training or eval.
+    if dp_dt is not None:
+        acceleration = torch.from_numpy(dp_dt / masses)
+    else:
+        acceleration = dp_dt
+
     # v = torch.from_numpy(np.concatenate((np.zeros_like(v), v), axis=-1))
-    ret = data.Data(x=v, edge_index=edge_index, pos=x)
+    ret = data.Data(x=v, edge_index=edge_index, pos=x, y=acceleration)
     return ret
-
-
-def unpackage_time_derivative(input_data, deriv):
-    # format: deriv = torch.cat((dq_dt, dv_dt), dim=1)
-    masses = input_data.x[..., -1]
-    dq_dt, dv_dt = np.split(deriv, 2, axis=1)
-    dp_dt = dv_dt * masses
-    return TimeDerivative(dq_dt=dq_dt.reshape((1, -1)),
-                          dp_dt=dp_dt.reshape((1, -1)))
 
 
 def index(input_tensor, index_tensor):
@@ -52,10 +51,6 @@ class EdgeModel(torch.nn.Module):
         # edge_attr: [E, F_e]
         # u: [B, F_u], where B is the number of graphs.
         # batch: [E] with max entry B - 1.
-        print("src: ", src.shape)
-        print("dest: ", dest.shape)
-        print("edge_attr: ", edge_attr.shape)
-
         out = torch.cat([src, dest, edge_attr], dim=-1)
         out = self.edge_mlp(out)
         out += edge_attr
@@ -88,9 +83,6 @@ class NodeModel(torch.nn.Module):
         # Custom
         # edge_attr_sum = scatter_sum(edge_attr, row, dim=0, dim_size=x.size(0))
         edge_attr_sum = scatter_sum(edge_attr, row.permute(0, 2, 1).repeat(1, 1, self.hidden), dim=1, dim_size=x.size(1))
-
-        print(x.shape)
-        print(edge_attr_sum.shape)
 
         out = torch.cat([x, edge_attr_sum], dim=-1)
         out = self.node_mlp_2(out)
@@ -162,7 +154,6 @@ class GN(torch.nn.Module):
 
     def encode(self, world_coords, vertex_features, edge_index):
         static_nodes_batch = torch.unsqueeze(self.static_nodes, 0).repeat(world_coords.shape[0], 1, 1)
-        print(vertex_features[0])
         vertices = torch.cat([static_nodes_batch,
                               vertex_features], dim=-1)
         if self.constant_vertex_features is not None:
@@ -180,33 +171,23 @@ class GN(torch.nn.Module):
             edge_attr = torch.cat([edge_attr, mesh_vectors, mesh_vectors_norm],
                                   dim=-1)
 
-        edge_attr = torch.squeeze(edge_attr)
+        # edge_attr = torch.squeeze(edge_attr)
 
-        print("vertices", vertices.shape)
-        print("edge_attr", edge_attr.shape)
         vertices = self.vertex_encode_mlp.forward(vertices)
         edge_attr = self.edge_encode_mlp.forward(edge_attr)
         return vertices, edge_attr
 
     def forward(self, world_coords, vertex_features, edge_index):
         # x is [n, n_f]
-        print(world_coords.shape)
-        print(vertex_features.shape)
-        print(edge_index.shape)
-        print(self.static_nodes.shape)
-
         vertices, edge_attr = self.encode(world_coords, vertex_features,
                                           edge_index)
-        L = 10
+        L = 3
         for i in range(L):
-            print(i)
             vertices, edge_attr, _ = self.process(vertices, edge_index,
                                                   edge_attr)
         x = self.decode(vertices)
-        return x
 
-    def loss(self, pred_batch, true_batch):
-        return
+        return x
 
 
 def build_network(arch_args):

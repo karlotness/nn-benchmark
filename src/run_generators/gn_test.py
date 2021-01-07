@@ -8,7 +8,7 @@ parser = argparse.ArgumentParser(description="Generate run descriptions")
 parser.add_argument("base_dir", type=str,
                     help="Base directory for run descriptions")
 
-EPOCHS = 325
+EPOCHS = 100
 
 # Wave base parameters
 WAVE_DT = 0.1 / 250
@@ -63,7 +63,7 @@ for integrator in ["rk4"]:
                                                    integrator=integrator)
         writable_objects.append(integration_run)
 
-for num_traj, step_factor in itertools.product([10], [0.25]):
+for num_traj, step_factor in itertools.product([100], [0.25]):
     for system in ["spring"]:
         val_set = val_sets[system]
         eval_set = eval_sets[system]
@@ -83,11 +83,12 @@ for num_traj, step_factor in itertools.product([10], [0.25]):
                             validation_set=val_set,
                             epochs=EPOCHS)
         writable_objects.extend([gn_train])
-        for eval_integrator in ["rk4"]:
+        for eval_integrator in ["null"]:
             gn_eval = utils.NetworkEvaluation(experiment=experiment,
                                               network=gn_train,
                                               eval_set=eval_set,
-                                              integrator=eval_integrator)
+                                              integrator=eval_integrator,
+                                              system=system)
             writable_objects.extend([gn_eval])
 
 

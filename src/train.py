@@ -208,16 +208,15 @@ def train_gn(net, batch, loss_fn, train_type_args, tensor_converter):
     graph_batch = batch
     graph_batch.x = tensor_converter(graph_batch.x)
     graph_batch.pos = tensor_converter(graph_batch.pos)
+    graph_batch.y = tensor_converter(graph_batch.y)
     graph_batch.edge_index = graph_batch.edge_index.to(tensor_converter.device)
-    output = net.forward(graph_batch.pos,
-                         graph_batch.x,
-                         graph_batch.edge_index)
-    print(graph_batch.pos.shape)
-    print(graph_batch.x.shape)
-    print(output.shape)
-    predicted = output + graph_batch.pos + graph_batch.x
-    return TrainLossResult(loss=None,
-                           total_loss_denom_incre=None)
+
+    accel_pred = net(graph_batch.pos, graph_batch.x, graph_batch.edge_index)
+    accel = graph_batch.y
+
+    loss = loss_fn(accel_pred, accel)
+    return TrainLossResult(loss=loss,
+                           total_loss_denom_incr=graph_batch.x.shape[0])
 
 
 TRAIN_FUNCTIONS = {
