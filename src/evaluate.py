@@ -246,12 +246,12 @@ def run_phase(base_dir, out_dir, phase_args):
                 package_args=package_args)[0]
             accel = net(torch.unsqueeze(bundled.x, 0),
                 torch.unsqueeze(bundled.pos, 0),
-                torch.unsqueeze(bundled.edge_index, 0))
+                torch.unsqueeze(bundled.edge_index, 0))[0, 1, 1]
 
             p_next = p + accel
             q_next = q + p + accel
 
-            return GNPrediction(q=q_next[0, 1, 1], p=p_next[0, 1, 1])
+            return GNPrediction(q=q_next, p=p_next)
 
         time_deriv_func = model_next_step
         time_deriv_method = METHOD_DIRECT_DERIV

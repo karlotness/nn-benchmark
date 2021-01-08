@@ -707,6 +707,7 @@ class GN(TrainedNetwork):
         self.training_set = training_set
         self.hidden_dim = hidden_dim
         self.gpu = gpu
+        self.learning_rate = learning_rate
         self.time_step_size = time_step_size
         self.epochs = epochs
         self.train_dtype = train_dtype

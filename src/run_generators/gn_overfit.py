@@ -29,36 +29,11 @@ experiment = utils.Experiment("test-gn-spring")
 
 initial_condition_sources = {
     "spring-train": utils.SpringInitialConditionSource(),
-    "spring-val": utils.SpringInitialConditionSource(),
-    "spring-eval": utils.SpringInitialConditionSource(),
 }
 
 
-# Small validation sets for use during training
-eval_sets = {
-    "spring": utils.SpringDataset(experiment=experiment,
-                                  initial_cond_source=initial_condition_sources["spring-eval"],
-                                  num_traj=30,
-                                  set_type="eval",
-                                  num_time_steps=SPRING_STEPS,
-                                  time_step_size=SPRING_DT),
-}
-writable_objects.extend(eval_sets.values())
-
-val_sets = {
-    "spring": utils.SpringDataset(experiment=experiment,
-                                  initial_cond_source=initial_condition_sources["spring-val"],
-                                  num_traj=5,
-                                  set_type="val",
-                                  num_time_steps=SPRING_STEPS,
-                                  time_step_size=SPRING_DT),
-}
-writable_objects.extend(val_sets.values())
-
-for num_traj, step_factor in itertools.product([100], [0.25]):
+for num_traj, step_factor in itertools.product([1], [0.25]):
     for system in ["spring"]:
-        val_set = val_sets[system]
-        eval_set = eval_sets[system]
         # Construct training sets
         if system == "spring":
             num_steps = math.ceil(step_factor * SPRING_STEPS)
@@ -73,15 +48,13 @@ for num_traj, step_factor in itertools.product([100], [0.25]):
         gn_train = utils.GN(experiment=experiment,
                             training_set=train_set,
                             time_step_size=SPRING_DT,
-                            validation_set=val_set,
-                            epochs=EPOCHS,
-                            # scheduler="exponential",
-                            )
+                            validation_set=train_set,
+                            epochs=EPOCHS)
         writable_objects.extend([gn_train])
         for eval_integrator in ["null"]:
             gn_eval = utils.NetworkEvaluation(experiment=experiment,
                                               network=gn_train,
-                                              eval_set=eval_set,
+                                              eval_set=train_set,
                                               integrator=eval_integrator,
                                               system=system)
             writable_objects.extend([gn_eval])
@@ -91,7 +64,7 @@ for num_traj, step_factor in itertools.product([100], [0.25]):
 for integrator in ["rk4"]:
   for system in ["spring"]:
     integration_run = utils.BaselineIntegrator(experiment=experiment,
-        eval_set=eval_sets[system],
+        eval_set=train_set,
         integrator=integrator)
     writable_objects.append(integration_run)
 
