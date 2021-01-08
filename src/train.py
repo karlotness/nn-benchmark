@@ -379,7 +379,7 @@ def run_phase(base_dir, out_dir, phase_args):
                 loss.backward()
                 optim.step()
                 total_backward_time += time.perf_counter() - time_backward_start
-                total_loss += loss.item()
+                total_loss += loss.item() * train_result.total_loss_denom_incr
                 # Step optimizer for batch
                 sched.step_batch()
             total_train_time = time.perf_counter() - time_train_start
@@ -412,7 +412,7 @@ def run_phase(base_dir, out_dir, phase_args):
                                           tensor_converter=torch_converter)
                     val_loss = val_result.loss
                     val_total_loss_denom += val_result.total_loss_denom_incr
-                    val_total_loss += val_loss.item()
+                    val_total_loss += val_loss.item() * val_result.total_loss_denom_incr
                 total_val_time = time.perf_counter() - time_val_start
                 avg_val_loss = val_total_loss / val_total_loss_denom
                 # Store validation results
