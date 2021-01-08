@@ -50,6 +50,7 @@ class EdgeModel(torch.nn.Module):
         super(EdgeModel, self).__init__()
         self.edge_mlp = Seq(Lin(3 * hidden, hidden),
                             ReLU(), Lin(hidden, hidden))
+        self.layer_norm = torch.nn.LayerNorm(hidden)
 
     def forward(self, src, dest, edge_attr, u=None, batch=None):
         # source, target: [E, F_x], where E is the number of edges.
@@ -59,6 +60,9 @@ class EdgeModel(torch.nn.Module):
         out = torch.cat([src, dest, edge_attr], dim=-1)
         out = self.edge_mlp(out)
         out += edge_attr
+
+        out = self.layer_norm(out)
+
         return out
 
 
@@ -70,6 +74,7 @@ class NodeModel(torch.nn.Module):
         self.node_mlp_2 = Seq(Lin(2 * hidden, hidden),
                               ReLU(), Lin(hidden, hidden))
         self.hidden = hidden
+        self.layer_norm = torch.nn.LayerNorm(hidden)
 
     def forward(self, x, edge_index, edge_attr, u=None, batch=None):
         # x: [N, F_x], where N is the number of nodes.
@@ -92,6 +97,9 @@ class NodeModel(torch.nn.Module):
         out = torch.cat([x, edge_attr_sum], dim=-1)
         out = self.node_mlp_2(out)
         out += x
+
+        out = self.layer_norm(out)
+
         return out
 
 
@@ -146,6 +154,7 @@ class GN(torch.nn.Module):
             NodeModel(hidden),
             None)
         self.decode = Seq(Lin(hidden, hidden), ReLU(), Lin(hidden, v_features - self.static_nodes.shape[-1]))
+        self.layer_norm = torch.nn.LayerNorm(hidden)
 
     def _apply(self, fn):
         super()._apply(fn)
@@ -179,7 +188,10 @@ class GN(torch.nn.Module):
         # edge_attr = torch.squeeze(edge_attr)
 
         vertices = self.vertex_encode_mlp.forward(vertices)
+        vertices = self.layer_norm(vertices)
         edge_attr = self.edge_encode_mlp.forward(edge_attr)
+        edge_attr = self.layer_norm(edge_attr)
+
         return vertices, edge_attr
 
     def forward(self, world_coords, vertex_features, edge_index):
