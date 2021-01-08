@@ -14,12 +14,13 @@ class IntegrationScheme(enum.IntEnum):
 
 
 def backward_euler(p_0, q_0, Func, T, dt, system, volatile=True, is_Hamilt=True, device='cpu'):
-    trajectories = torch.empty((T, p_0.shape[0], 2 * p_0.shape[1]), requires_grad=False).to(device)
+    torch_dtype = p_0.dtype
+    trajectories = torch.empty((T, p_0.shape[0], 2 * p_0.shape[1]), requires_grad=False).to(device, dtype=torch_dtype)
 
-    x = system.implicit_matrix_package(q=q_0, p=p_0)
+    x = system.implicit_matrix_package(q=q_0, p=p_0).to(device, dtype=torch_dtype)
     x.requires_grad_()
 
-    deriv_eye = torch.eye(2 * p_0.shape[1])
+    deriv_eye = torch.eye(2 * p_0.shape[1]).to(device, dtype=torch_dtype)
 
     range_of_for_loop = range(T)
     if is_Hamilt:
@@ -32,12 +33,13 @@ def backward_euler(p_0, q_0, Func, T, dt, system, volatile=True, is_Hamilt=True,
             trajectories[i, :, :] = x
 
         # Update value of x
-        deriv_mat = system.implicit_matrix(x).to(device)
+        deriv_mat = system.implicit_matrix(x).to(device, dtype=torch_dtype)
         unknown_mat = (deriv_eye - dt * deriv_mat).unsqueeze(0)
         x_next, _ = torch.solve(torch.transpose(x, -1, -2), unknown_mat)
         x = torch.transpose(x_next, -1, -2)
 
     # Unpackage result and return
+    trajectories = trajectories.permute(1, 0, 2)
     ret_split = system.implicit_matrix_unpackage(trajectories)
     ret_q = ret_split.q
     ret_p = ret_split.p
@@ -50,10 +52,10 @@ def implicit_rk_gauss2(p_0, q_0, Func, T, dt, system, volatile=True, is_Hamilt=T
     #                     [1/4 + np.sqrt(3) / 6, 1/4]])
     # coeff_b = np.array([1/2, 1/2])
     # coeff_c = np.array([1/2 - np.sqrt(3) / 6, 1/2 + np.sqrt(3) / 6])
+    torch_dtype = p_0.dtype
+    trajectories = torch.empty((T, p_0.shape[0], 2 * p_0.shape[1]), requires_grad=False).to(device, dtype=torch_dtype)
 
-    trajectories = torch.empty((T, p_0.shape[0], 2 * p_0.shape[1]), requires_grad=False).to(device)
-
-    x = system.implicit_matrix_package(q=q_0, p=p_0)
+    x = system.implicit_matrix_package(q=q_0, p=p_0).to(device, dtype=torch_dtype)
     x.requires_grad_()
     n = x.shape[-1]
     n_batch = p_0.shape[0]
@@ -62,10 +64,10 @@ def implicit_rk_gauss2(p_0, q_0, Func, T, dt, system, volatile=True, is_Hamilt=T
     if is_Hamilt:
         raise ValueError("Backward Euler does not support Hamiltonian systems")
 
-    unknown_eye = torch.eye(2 * n).unsqueeze(0).to(device)
+    unknown_eye = torch.eye(2 * n).unsqueeze(0).to(device, dtype=torch_dtype)
     step_matrix = dt * torch.from_numpy(
         np.block([0.5 * np.eye(n), 0.5 * np.eye(n)])
-    ).to(device)
+    ).to(device, dtype=torch_dtype)
 
     for i in range_of_for_loop:
         if volatile:
@@ -77,7 +79,7 @@ def implicit_rk_gauss2(p_0, q_0, Func, T, dt, system, volatile=True, is_Hamilt=T
         x = torch.transpose(x, -1, -2)
 
         # TODO: Handle non-linear system (non-constant matrix)
-        deriv_mat = system.implicit_matrix(x).to(device)
+        deriv_mat = system.implicit_matrix(x).to(device, dtype=torch_dtype)
         target_value = torch.matmul(deriv_mat, x)
         known = target_value.repeat(2, 1)
         # Compute the "unknown" matrix
@@ -97,6 +99,7 @@ def implicit_rk_gauss2(p_0, q_0, Func, T, dt, system, volatile=True, is_Hamilt=T
         x = torch.transpose(x[0], -1, -2)
 
     # Unpackage result and return
+    trajectories = trajectories.permute(1, 0, 2)
     ret_split = system.implicit_matrix_unpackage(trajectories)
     ret_q = ret_split.q
     ret_p = ret_split.p
