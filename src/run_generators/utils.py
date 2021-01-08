@@ -1052,7 +1052,8 @@ class NetworkEvaluation(Evaluation):
         if self.eval_set.system != self.network.training_set.system:
             raise ValueError(f"Inconsistent systems {self.eval_set.system} and {self.network.training_set.system}")
 
-        generate_packing_args(self, self.system)
+        if self.network.method == "gn":
+            generate_packing_args(self, self.system)
 
 
     def description(self):
@@ -1070,11 +1071,6 @@ class NetworkEvaluation(Evaluation):
                     "integrator": self.integrator,
                     "eval_dtype": self.eval_dtype,
                     "try_gpu": gpu,
-                    "package_args": {
-                      "particle_processing": self.particle_process_type,
-                      "package_type": "gn",
-                      "adjacency_args": self.adjacency_args,
-                      },
                 }
             },
             "slurm_args": {
@@ -1084,6 +1080,12 @@ class NetworkEvaluation(Evaluation):
                 "mem": self._get_mem_requirement(eval_set=self.eval_set),
             },
         }
+        if self.network.method == "gn":
+            template["phase_args"]["eval"]["package_args"] = {
+                "particle_processing": self.particle_process_type,
+                "package_type": "gn",
+                "adjacency_args": self.adjacency_args,
+            }
         return template
 
 
