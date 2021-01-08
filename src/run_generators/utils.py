@@ -13,7 +13,7 @@ def generate_packing_args(instance, system):
         instance.adjacency_args = {
             "type": "regular-grid",
             "boundary_conditions": "fixed",
-            "boundary_vertices": [[-1., 0.], [0., 1.]],
+            "boundary_vertices": [[-1., 0.], [1., 0.]],
             "dimension": 1,
             }
         instance.v_features = 4
@@ -1037,7 +1037,7 @@ class Evaluation(WritableDescription):
 
 class NetworkEvaluation(Evaluation):
     def __init__(self, experiment, network, eval_set, gpu=False, integrator="leapfrog",
-                 eval_dtype=None, system=None):
+                 eval_dtype=None, system=None, time_step_size=None):
         super().__init__(experiment=experiment,
                          name_tail=f"net-{network.name}-set-{eval_set.name}-{integrator}")
         self.network = network
@@ -1054,8 +1054,8 @@ class NetworkEvaluation(Evaluation):
         # Validate inputs
         if self.eval_set.system != self.network.training_set.system:
             raise ValueError(f"Inconsistent systems {self.eval_set.system} and {self.network.training_set.system}")
-
         generate_packing_args(self, self.system)
+        self.time_step_size = time_step_size
 
 
     def description(self):
@@ -1073,6 +1073,7 @@ class NetworkEvaluation(Evaluation):
                     "integrator": self.integrator,
                     "eval_dtype": self.eval_dtype,
                     "try_gpu": gpu,
+                    "time_step_size": self.time_step_size,
                     "package_args": {
                       "particle_processing": self.particle_process_type,
                       "package_type": "gn",

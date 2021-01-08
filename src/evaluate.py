@@ -248,8 +248,9 @@ def run_phase(base_dir, out_dir, phase_args):
                 torch.unsqueeze(bundled.pos, 0),
                 torch.unsqueeze(bundled.edge_index, 0))[0, 1, 1]
 
-            p_next = p + accel
-            q_next = q + p + accel
+            time_step_size = eval_args["time_step_size"]
+            p_next = p + time_step_size * accel
+            q_next = q + time_step_size * p_next
 
             return GNPrediction(q=q_next, p=p_next)
 

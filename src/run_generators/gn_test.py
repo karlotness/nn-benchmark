@@ -83,7 +83,8 @@ for num_traj, step_factor in itertools.product([100], [0.25]):
                                               network=gn_train,
                                               eval_set=eval_set,
                                               integrator=eval_integrator,
-                                              system=system)
+                                              system=system,
+                                              time_step_size=SPRING_DT)
             writable_objects.extend([gn_eval])
 
 

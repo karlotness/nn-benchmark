@@ -63,7 +63,7 @@ class EdgeModel(torch.nn.Module):
         out = self.edge_mlp(out)
         out += edge_attr
 
-        out = self.layer_norm(out)
+        # out = self.layer_norm(out)
 
         return out
 
@@ -100,7 +100,7 @@ class NodeModel(torch.nn.Module):
         out = self.node_mlp_2(out)
         out += x
 
-        out = self.layer_norm(out)
+        # out = self.layer_norm(out)
 
         return out
 
@@ -190,9 +190,9 @@ class GN(torch.nn.Module):
         # edge_attr = torch.squeeze(edge_attr)
 
         vertices = self.vertex_encode_mlp.forward(vertices)
-        vertices = self.layer_norm(vertices)
+        # vertices = self.layer_norm(vertices)
         edge_attr = self.edge_encode_mlp.forward(edge_attr)
-        edge_attr = self.layer_norm(edge_attr)
+        # edge_attr = self.layer_norm(edge_attr)
 
         return vertices, edge_attr
 
