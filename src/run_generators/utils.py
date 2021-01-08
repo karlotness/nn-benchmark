@@ -1034,12 +1034,11 @@ class Evaluation(WritableDescription):
 
 class NetworkEvaluation(Evaluation):
     def __init__(self, experiment, network, eval_set, gpu=False, integrator="leapfrog",
-                 eval_dtype=None, system=None):
+                 eval_dtype=None):
         super().__init__(experiment=experiment,
                          name_tail=f"net-{network.name}-set-{eval_set.name}-{integrator}")
         self.network = network
         self.eval_set = eval_set
-        self.system = system
         self.gpu = gpu
         if eval_dtype is None:
             self.eval_dtype = self.network.train_dtype
@@ -1053,7 +1052,8 @@ class NetworkEvaluation(Evaluation):
             raise ValueError(f"Inconsistent systems {self.eval_set.system} and {self.network.training_set.system}")
 
         if self.network.method == "gn":
-            generate_packing_args(self, self.system)
+            system = eval_set.system
+            generate_packing_args(self, system)
 
 
     def description(self):
