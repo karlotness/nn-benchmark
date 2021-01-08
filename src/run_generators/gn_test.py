@@ -72,6 +72,7 @@ for num_traj, step_factor in itertools.product([10], [0.25]):
         # Build networks for training
         gn_train = utils.GN(experiment=experiment,
                             training_set=train_set,
+                            time_step_size=SPRING_DT,
                             validation_set=val_set,
                             # validation_set=train_set,
                             epochs=EPOCHS,

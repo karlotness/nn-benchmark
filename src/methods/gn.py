@@ -208,5 +208,4 @@ def build_network(arch_args):
     net = GN(v_features=v_features, e_features=e_features,
              hidden=hidden_dim, mesh_coords=mesh_coords,
              static_nodes=static_nodes)
-    net.learning_rate = arch_args["learning_rate"]
     return net
