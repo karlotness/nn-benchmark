@@ -32,7 +32,7 @@ class SpringSystem(System):
         return torch.cat((q, p), dim=-1)
 
     def implicit_matrix_unpackage(self, x):
-        return StatePair(q=x[..., 0], p=x[..., 1])
+        return StatePair(q=x[..., 0, np.newaxis], p=x[..., 1, np.newaxis])
 
     def implicit_matrix(self, x):
         return torch.from_numpy(self._deriv_mat)
