@@ -698,7 +698,7 @@ class HOGN(TrainedNetwork):
 
 class GN(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, hidden_dim=128,
-                 learning_rate=1e-3, epochs=300,
+                 learning_rate=1e-4, epochs=300,
                  scheduler="none", scheduler_step="epoch", scheduler_args={},
                  train_dtype="float", batch_size=100, validation_set=None):
         super().__init__(experiment=experiment,
@@ -729,6 +729,7 @@ class GN(TrainedNetwork):
                         "hidden_dim": self.hidden_dim,
                         "mesh_coords": self.mesh_coords,
                         "static_nodes": self.static_nodes,
+                        "learning_rate": self.learning_rate,
                     },
                 },
                 "training": {

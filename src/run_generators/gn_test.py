@@ -8,7 +8,7 @@ parser = argparse.ArgumentParser(description="Generate run descriptions")
 parser.add_argument("base_dir", type=str,
                     help="Base directory for run descriptions")
 
-EPOCHS = 100
+EPOCHS = 500
 
 # Wave base parameters
 WAVE_DT = 0.1 / 250
@@ -55,15 +55,7 @@ val_sets = {
 }
 writable_objects.extend(val_sets.values())
 
-# Traditional integrator baselines
-for integrator in ["rk4"]:
-    for system in ["spring"]:
-        integration_run = utils.BaselineIntegrator(experiment=experiment,
-                                                   eval_set=eval_sets[system],
-                                                   integrator=integrator)
-        writable_objects.append(integration_run)
-
-for num_traj, step_factor in itertools.product([100], [0.25]):
+for num_traj, step_factor in itertools.product([10], [0.25]):
     for system in ["spring"]:
         val_set = val_sets[system]
         eval_set = eval_sets[system]
@@ -81,15 +73,30 @@ for num_traj, step_factor in itertools.product([100], [0.25]):
         gn_train = utils.GN(experiment=experiment,
                             training_set=train_set,
                             validation_set=val_set,
-                            epochs=EPOCHS)
+                            # validation_set=train_set,
+                            epochs=EPOCHS,
+                            # scheduler="exponential",
+                            )
         writable_objects.extend([gn_train])
         for eval_integrator in ["null"]:
             gn_eval = utils.NetworkEvaluation(experiment=experiment,
                                               network=gn_train,
                                               eval_set=eval_set,
+                                              # eval_set=train_set,
                                               integrator=eval_integrator,
                                               system=system)
             writable_objects.extend([gn_eval])
+
+
+# Traditional integrator baselines
+for integrator in ["rk4"]:
+  for system in ["spring"]:
+    integration_run = utils.BaselineIntegrator(experiment=experiment,
+        eval_set=eval_sets[system],
+        # eval_set=train_set,
+        integrator=integrator)
+    writable_objects.append(integration_run)
+
 
 
 if __name__ == "__main__":

@@ -185,7 +185,7 @@ class GN(torch.nn.Module):
         # x is [n, n_f]
         vertices, edge_attr = self.encode(world_coords, vertex_features,
                                           edge_index)
-        L = 3
+        L = 15
         for i in range(L):
             vertices, edge_attr, _ = self.process(vertices, edge_index,
                                                   edge_attr)
@@ -207,4 +207,5 @@ def build_network(arch_args):
     net = GN(v_features=v_features, e_features=e_features,
              hidden=hidden_dim, mesh_coords=mesh_coords,
              static_nodes=static_nodes)
+    net.learning_rate = arch_args["learning_rate"]
     return net
