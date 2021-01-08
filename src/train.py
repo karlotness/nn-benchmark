@@ -55,7 +55,7 @@ def create_optimizer(net, optimizer, optim_args, base_logger=None):
 class SchedulerWrapper:
     def __init__(self, scheduler, step_period, logger):
         self.scheduler = scheduler
-        self.step_period
+        self.step_period = step_period
         self.logger = logger
 
     def step_batch(self, *args, **kwargs):
