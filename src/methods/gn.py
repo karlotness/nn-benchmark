@@ -27,6 +27,7 @@ def package_batch(p, q, dp_dt, dq_dt, masses, edge_index, boundary_vertices):
 
     # Training or eval.
     if dp_dt is not None:
+        masses = np.ones_like(dp_dt)
         acceleration = torch.from_numpy(dp_dt / masses)
     else:
         acceleration = dp_dt
