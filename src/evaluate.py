@@ -327,6 +327,9 @@ def run_phase(base_dir, out_dir, phase_args):
         rel_l2 = rel_err(approx=int_res, true=true, norm=2)
         mse_err = mean_square_err(approx=int_res, true=true)
 
+        mean_raw_l2 = np.mean(raw_l2)
+        logger.info(f"Mean raw l2: {mean_raw_l2}")
+
         int_p = int_res_raw.p[0].detach().cpu().numpy()
         int_q = int_res_raw.q[0].detach().cpu().numpy()
 
