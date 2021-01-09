@@ -245,8 +245,8 @@ def run_phase(base_dir, out_dir, phase_args):
                 masses=masses, dp_dt=None, dq_dt=None)
             bundled = dataset_geometric.package_data([mocked],
                 package_args=package_args)[0]
-            accel = net(torch.unsqueeze(bundled.x, 0),
-                torch.unsqueeze(bundled.pos, 0),
+            accel = net(torch.unsqueeze(bundled.pos, 0),
+                torch.unsqueeze(bundled.x, 0),
                 torch.unsqueeze(bundled.edge_index, 0))[0, 1, 1]
 
             p_next = p + time_step_size * accel
