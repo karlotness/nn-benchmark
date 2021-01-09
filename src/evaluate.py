@@ -252,8 +252,8 @@ def run_phase(base_dir, out_dir, phase_args):
             p_next = p + time_step_size * accel
             q_next = q + time_step_size * p_next
 
-            next_p = next_p.to(device, dtype=eval_dtype)
-            next_q = next_q.to(device, dtype=eval_dtype)
+            p_next = p_next.to(device, dtype=eval_dtype)
+            q_next = q_next.to(device, dtype=eval_dtype)
 
             return GNPrediction(p=p_next, q=q_next)
 
