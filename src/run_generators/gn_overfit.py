@@ -32,7 +32,7 @@ initial_condition_sources = {
 }
 
 
-for num_traj, step_factor in itertools.product([1], [0.25]):
+for num_traj, step_factor in itertools.product([1], [1.0]):
     for system in ["spring"]:
         # Construct training sets
         if system == "spring":
