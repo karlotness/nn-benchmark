@@ -251,7 +251,7 @@ def train_gn(net, batch, loss_fn, train_type_args, tensor_converter):
     accel_pred = net(graph_batch.pos, graph_batch.x, graph_batch.edge_index)
     accel = graph_batch.y
 
-    loss = loss_fn(accel_pred[:, 1, 1], accel[:, 1, 1])
+    loss = loss_fn(accel_pred, accel)
     return TrainLossResult(loss=loss,
                            total_loss_denom_incr=graph_batch.x.shape[0])
 
