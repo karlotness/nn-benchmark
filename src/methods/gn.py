@@ -46,9 +46,9 @@ def package_batch(p, q, dp_dt, dq_dt, masses, edge_index, boundary_vertices):
 
 def unpack_results(result, system):
     if system == "spring":
-        return results[:, 1, 1]
+        return result[:, 1, 1]
     elif system == "wave":
-        return results[:, 1, :]
+        return result[:, 1, :]
     else:
       raise ValueError(f"Invalid system {system}")
 

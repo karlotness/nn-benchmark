@@ -233,7 +233,7 @@ def run_phase(base_dir, out_dir, phase_args):
         time_deriv_method = METHOD_DIRECT_DERIV
     elif eval_type == "gn":
         # Lazy import to avoid pytorch-geometric if possible
-        from methods import hogn
+        from methods import gn
         import dataset_geometric
 
         package_args = eval_args["package_args"]

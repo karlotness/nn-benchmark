@@ -43,7 +43,7 @@ def get_edge_index(connection_args):
             adj = torch.stack((
                 torch.cat((idx[1:], idx[:-1])),
                 torch.cat((idx[:-1], idx[1:]))), dim=0)
-        return adj
+        return adj.long()
     else:
         raise ValueError(f"Unknown connection type {conn_type}")
 
