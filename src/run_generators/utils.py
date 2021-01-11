@@ -697,7 +697,7 @@ class HOGN(TrainedNetwork):
 
 
 class GN(TrainedNetwork):
-    def __init__(self, experiment, training_set, time_step_size, gpu=True, hidden_dim=128,
+    def __init__(self, experiment, training_set, gpu=True, hidden_dim=128,
                  learning_rate=1e-4, epochs=300,
                  scheduler="none", scheduler_step="epoch", scheduler_args={},
                  train_dtype="float", batch_size=100, validation_set=None):
@@ -708,7 +708,6 @@ class GN(TrainedNetwork):
         self.hidden_dim = hidden_dim
         self.gpu = gpu
         self.learning_rate = learning_rate
-        self.time_step_size = time_step_size
         self.epochs = epochs
         self.train_dtype = train_dtype
         self.batch_size = batch_size
@@ -742,7 +741,6 @@ class GN(TrainedNetwork):
                     "train_dtype": self.train_dtype,
                     "train_type": "gn",
                     "train_type_args": {
-                        "time_step_size": self.time_step_size,
                     },
                     "scheduler": self.scheduler,
                     "scheduler_step": self.scheduler_step,
