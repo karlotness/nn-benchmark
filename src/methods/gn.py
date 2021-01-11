@@ -48,7 +48,7 @@ def unpack_results(result, system):
     if system == "spring":
         return result[:, 1, 1]
     elif system == "wave":
-        return result[:, 1, :]
+        return result[:, :, 1]
     else:
       raise ValueError(f"Invalid system {system}")
 

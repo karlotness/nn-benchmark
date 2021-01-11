@@ -9,7 +9,7 @@ import dataclasses
 
 def generate_packing_args(instance, system, dataset):
     if system == "spring":
-        dim = dataset.input_size() / 2
+        dim = dataset.input_size() // 2
         assert dim == 1
         instance.particle_process_type = "one-dim"
         instance.adjacency_args = {
@@ -23,11 +23,12 @@ def generate_packing_args(instance, system, dataset):
         instance.mesh_coords = [[-1., 0.], [0., 0.], [1., 0.]]
         instance.static_nodes = [1, 0, 1]
     elif system == "wave":
-        dim = dataset.input_size() / 2
+        dim = dataset.input_size() // 2
         instance.particle_process_type = "one-dim"
         instance.adjacency_args = {
             "type": "regular-grid",
             "boundary_conditions": "periodic",
+            "boundary_vertices": None,
             "dimension": dim,
             }
         instance.v_features = 4
