@@ -248,7 +248,9 @@ def run_phase(base_dir, out_dir, phase_args):
                 package_args=package_args)[0]
             accel = net(torch.unsqueeze(bundled.pos, 0),
                 torch.unsqueeze(bundled.x, 0),
-                torch.unsqueeze(bundled.edge_index, 0))[0, 1, 1]
+                torch.unsqueeze(bundled.edge_index, 0))
+
+            accel = gn.unpack_results(accel, eval_dataset.system)
 
             p_next = p + time_step_size * accel
             q_next = q + time_step_size * p_next

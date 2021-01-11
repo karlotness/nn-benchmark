@@ -21,6 +21,11 @@ def package_batch(p, q, dp_dt, dq_dt, masses, edge_index, boundary_vertices):
           dp_dt = np.pad(dp_dt, ((1, 1), (1, 0)), "constant", constant_values=0)
         boundary_vertices = torch.unsqueeze(torch.tensor(boundary_vertices), 0).repeat_interleave(x.shape[0], dim=0)
         x = torch.cat((boundary_vertices[:, 0, :], x, boundary_vertices[:, 1, :]), axis=-2)
+    else:
+        p = np.pad(p, ((0, 0), (1, 0)), "constant", constant_values=0)
+        if dp_dt is not None:
+          dp_dt = np.pad(dp_dt, ((0, 0), (1, 0)), "constant", constant_values=0)
+
 
     # convert momenta to velocities
     masses = np.ones_like(p)
@@ -39,8 +44,13 @@ def package_batch(p, q, dp_dt, dq_dt, masses, edge_index, boundary_vertices):
     return ret
 
 
-def unpack_results(result, package_args):
-    return result
+def unpack_results(result, system):
+    if system == "spring":
+        return results[:, 1, 1]
+    elif system == "wave":
+        return results[:, 1, :]
+    else:
+      raise ValueError(f"Invalid system {system}")
 
 
 def index(input_tensor, index_tensor):

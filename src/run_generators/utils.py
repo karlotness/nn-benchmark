@@ -9,19 +9,33 @@ import dataclasses
 
 def generate_packing_args(instance, system):
     if system == "spring":
+        dim = instance.training_set.input_size() / 2
+        assert dim == 1
         instance.particle_process_type = "one-dim"
         instance.adjacency_args = {
             "type": "regular-grid",
             "boundary_conditions": "fixed",
             "boundary_vertices": [[-1., 0.], [1., 0.]],
-            "dimension": 1,
+            "dimension": dim,
             }
         instance.v_features = 4
         instance.e_features = 6
         instance.mesh_coords = [[-1., 0.], [0., 0.], [1., 0.]]
         instance.static_nodes = [1, 0, 1]
+    elif system == "wave":
+        dim = instance.training_set.input_size() / 2
+        instance.particle_process_type = "one-dim"
+        instance.adjacency_args = {
+            "type": "regular-grid",
+            "boundary_conditions": "periodic",
+            "dimension": dim,
+            }
+        instance.v_features = 4
+        instance.e_features = 6
+        instance.mesh_coords = [[x, 0] for x in np.linspace(0, 1, dim)]
+        instance.static_nodes = [0 for i in np.arange(dim)]
     else:
-      raise ValueError(f"Invalid system {system}")
+        raise ValueError(f"Invalid system {system}")
 
 
 class Experiment:
