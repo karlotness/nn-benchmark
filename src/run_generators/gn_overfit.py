@@ -47,7 +47,6 @@ for num_traj, step_factor in itertools.product([1], [1.0]):
         # Build networks for training
         gn_train = utils.GN(experiment=experiment,
                             training_set=train_set,
-                            time_step_size=SPRING_DT,
                             validation_set=train_set,
                             epochs=EPOCHS)
         writable_objects.extend([gn_train])
@@ -55,9 +54,7 @@ for num_traj, step_factor in itertools.product([1], [1.0]):
             gn_eval = utils.NetworkEvaluation(experiment=experiment,
                                               network=gn_train,
                                               eval_set=train_set,
-                                              integrator=eval_integrator,
-                                              system=system,
-                                              time_step_size=SPRING_DT)
+                                              integrator=eval_integrator)
             writable_objects.extend([gn_eval])
 
 

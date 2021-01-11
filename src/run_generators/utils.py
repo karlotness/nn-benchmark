@@ -7,9 +7,9 @@ import re
 import dataclasses
 
 
-def generate_packing_args(instance, system):
+def generate_packing_args(instance, system, dataset):
     if system == "spring":
-        dim = instance.training_set.input_size() / 2
+        dim = dataset.input_size() / 2
         assert dim == 1
         instance.particle_process_type = "one-dim"
         instance.adjacency_args = {
@@ -23,7 +23,7 @@ def generate_packing_args(instance, system):
         instance.mesh_coords = [[-1., 0.], [0., 0.], [1., 0.]]
         instance.static_nodes = [1, 0, 1]
     elif system == "wave":
-        dim = instance.training_set.input_size() / 2
+        dim = dataset.input_size() / 2
         instance.particle_process_type = "one-dim"
         instance.adjacency_args = {
             "type": "regular-grid",
@@ -730,7 +730,7 @@ class GN(TrainedNetwork):
         self.scheduler_step = scheduler_step
         self.scheduler_args = scheduler_args
         self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
-        generate_packing_args(self, self.training_set.system)
+        generate_packing_args(self, self.training_set.system, self.training_set)
 
     def description(self):
         template = {
@@ -1071,7 +1071,7 @@ class NetworkEvaluation(Evaluation):
 
         if self.network.method == "gn":
             system = eval_set.system
-            generate_packing_args(self, system)
+            generate_packing_args(self, system, self.eval_set)
 
 
     def description(self):
