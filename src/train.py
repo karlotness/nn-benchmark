@@ -18,14 +18,15 @@ TRAIN_DTYPES = {
 }
 
 
-def save_network(net, network_args, train_type, out_dir, base_logger):
+def save_network(net, network_args, train_type, out_dir, base_logger,
+                 model_file_name="model.pt"):
     logger = base_logger.getChild("save_network")
     logger.info("Saving network")
 
     if train_type in {"knn-regressor", "knn-predictor"}:
-        joblib.dump(net, out_dir / "model.pt")
+        joblib.dump(net, out_dir / model_file_name)
     else:
-        torch.save(net.state_dict(), out_dir / "model.pt")
+        torch.save(net.state_dict(), out_dir / model_file_name)
 
     with open(out_dir / "model.json", "w", encoding="utf8") as model_file:
         json.dump(network_args, model_file)
@@ -354,6 +355,7 @@ def run_phase(base_dir, out_dir, phase_args):
         # Run training epochs
         logger.info("Starting training")
         epoch_stats = []
+        min_val_loss = np.inf
         for epoch in range(max_epochs):
             logger.info(f"Epoch {epoch} of {max_epochs}")
             this_epoch_stats = {}
@@ -390,6 +392,7 @@ def run_phase(base_dir, out_dir, phase_args):
                 "avg_loss": avg_loss,
                 "train_total_loss": total_loss,
                 "train_loss_denom": total_loss_denom,
+                "saved_min_val_net": False,
             })
             this_epoch_timing.update({
                 "total_forward": total_forward_time,
@@ -424,6 +427,15 @@ def run_phase(base_dir, out_dir, phase_args):
                 this_epoch_timing.update({
                     "total_val": total_val_time,
                 })
+                # Update minimum validation loss
+                if val_total_loss < min_val_loss:
+                    # New minimum validation loss, save network
+                    min_val_loss = val_total_loss
+                    logger.info("New minimum validation loss. Saving network")
+                    save_network(net=net, network_args=network_args, train_type=train_type,
+                                 out_dir=out_dir, base_logger=logger,
+                                 model_file_name="model_min_val.pt")
+                    this_epoch_stats["saved_min_val_net"] = True
 
             # Compute total epoch time
             total_epoch_time = time.perf_counter() - time_epoch_start
