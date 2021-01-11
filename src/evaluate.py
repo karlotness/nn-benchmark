@@ -172,7 +172,7 @@ def run_phase(base_dir, out_dir, phase_args):
         time_deriv_method = METHOD_DIRECT_DERIV
     elif eval_type in {"knn-predictor", "knn-predictor-oneshot"}:
         KNNPrediction = namedtuple("KNNPrediction", ["q", "p"])
-        def model_next_step(p, q):
+        def model_next_step(p, q, dt):
             x = torch.cat([p, q], axis=-1).detach().cpu().numpy()
             ret = net.predict(x)
             next_p, next_q = np.split(ret, 2, axis=-1)
@@ -239,8 +239,8 @@ def run_phase(base_dir, out_dir, phase_args):
         GnMockDataset = namedtuple("GnMockDataset", ["p", "q", "dp_dt", "dq_dt", "masses"])
 
         GNPrediction = namedtuple("GNPrediction", ["p", "q"])
-        time_step_size = eval_args["time_step_size"]
-        def model_next_step(p, q):
+        def model_next_step(p, q, dt):
+            time_step_size = dt
             mocked = GnMockDataset(p=p.detach().numpy(), q=q.detach().numpy(),
                 masses=masses, dp_dt=None, dq_dt=None)
             bundled = dataset_geometric.package_data([mocked],

@@ -329,7 +329,7 @@ def null_integrator(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=False, devic
         trajectories[i, :, :p_0.shape[1]] = p.detach()
         trajectories[i, :, p_0.shape[1]:] = q.detach()
 
-        res = Func(p=p, q=q)
+        res = Func(p=p, q=q, dt=dt)
 
         if hasattr(res, "p"):
             p = res.p
