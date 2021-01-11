@@ -228,14 +228,14 @@ for num_traj in NUM_TRAIN_TRAJS:
         nn_kern_train = utils.NNKernel(experiment=experiment_general,
                                        training_set=train_set,
                                        learning_rate=0.001, weight_decay=0.0001,
-                                       hidden_dim=4096, train_dtype="float",
+                                       hidden_dim=32768, train_dtype="float",
                                        optimizer="sgd",
                                        batch_size=750, epochs=EPOCHS, validation_set=val_set,
                                        nonlinearity="relu")
         nn_kern_train_easy = utils.NNKernel(experiment=experiment_easy,
                                             training_set=train_set_easy,
                                             learning_rate=0.001, weight_decay=0.0001,
-                                            hidden_dim=4096, train_dtype="float",
+                                            hidden_dim=32768, train_dtype="float",
                                             optimizer="sgd",
                                             batch_size=750, epochs=EPOCHS, validation_set=val_set_easy,
                                             nonlinearity="relu")
