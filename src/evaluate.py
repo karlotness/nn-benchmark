@@ -19,7 +19,7 @@ METHOD_HNET = integrators.IntegrationScheme.HAMILTONIAN
 METHOD_DIRECT_DERIV = integrators.IntegrationScheme.DIRECT_OUTPUT
 
 
-def load_network(net_dir, base_dir, base_logger):
+def load_network(net_dir, base_dir, base_logger, model_file_name="model.pt"):
     logger = base_logger.getChild("load_network")
     if net_dir is None:
         logger.info("Skipping network load")
@@ -33,12 +33,12 @@ def load_network(net_dir, base_dir, base_logger):
     # Create network
     net = methods.build_network(metadata)
     # Load weights
-    weight_path = net_dir / "model.pt"
+    weight_path = net_dir / model_file_name
     if metadata["arch"] in {"knn-regressor", "knn-predictor"}:
-        with open(net_dir / "model.pt", "rb") as model_file:
+        with open(weight_path, "rb") as model_file:
             net = joblib.load(model_file)
     else:
-        net.load_state_dict(torch.load(net_dir / "model.pt", map_location="cpu"))
+        net.load_state_dict(torch.load(weight_path, map_location="cpu"))
     logger.info(f"Loaded weights from {weight_path}")
     return net
 
