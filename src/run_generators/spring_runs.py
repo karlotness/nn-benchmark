@@ -10,6 +10,7 @@ parser.add_argument("base_dir", type=str,
                     help="Base directory for run descriptions")
 
 EPOCHS = 400
+GN_EPOCHS = 25
 NUM_REPEATS = 3
 # Spring base parameters
 SPRING_END_TIME = 2 * math.pi
@@ -185,19 +186,19 @@ for num_traj in [10, 50, 100, 500, 1000]:
             gn_train = utils.GN(experiment=experiment_general,
                                 training_set=train_set,
                                 validation_set=val_set,
-                                epochs=EPOCHS)
+                                epochs=GN_EPOCHS)
             gn_train_easy = utils.GN(experiment=experiment_easy,
                                      training_set=train_set_easy,
                                      validation_set=val_set_easy,
-                                     epochs=EPOCHS)
+                                     epochs=GN_EPOCHS)
             eval_gn_general = utils.NetworkEvaluation(experiment=experiment_general,
                                                       network=gn_train,
                                                       eval_set=eval_set,
                                                       integrator="null")
             eval_gn_outdist = utils.NetworkEvaluation(experiment=experiment_outdist,
-                                                   network=gn_train,
-                                                   eval_set=eval_set_outdist,
-                                                   integrator="null")
+                                                      network=gn_train,
+                                                      eval_set=eval_set_outdist,
+                                                      integrator="null")
             eval_gn_long = utils.NetworkEvaluation(experiment=experiment_long,
                                                    network=gn_train,
                                                    eval_set=eval_set_long,
