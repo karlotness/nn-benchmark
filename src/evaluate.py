@@ -123,7 +123,8 @@ def run_phase(base_dir, out_dir, phase_args):
         net = methods.build_network(net_args={"arch": eval_type, "arch_args": None})
     else:
         # Normal network load process
-        net = load_network(phase_args["eval_net"], base_dir=base_dir, base_logger=logger)
+        net = load_network(phase_args["eval_net"], base_dir=base_dir, base_logger=logger,
+                           model_file_name=phase_args.get("eval_net_file", "model.pt"))
 
     # Send network to correct device if PyTorch
     if isinstance(net, (torch.nn.Module, torch.Tensor)):

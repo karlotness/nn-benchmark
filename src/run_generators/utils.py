@@ -1035,7 +1035,7 @@ class Evaluation(WritableDescription):
 
 class NetworkEvaluation(Evaluation):
     def __init__(self, experiment, network, eval_set, gpu=False, integrator=None,
-                 eval_dtype=None):
+                 eval_dtype=None, network_file="model.pt"):
         if self.network.method in {"knn-predictor", "knn-predictor-oneshot", "gn"}:
             integrator = "null"
         if integrator is None:
@@ -1043,6 +1043,7 @@ class NetworkEvaluation(Evaluation):
         super().__init__(experiment=experiment,
                          name_tail=f"net-{network.name}-set-{eval_set.name}-{integrator}")
         self.network = network
+        self.network_file = network_file
         self.eval_set = eval_set
         self.gpu = gpu
         if eval_dtype is None:
@@ -1065,6 +1066,7 @@ class NetworkEvaluation(Evaluation):
         template = {
             "phase_args": {
                 "eval_net": self.network.path,
+                "eval_net_file": self.network_file,
                 "eval_data": {
                     "data_dir": self.eval_set.path,
                     "linearize": (self.network.method != "hogn"),
