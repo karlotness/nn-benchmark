@@ -1036,8 +1036,12 @@ class Evaluation(WritableDescription):
 
 
 class NetworkEvaluation(Evaluation):
-    def __init__(self, experiment, network, eval_set, gpu=False, integrator="leapfrog",
+    def __init__(self, experiment, network, eval_set, gpu=False, integrator=None,
                  eval_dtype=None):
+        if self.network.method in {"knn-predictor", "knn-predictor-oneshot", "gn"}:
+            integrator = "null"
+        if integrator is None:
+            raise ValueError("Must manually specify integrator")
         super().__init__(experiment=experiment,
                          name_tail=f"net-{network.name}-set-{eval_set.name}-{integrator}")
         self.network = network
@@ -1048,8 +1052,6 @@ class NetworkEvaluation(Evaluation):
         else:
             self.eval_dtype = eval_dtype
         self.integrator = integrator
-        if self.network.method in {"knn-predictor", "knn-predictor-oneshot"}:
-            self.integrator = "null"
         # Validate inputs
         if self.eval_set.system != self.network.training_set.system:
             raise ValueError(f"Inconsistent systems {self.eval_set.system} and {self.network.training_set.system}")
