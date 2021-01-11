@@ -12,8 +12,9 @@ parser.add_argument("base_dir", type=str,
 EPOCHS = 400
 NUM_REPEATS = 3
 # Spring base parameters
-SPRING_STEPS = 1100
+SPRING_END_TIME = 2 * math.pi
 SPRING_DT = 0.3 / 100
+SPRING_STEPS = math.ceil(SPRING_END_TIME / SPRING_DT)
 
 experiment_general = utils.Experiment("spring-runs")
 experiment_long = utils.Experiment("spring-runs-long")
@@ -37,13 +38,14 @@ DatasetKey = namedtuple("DatasetKey", ["type", "dt_factor", "n_traj"])
 # Generate data sets
 for dt_factor in [1, 2, 4, 8, 16]:
     time_step_size = SPRING_DT * dt_factor
+    num_steps = math.ceil(SPRING_END_TIME / time_step_size)
     # Generate eval and val sets
     key = DatasetKey(type="val", dt_factor=dt_factor, n_traj=5)
     dset = utils.SpringDataset(experiment=experiment_general,
                                initial_cond_source=val_source,
                                num_traj=5,
                                set_type=f"val-dtfactor{dt_factor}",
-                               num_time_steps=SPRING_STEPS,
+                               num_time_steps=num_steps,
                                time_step_size=time_step_size)
     data_sets[key] = dset
     key = DatasetKey(type="eval", dt_factor=dt_factor, n_traj=30)
@@ -51,7 +53,7 @@ for dt_factor in [1, 2, 4, 8, 16]:
                                initial_cond_source=eval_source,
                                num_traj=30,
                                set_type=f"eval-dtfactor{dt_factor}",
-                               num_time_steps=SPRING_STEPS,
+                               num_time_steps=num_steps,
                                time_step_size=time_step_size)
     data_sets[key] = dset
     key = DatasetKey(type="eval-outdist", dt_factor=dt_factor, n_traj=30)
@@ -59,7 +61,7 @@ for dt_factor in [1, 2, 4, 8, 16]:
                                initial_cond_source=eval_outdist_source,
                                num_traj=30,
                                set_type=f"eval-outdist-dtfactor{dt_factor}",
-                               num_time_steps=SPRING_STEPS,
+                               num_time_steps=num_steps,
                                time_step_size=time_step_size)
     data_sets[key] = dset
     if dt_factor == 1:
@@ -69,7 +71,7 @@ for dt_factor in [1, 2, 4, 8, 16]:
                                    initial_cond_source=eval_source,
                                    num_traj=5,
                                    set_type=f"eval-longterm-dtfactor{dt_factor}",
-                                   num_time_steps=3 * SPRING_STEPS,
+                                   num_time_steps=3 * num_steps,
                                    time_step_size=time_step_size)
         data_sets[key] = dset
         key = DatasetKey(type="eval-easy", dt_factor=dt_factor, n_traj=30)
@@ -77,7 +79,7 @@ for dt_factor in [1, 2, 4, 8, 16]:
                                    initial_cond_source=eval_source_easy,
                                    num_traj=30,
                                    set_type=f"eval-easy-dtfactor{dt_factor}",
-                                   num_time_steps=SPRING_STEPS,
+                                   num_time_steps=num_steps,
                                    time_step_size=time_step_size)
         data_sets[key] = dset
         key = DatasetKey(type="val-easy", dt_factor=dt_factor, n_traj=5)
@@ -85,7 +87,7 @@ for dt_factor in [1, 2, 4, 8, 16]:
                                    initial_cond_source=val_source_easy,
                                    num_traj=5,
                                    set_type=f"val-easy-dtfactor{dt_factor}",
-                                   num_time_steps=SPRING_STEPS,
+                                   num_time_steps=num_steps,
                                    time_step_size=time_step_size)
         data_sets[key] = dset
     # Generate training sets
@@ -95,7 +97,7 @@ for dt_factor in [1, 2, 4, 8, 16]:
                                    initial_cond_source=train_source,
                                    num_traj=num_traj,
                                    set_type=f"train-dtfactor{dt_factor}",
-                                   num_time_steps=SPRING_STEPS,
+                                   num_time_steps=num_steps,
                                    time_step_size=time_step_size)
         data_sets[key] = dset
         if dt_factor == 1:
@@ -104,7 +106,7 @@ for dt_factor in [1, 2, 4, 8, 16]:
                                        initial_cond_source=train_source_easy,
                                        num_traj=num_traj,
                                        set_type=f"train-dtfactor{dt_factor}",
-                                       num_time_steps=SPRING_STEPS,
+                                       num_time_steps=num_steps,
                                        time_step_size=time_step_size)
             data_sets[key] = dset
 writable_objects.extend(data_sets.values())
