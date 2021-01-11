@@ -12,12 +12,13 @@ parser.add_argument("base_dir", type=str,
 EPOCHS = 400
 NUM_REPEATS = 3
 # Wave base parameters
+WAVE_END_TIME = 5
 WAVE_DT = 0.1 / 250
-WAVE_STEPS = 50 * 250
+WAVE_STEPS = math.ceil(WAVE_END_TIME / WAVE_DT)
 WAVE_SUBSAMPLE = 1000 // 250
 WAVE_N_GRID = 125
 
-DT_FACTORS = [1, 2, 4, 8, 10, 16, 32, 64]
+DT_FACTORS = [1, 2, 4, 8, 10, 16]
 NUM_TRAIN_TRAJS = [10, 25, 50, 75, 100, 500]
 ARCHITECTURES = [(200, 3), (2048, 2)]
 
@@ -58,7 +59,7 @@ DatasetKey = namedtuple("DatasetKey", ["type", "dt_factor", "n_traj"])
 # Generate data sets
 for dt_factor in DT_FACTORS:
     time_step_size = WAVE_DT * dt_factor
-    num_time_steps = math.ceil(WAVE_STEPS / dt_factor)
+    num_time_steps = math.ceil(WAVE_END_TIME / time_step_size)
     wave_subsample = math.ceil(WAVE_SUBSAMPLE * dt_factor)
     # Generate eval and val sets
     key = DatasetKey(type="val", dt_factor=dt_factor, n_traj=3)
