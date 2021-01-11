@@ -180,6 +180,37 @@ for num_traj in [10, 50, 100, 500, 1000]:
         eval_set_outdist = data_sets[eval_set_outdist_key]
         eval_set_long = data_sets[eval_set_long_key]
 
+        # SPECIAL CASE: GN, only one integrator
+        for _repeat in range(NUM_REPEATS):
+            gn_train = utils.GN(experiment=experiment_general,
+                                training_set=train_set,
+                                validation_set=val_set,
+                                epochs=EPOCHS)
+            gn_train_easy = utils.GN(experiment=experiment_easy,
+                                     training_set=train_set_easy,
+                                     validation_set=val_set_easy,
+                                     epochs=EPOCHS)
+            eval_gn_general = utils.NetworkEvaluation(experiment=experiment_general,
+                                                      network=gn_train,
+                                                      eval_set=eval_set,
+                                                      integrator="null")
+            eval_gn_outdist = utils.NetworkEvaluation(experiment=experiment_outdist,
+                                                   network=gn_train,
+                                                   eval_set=eval_set_outdist,
+                                                   integrator="null")
+            eval_gn_long = utils.NetworkEvaluation(experiment=experiment_long,
+                                                   network=gn_train,
+                                                   eval_set=eval_set_long,
+                                                   integrator="null")
+            eval_gn_easy = utils.NetworkEvaluation(experiment=experiment_easy,
+                                                   network=gn_train_easy,
+                                                   eval_set=eval_set_easy,
+                                                   integrator="null")
+            writable_objects.extend([gn_train, gn_train_easy,
+                                     eval_gn_general, eval_gn_outdist, eval_gn_long,
+                                     eval_gn_easy])
+
+
         trained_nets = []
         trained_nets_easy = []
         for _repeat in range(NUM_REPEATS):
