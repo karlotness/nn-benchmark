@@ -10,13 +10,13 @@ class SpringSystem(System):
     def __init__(self):
         super().__init__()
         # Build "derivative matrix" for implicit integrators
-        self._deriv_mat = np.array([[0, 2], [-2, 0]], dtype=np.float64)
+        self._deriv_mat = np.array([[0, 1], [-1, 0]], dtype=np.float64)
 
     def hamiltonian(self, q, p):
-        return q**2 + p**2
+        return (1./2.) * q**2 + (1./2.) * p**2
 
     def _hamiltonian_grad(self, q, p):
-        return StatePair(q=2*q, p=2*p)
+        return StatePair(q=q, p=p)
 
     def _dynamics(self, time, coord):
         q, p = np.split(coord, 2)

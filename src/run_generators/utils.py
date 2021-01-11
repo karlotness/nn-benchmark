@@ -13,7 +13,7 @@ def generate_packing_args(instance, system):
         instance.adjacency_args = {
             "type": "regular-grid",
             "boundary_conditions": "fixed",
-            "boundary_vertices": [[-1., 0.], [0., 1.]],
+            "boundary_vertices": [[-1., 0.], [1., 0.]],
             "dimension": 1,
             }
         instance.v_features = 4
@@ -697,8 +697,8 @@ class HOGN(TrainedNetwork):
 
 
 class GN(TrainedNetwork):
-    def __init__(self, experiment, training_set, gpu=True, hidden_dim=128,
-                 learning_rate=1e-3, epochs=300,
+    def __init__(self, experiment, training_set, time_step_size, gpu=True, hidden_dim=128,
+                 learning_rate=1e-4, epochs=300,
                  scheduler="none", scheduler_step="epoch", scheduler_args={},
                  train_dtype="float", batch_size=100, validation_set=None):
         super().__init__(experiment=experiment,
@@ -708,6 +708,7 @@ class GN(TrainedNetwork):
         self.hidden_dim = hidden_dim
         self.gpu = gpu
         self.learning_rate = learning_rate
+        self.time_step_size = time_step_size
         self.epochs = epochs
         self.train_dtype = train_dtype
         self.batch_size = batch_size
@@ -740,7 +741,9 @@ class GN(TrainedNetwork):
                     "try_gpu": self.gpu,
                     "train_dtype": self.train_dtype,
                     "train_type": "gn",
-                    "train_type_args": {},
+                    "train_type_args": {
+                        "time_step_size": self.time_step_size,
+                    },
                     "scheduler": self.scheduler,
                     "scheduler_step": self.scheduler_step,
                     "scheduler_args": self.scheduler_args,
@@ -1034,7 +1037,7 @@ class Evaluation(WritableDescription):
 
 class NetworkEvaluation(Evaluation):
     def __init__(self, experiment, network, eval_set, gpu=False, integrator="leapfrog",
-                 eval_dtype=None):
+                 eval_dtype=None, system=None, time_step_size=None):
         super().__init__(experiment=experiment,
                          name_tail=f"net-{network.name}-set-{eval_set.name}-{integrator}")
         self.network = network
@@ -1051,9 +1054,8 @@ class NetworkEvaluation(Evaluation):
         if self.eval_set.system != self.network.training_set.system:
             raise ValueError(f"Inconsistent systems {self.eval_set.system} and {self.network.training_set.system}")
 
-        if self.network.method == "gn":
-            system = eval_set.system
-            generate_packing_args(self, system)
+        generate_packing_args(self, self.system)
+        self.time_step_size = time_step_size
 
 
     def description(self):
@@ -1071,6 +1073,12 @@ class NetworkEvaluation(Evaluation):
                     "integrator": self.integrator,
                     "eval_dtype": self.eval_dtype,
                     "try_gpu": gpu,
+                    "time_step_size": self.time_step_size,
+                    "package_args": {
+                      "particle_processing": self.particle_process_type,
+                      "package_type": "gn",
+                      "adjacency_args": self.adjacency_args,
+                      },
                 }
             },
             "slurm_args": {

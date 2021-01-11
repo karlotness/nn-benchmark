@@ -238,20 +238,24 @@ def run_phase(base_dir, out_dir, phase_args):
         package_args = eval_args["package_args"]
         GnMockDataset = namedtuple("GnMockDataset", ["p", "q", "dp_dt", "dq_dt", "masses"])
 
-        GNPrediction = namedtuple("GNPrediction", ["q", "p"])
+        GNPrediction = namedtuple("GNPrediction", ["p", "q"])
+        time_step_size = eval_args["time_step_size"]
         def model_next_step(p, q):
             mocked = GnMockDataset(p=p.detach().numpy(), q=q.detach().numpy(),
                 masses=masses, dp_dt=None, dq_dt=None)
             bundled = dataset_geometric.package_data([mocked],
                 package_args=package_args)[0]
-            accel = net(torch.unsqueeze(bundled.x, 0),
-                torch.unsqueeze(bundled.pos, 0),
-                torch.unsqueeze(bundled.edge_index, 0))
+            accel = net(torch.unsqueeze(bundled.pos, 0),
+                torch.unsqueeze(bundled.x, 0),
+                torch.unsqueeze(bundled.edge_index, 0))[0, 1, 1]
 
-            p_next = p + accel
-            q_next = q + p + accel
+            p_next = p + time_step_size * accel
+            q_next = q + time_step_size * p_next
 
-            return GNPrediction(q=q_next[0, 1, 1], p=p_next[0, 1, 1])
+            p_next = p_next.to(device, dtype=eval_dtype)
+            q_next = q_next.to(device, dtype=eval_dtype)
+
+            return GNPrediction(p=p_next, q=q_next)
 
         time_deriv_func = model_next_step
         time_deriv_method = METHOD_DIRECT_DERIV

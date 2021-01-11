@@ -248,8 +248,8 @@ def train_gn(net, batch, loss_fn, train_type_args, tensor_converter):
     graph_batch.y = tensor_converter(graph_batch.y)
     graph_batch.edge_index = graph_batch.edge_index.to(tensor_converter.device)
 
-    accel_pred = net(graph_batch.pos, graph_batch.x, graph_batch.edge_index)[:, 1, 1]
-    accel = graph_batch.y[:, 1, 1]
+    accel_pred = net(graph_batch.pos, graph_batch.x, graph_batch.edge_index)
+    accel = graph_batch.y
 
     loss = loss_fn(accel_pred, accel)
     return TrainLossResult(loss=loss,
