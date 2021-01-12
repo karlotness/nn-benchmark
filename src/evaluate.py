@@ -129,6 +129,7 @@ def run_phase(base_dir, out_dir, phase_args):
     # Send network to correct device if PyTorch
     if isinstance(net, (torch.nn.Module, torch.Tensor)):
         net = net.to(device, dtype=eval_dtype)
+        net.eval()
 
     # Handle possible knn "oneshot" training before evaluation
     if eval_type in {"knn-regressor-oneshot", "knn-predictor-oneshot"}:

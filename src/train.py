@@ -368,6 +368,7 @@ def run_phase(base_dir, out_dir, phase_args):
             total_loss_denom = 0
             time_train_start = time.perf_counter()
             # Do training
+            net.train()
             for batch_num, batch in enumerate(train_loader):
                 optim.zero_grad()
                 time_forward_start = time.perf_counter()
@@ -409,6 +410,7 @@ def run_phase(base_dir, out_dir, phase_args):
                 val_total_loss = 0
                 val_total_loss_denom = 0
                 time_val_start = time.perf_counter()
+                net.eval()
                 for val_batch_num, val_batch in enumerate(val_loader):
                     val_result = train_fn(net=net, batch=val_batch,
                                           loss_fn=loss_fn,
