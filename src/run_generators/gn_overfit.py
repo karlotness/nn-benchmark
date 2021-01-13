@@ -3,6 +3,9 @@ import argparse
 import pathlib
 import itertools
 import math
+import numpy as np
+
+np.random.seed(100)
 
 parser = argparse.ArgumentParser(description="Generate run descriptions")
 parser.add_argument("base_dir", type=str,
@@ -61,13 +64,28 @@ for num_traj, step_factor in itertools.product([1], [1.0]):
                             training_set=train_set,
                             validation_set=train_set,
                             epochs=EPOCHS)
+        mlp_train = utils.MLP(experiment=experiment,
+                              training_set=train_set,
+                              validation_set=train_set,
+                              learning_rate=1e-4,
+                              epochs=EPOCHS)
         writable_objects.extend([gn_train])
+        writable_objects.extend([mlp_train])
         for eval_integrator in ["null"]:
             gn_eval = utils.NetworkEvaluation(experiment=experiment,
                                               network=gn_train,
                                               eval_set=train_set,
                                               integrator=eval_integrator)
             writable_objects.extend([gn_eval])
+
+        for eval_integrator in ["euler"]:
+            mlp_eval = utils.NetworkEvaluation(experiment=experiment,
+                                              network=mlp_train,
+                                              eval_set=train_set,
+                                              integrator=eval_integrator)
+            writable_objects.extend([mlp_eval])
+
+
 
 
 # Traditional integrator baselines

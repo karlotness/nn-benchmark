@@ -72,7 +72,7 @@ def particle_type_identity(p, q, dp_dt, dq_dt, masses):
         masses=masses.reshape((-1, 1)))
 
 
-def package_data(data_set, package_args):
+def package_data(data_set, package_args, system):
     particle_process_type = package_args["particle_processing"]
     package_type = package_args["package_type"]
     adjacency_args = package_args["adjacency_args"]
@@ -82,7 +82,7 @@ def package_data(data_set, package_args):
         package_func = hogn.package_batch
         boundary_vertices = None
     elif package_type == "gn":
-        package_func = gn.package_batch
+        package_func = lambda *args, **kwargs: gn.package_batch(system, *args, **kwargs)
         boundary_vertices = adjacency_args["boundary_vertices"]
     else:
         raise ValueError(f"Unknown package type {package_type}")

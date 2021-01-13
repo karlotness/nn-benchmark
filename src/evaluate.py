@@ -224,7 +224,8 @@ def run_phase(base_dir, out_dir, phase_args):
                     mocked = HognMockDataset(p=p[i], q=q[i], masses=masses[i],
                                              dp_dt=None, dq_dt=None)
                     bundled = dataset_geometric.package_data(dataset=[mocked],
-                                                             package_args=package_args)[0]
+                                                             package_args=package_args,
+                                                             system=dataset.system)[0]
                     h = net(bundled).sum()
                     hamilts.append(h)
                 return np.array(hamilts)
@@ -245,7 +246,7 @@ def run_phase(base_dir, out_dir, phase_args):
             mocked = GnMockDataset(p=p.detach().numpy(), q=q.detach().numpy(),
                 masses=masses, dp_dt=None, dq_dt=None)
             bundled = dataset_geometric.package_data([mocked],
-                package_args=package_args)[0]
+                package_args=package_args, system=eval_dataset.system)[0]
             accel = net(torch.unsqueeze(bundled.pos, 0),
                 torch.unsqueeze(bundled.x, 0),
                 torch.unsqueeze(bundled.edge_index, 0))

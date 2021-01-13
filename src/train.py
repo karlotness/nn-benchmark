@@ -123,7 +123,8 @@ def create_dataset(base_dir, data_args):
             package_args = loader_args["package_args"]
             loader = geometric_data.DenseDataLoader(
                 dataset=dataset_geometric.package_data(data_set,
-                                                       package_args=package_args),
+                                                       package_args=package_args,
+                                                       system=data_set.system),
                 batch_size=loader_args["batch_size"],
                 shuffle=loader_args["shuffle"])
         else:

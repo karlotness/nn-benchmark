@@ -11,20 +11,22 @@ from collections import namedtuple
 TimeDerivative = namedtuple("TimeDerivative", ["dq_dt", "dp_dt"])
 
 
-def package_batch(p, q, dp_dt, dq_dt, masses, edge_index, boundary_vertices):
+def package_batch(system, p, q, dp_dt, dq_dt, masses, edge_index, boundary_vertices):
     vertices = torch.unsqueeze(torch.linspace(0, 1, p.shape[1]), 0).repeat(p.shape[0], p.shape[1])
     x = torch.from_numpy(np.concatenate((vertices, q), axis=-1))
 
-    if boundary_vertices is not None:
+    if system == "spring":
         p = np.pad(p, ((1, 1), (1, 0)), "constant", constant_values=0)
         if dp_dt is not None:
           dp_dt = np.pad(dp_dt, ((1, 1), (1, 0)), "constant", constant_values=0)
         boundary_vertices = torch.unsqueeze(torch.tensor(boundary_vertices), 0).repeat_interleave(x.shape[0], dim=0)
         x = torch.cat((boundary_vertices[:, 0, :], x, boundary_vertices[:, 1, :]), axis=-2)
-    else:
+    elif system == "wave":
         p = np.pad(p, ((0, 0), (1, 0)), "constant", constant_values=0)
         if dp_dt is not None:
           dp_dt = np.pad(dp_dt, ((0, 0), (1, 0)), "constant", constant_values=0)
+    else:
+        raise ValueError(f"Invalid system {system}")
 
 
     # convert momenta to velocities
