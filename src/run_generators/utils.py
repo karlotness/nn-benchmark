@@ -713,7 +713,7 @@ class HOGN(TrainedNetwork):
 
 class GN(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, hidden_dim=128,
-                 learning_rate=1e-4, epochs=300,
+                 learning_rate=1e-4, epochs=300, layer_norm=False,
                  scheduler="none", scheduler_step="epoch", scheduler_args={},
                  train_dtype="float", batch_size=100, validation_set=None):
         super().__init__(experiment=experiment,
@@ -724,6 +724,7 @@ class GN(TrainedNetwork):
         self.gpu = gpu
         self.learning_rate = learning_rate
         self.epochs = epochs
+        self.layer_norm = layer_norm
         self.train_dtype = train_dtype
         self.batch_size = batch_size
         self.validation_set = validation_set
@@ -744,6 +745,7 @@ class GN(TrainedNetwork):
                         "hidden_dim": self.hidden_dim,
                         "mesh_coords": self.mesh_coords,
                         "static_nodes": self.static_nodes,
+                        "layer_norm": self.layer_norm,
                     },
                 },
                 "training": {
@@ -794,6 +796,7 @@ class GN(TrainedNetwork):
 class MLP(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, learning_rate=1e-3,
                  hidden_dim=2048, depth=2, train_dtype="float",
+                 scheduler="none", scheduler_step="epoch", scheduler_args={},
                  batch_size=750, epochs=1000, validation_set=None):
         super().__init__(experiment=experiment,
                          method="mlp",
@@ -807,6 +810,9 @@ class MLP(TrainedNetwork):
         self.batch_size = batch_size
         self.epochs = epochs
         self.validation_set = validation_set
+        self.scheduler = scheduler
+        self.scheduler_step = scheduler_step
+        self.scheduler_args = scheduler_args
         self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
 
     def description(self):
@@ -832,6 +838,9 @@ class MLP(TrainedNetwork):
                     "train_dtype": self.train_dtype,
                     "train_type": "mlp",
                     "train_type_args": {},
+                    "scheduler": self.scheduler,
+                    "scheduler_step": self.scheduler_step,
+                    "scheduler_args": self.scheduler_args,
                 },
                 "train_data": {
                     "data_dir": self.training_set.path,

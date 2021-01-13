@@ -60,11 +60,14 @@ def index(input_tensor, index_tensor):
 
 
 class EdgeModel(torch.nn.Module):
-    def __init__(self, hidden=128):
+    def __init__(self, hidden=128, layer_norm=False):
         super(EdgeModel, self).__init__()
         self.edge_mlp = Seq(Lin(3 * hidden, hidden),
                             ReLU(), Lin(hidden, hidden))
-        self.layer_norm = torch.nn.LayerNorm(hidden)
+        if layer_norm:
+            self.layer_norm = torch.nn.LayerNorm(hidden)
+        else:
+            self.layer_norm = None
 
     def forward(self, src, dest, edge_attr, u=None, batch=None):
         # source, target: [E, F_x], where E is the number of edges.
@@ -75,20 +78,24 @@ class EdgeModel(torch.nn.Module):
         out = self.edge_mlp(out)
         out += edge_attr
 
-        # out = self.layer_norm(out)
+        if self.layer_norm is not None:
+            out = self.layer_norm(out)
 
         return out
 
 
 class NodeModel(torch.nn.Module):
-    def __init__(self, hidden=128):
+    def __init__(self, hidden=128, layer_norm=False):
         super(NodeModel, self).__init__()
         # self.node_mlp_1 = Residual(Seq(Lin(..., hidden),
         #                                ReLU(), Lin(hidden, ...)))
         self.node_mlp_2 = Seq(Lin(2 * hidden, hidden),
                               ReLU(), Lin(hidden, hidden))
         self.hidden = hidden
-        self.layer_norm = torch.nn.LayerNorm(hidden)
+        if layer_norm:
+            self.layer_norm = torch.nn.LayerNorm(hidden)
+        else:
+            self.layer_norm = None
 
     def forward(self, x, edge_index, edge_attr, u=None, batch=None):
         # x: [N, F_x], where N is the number of nodes.
@@ -112,7 +119,8 @@ class NodeModel(torch.nn.Module):
         out = self.node_mlp_2(out)
         out += x
 
-        # out = self.layer_norm(out)
+        if self.layer_norm is not None:
+            out = self.layer_norm(out)
 
         return out
 
@@ -153,7 +161,8 @@ class CustomMetaLayer(torch.nn.Module):
 
 class GN(torch.nn.Module):
     def __init__(self, v_features, e_features, mesh_coords,
-                 static_nodes, constant_vertex_features=None, hidden=128):
+                 static_nodes, constant_vertex_features=None, hidden=128,
+                 layer_norm=False):
         super().__init__()
 
         self.mesh_coords = mesh_coords
@@ -164,11 +173,14 @@ class GN(torch.nn.Module):
         self.vertex_encode_mlp = Seq(Lin(v_features, hidden), ReLU(), Lin(hidden, hidden))
         self.edge_encode_mlp = Seq(Lin(e_features, hidden), ReLU(), Lin(hidden, hidden))
         self.process = CustomMetaLayer(
-            EdgeModel(hidden),
-            NodeModel(hidden),
+            EdgeModel(hidden, layer_norm),
+            NodeModel(hidden, layer_norm),
             None)
         self.decode = Seq(Lin(hidden, hidden), ReLU(), Lin(hidden, v_features - self.static_nodes.shape[-1]))
-        self.layer_norm = torch.nn.LayerNorm(hidden)
+        if layer_norm:
+            self.layer_norm = torch.nn.LayerNorm(hidden)
+        else:
+            self.layer_norm = None
 
     def _apply(self, fn):
         super()._apply(fn)
@@ -202,9 +214,10 @@ class GN(torch.nn.Module):
         # edge_attr = torch.squeeze(edge_attr)
 
         vertices = self.vertex_encode_mlp.forward(vertices)
-        # vertices = self.layer_norm(vertices)
         edge_attr = self.edge_encode_mlp.forward(edge_attr)
-        # edge_attr = self.layer_norm(edge_attr)
+        if self.layer_norm is not None:
+            vertices = self.layer_norm(vertices)
+            edge_attr = self.layer_norm(edge_attr)
 
         return vertices, edge_attr
 
@@ -230,6 +243,7 @@ def build_network(arch_args):
     hidden_dim = arch_args["hidden_dim"]
     mesh_coords = torch.tensor(arch_args["mesh_coords"])
     static_nodes = torch.tensor(arch_args["static_nodes"]).long()
+    layer_norm = arch_args["layer_norm"]
 
     net = GN(v_features=v_features, e_features=e_features,
              hidden=hidden_dim, mesh_coords=mesh_coords,
