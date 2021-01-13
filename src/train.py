@@ -18,6 +18,35 @@ TRAIN_DTYPES = {
 }
 
 
+class RandomCorrectedNoise:
+    NoiseBatch = namedtuple("NoiseBatch", ["name", "p", "q", "dp_dt", "dq_dt",
+                                           "t", "trajectory_meta",
+                                           "p_noiseless", "q_noiseless",
+                                           "masses"])
+
+    def __init__(self, variance):
+        self.variance = variance
+
+    def process_batch(self, batch):
+        noise_sigma = np.sqrt(self.variance)
+        noise_p = noise_sigma * torch.randn(*batch.p.shape,
+                                            dtype=batch.p.dtype,
+                                            device=batch.p.device)
+        noise_q = noise_sigma * torch.randn(*batch.q.shape,
+                                            dtype=batch.q.dtype,
+                                            device=batch.q.device)
+        return self.NoiseBatch(
+            name=batch.name,
+            p=batch.p + noise_p,
+            q=batch.q + noise_q,
+            dp_dt=batch.dp_dt - noise_p,
+            dq_dt=batch.dq_dt - noise_q,
+            t=batch.t,
+            p_noiseless=batch.p_noiseless,
+            q_noiseless=batch.q_noiseless,
+            masses=batch.masses)
+
+
 def save_network(net, network_args, train_type, out_dir, base_logger,
                  model_file_name="model.pt"):
     logger = base_logger.getChild("save_network")
