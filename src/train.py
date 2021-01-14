@@ -50,6 +50,7 @@ class RandomCorrectedNoise:
             dp_dt=batch.dp_dt - noise_p,
             dq_dt=batch.dq_dt - noise_q,
             t=batch.t,
+            trajectory_meta=batch.trajectory_meta,
             p_noiseless=batch.p_noiseless,
             q_noiseless=batch.q_noiseless,
             masses=batch.masses)
