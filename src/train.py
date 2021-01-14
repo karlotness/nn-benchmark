@@ -32,28 +32,39 @@ class RandomCorrectedNoise:
                                            "p_noiseless", "q_noiseless",
                                            "masses"])
 
-    def __init__(self, variance):
+    def __init__(self, variance, gamma=0.1):
         self.variance = variance
+        self.gamma = gamma
 
     def process_batch(self, batch):
         noise_sigma = np.sqrt(self.variance)
-        noise_p = noise_sigma * torch.randn(*batch.p.shape,
-                                            dtype=batch.p.dtype,
-                                            device=batch.p.device)
-        noise_q = noise_sigma * torch.randn(*batch.q.shape,
-                                            dtype=batch.q.dtype,
-                                            device=batch.q.device)
-        return self.NoiseBatch(
-            name=batch.name,
-            p=batch.p + noise_p,
-            q=batch.q + noise_q,
-            dp_dt=batch.dp_dt - noise_p,
-            dq_dt=batch.dq_dt - noise_q,
-            t=batch.t,
-            trajectory_meta=batch.trajectory_meta,
-            p_noiseless=batch.p_noiseless,
-            q_noiseless=batch.q_noiseless,
-            masses=batch.masses)
+        if not hasattr(batch, "edge_index"):
+            noise_p = noise_sigma * torch.randn(*batch.p.shape,
+                                                dtype=batch.p.dtype,
+                                                device=batch.p.device)
+            noise_q = noise_sigma * torch.randn(*batch.q.shape,
+                                                dtype=batch.q.dtype,
+                                                device=batch.q.device)
+            return self.NoiseBatch(
+                name=batch.name,
+                p=batch.p + noise_p,
+                q=batch.q + noise_q,
+                dp_dt=batch.dp_dt - noise_p,
+                dq_dt=batch.dq_dt - noise_q,
+                t=batch.t,
+                trajectory_meta=batch.trajectory_meta,
+                p_noiseless=batch.p_noiseless,
+                q_noiseless=batch.q_noiseless,
+                masses=batch.masses)
+        else:
+            noise_pos = noise_sigma * torch.randn(*batch.pos.shape,
+                                                  dtype=batch.pos.dtype,
+                                                  device=batch.pos.device)
+            batch.pos += noise_pos
+            batch.x += noise_pos
+            batch.accel -= (self.gamma * (2 * noise_pos)) + (
+                (1 - self.gamma) * noise_pos)
+            return batch
 
 
 def create_live_noise(noise_args, base_logger):
