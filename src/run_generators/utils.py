@@ -39,6 +39,19 @@ def generate_packing_args(instance, system, dataset):
         raise ValueError(f"Invalid system {system}")
 
 
+def generate_scheduler_args(instance, end_lr):
+    def gamma_factor(initial_lr, final_lr, epochs):
+        return np.power(final_lr / initial_lr, 1. / epochs)
+
+    if end_lr is not None and instance.scheduler == "exponential":
+        instance.scheduler_args = {
+            "gamma": gamma_factor(
+                instance.learning_rate, end_lr, instance.epochs),
+        }
+    else:
+        instance.scheduler_args = None
+
+
 class Experiment:
     def __init__(self, name):
         self.name = name
@@ -713,8 +726,8 @@ class HOGN(TrainedNetwork):
 
 class GN(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, hidden_dim=128,
-                 learning_rate=1e-4, epochs=300, layer_norm=False,
-                 scheduler="none", scheduler_step="epoch", scheduler_args={},
+                 learning_rate=1e-4, end_lr=1e-6, epochs=300, layer_norm=False,
+                 scheduler="none", scheduler_step="epoch",
                  train_dtype="float", batch_size=100, validation_set=None):
         super().__init__(experiment=experiment,
                          method="gn",
@@ -730,9 +743,11 @@ class GN(TrainedNetwork):
         self.validation_set = validation_set
         self.scheduler = scheduler
         self.scheduler_step = scheduler_step
-        self.scheduler_args = scheduler_args
-        self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
-        generate_packing_args(self, self.training_set.system, self.training_set)
+        self._check_val_set(
+            train_set=self.training_set, val_set=self.validation_set)
+        generate_packing_args(
+            self, self.training_set.system, self.training_set)
+        generate_scheduler_args(self, end_lr)
 
     def description(self):
         template = {
@@ -796,7 +811,7 @@ class GN(TrainedNetwork):
 class MLP(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, learning_rate=1e-3,
                  hidden_dim=2048, depth=2, train_dtype="float",
-                 scheduler="none", scheduler_step="epoch", scheduler_args={},
+                 scheduler="none", scheduler_step="epoch", end_lr=None,
                  batch_size=750, epochs=1000, validation_set=None):
         super().__init__(experiment=experiment,
                          method="mlp",
@@ -812,8 +827,8 @@ class MLP(TrainedNetwork):
         self.validation_set = validation_set
         self.scheduler = scheduler
         self.scheduler_step = scheduler_step
-        self.scheduler_args = scheduler_args
         self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
+        generate_scheduler_args(self, end_lr)
 
     def description(self):
         template = {
