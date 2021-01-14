@@ -55,6 +55,18 @@ class RandomCorrectedNoise:
             masses=batch.masses)
 
 
+def create_live_noise(noise_args, base_logger):
+    logger = base_logger.getChild("live-noise")
+    noise_type = noise_args.get("type", "none")
+    if noise_type == "none":
+        logger.info("No noise added during training")
+        return NoNoise()
+    elif noise_type == "gn-corrected":
+        variance = noise_args["variance"]
+        logger.info(f"Adding GN-style corrected noise variance={variance}")
+        return RandomCorrectedNoise(variance=variance)
+
+
 def save_network(net, network_args, train_type, out_dir, base_logger,
                  model_file_name="model.pt"):
     logger = base_logger.getChild("save_network")
@@ -328,6 +340,11 @@ def run_phase(base_dir, out_dir, phase_args):
     logger.info("Constructing dataset")
     train_dataset, train_loader, val_dataset, val_loader = create_dataset(base_dir, phase_args["train_data"])
 
+    # Set up noise injection
+    noise_injector = create_live_noise(
+        noise_args=training_args.get("noise", {}),
+        base_logger=logger)
+
     # If training a knn, this is all we need.
     if train_type == "knn-regressor":
         logger.info("Starting fitting of dataset for KNN Regressor.")
@@ -407,6 +424,8 @@ def run_phase(base_dir, out_dir, phase_args):
             # Do training
             net.train()
             for batch_num, batch in enumerate(train_loader):
+                batch = noise_injector.process_batch(batch)
+
                 optim.zero_grad()
                 time_forward_start = time.perf_counter()
                 train_result = train_fn(net=net, batch=batch, loss_fn=loss_fn,
