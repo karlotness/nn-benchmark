@@ -18,6 +18,14 @@ TRAIN_DTYPES = {
 }
 
 
+class NoNoise:
+    def __init__(self):
+        pass
+
+    def process_batch(self, batch):
+        return batch
+
+
 class RandomCorrectedNoise:
     NoiseBatch = namedtuple("NoiseBatch", ["name", "p", "q", "dp_dt", "dq_dt",
                                            "t", "trajectory_meta",
