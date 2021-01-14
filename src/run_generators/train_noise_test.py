@@ -47,7 +47,7 @@ eval_set = utils.SpringDataset(experiment=experiment_general,
                                time_step_size=time_step_size)
 train_set = utils.SpringDataset(experiment=experiment_general,
                                 initial_cond_source=train_source,
-                                num_traj=250,
+                                num_traj=100,
                                 set_type="train",
                                 num_time_steps=num_steps,
                                 time_step_size=time_step_size)
