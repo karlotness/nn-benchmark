@@ -728,6 +728,7 @@ class GN(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, hidden_dim=128,
                  learning_rate=1e-4, end_lr=1e-6, epochs=300, layer_norm=False,
                  scheduler="none", scheduler_step="epoch",
+                 noise_type="none", noise_variance=0,
                  train_dtype="float", batch_size=100, validation_set=None):
         super().__init__(experiment=experiment,
                          method="gn",
@@ -743,6 +744,8 @@ class GN(TrainedNetwork):
         self.validation_set = validation_set
         self.scheduler = scheduler
         self.scheduler_step = scheduler_step
+        self.noise_type = noise_type
+        self.noise_variance = noise_variance
         self._check_val_set(
             train_set=self.training_set, val_set=self.validation_set)
         generate_packing_args(
@@ -803,6 +806,11 @@ class GN(TrainedNetwork):
         }
         if self.validation_set is not None:
             template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
+        if self.noise_type != "none":
+            template["phase_args"]["training"]["noise"] = {
+                "type": self.noise_type,
+                "variance": self.noise_variance
+            }
         return template
 
 
@@ -812,7 +820,8 @@ class MLP(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, learning_rate=1e-3,
                  hidden_dim=2048, depth=2, train_dtype="float",
                  scheduler="none", scheduler_step="epoch", end_lr=None,
-                 batch_size=750, epochs=1000, validation_set=None):
+                 batch_size=750, epochs=1000, validation_set=None,
+                 noise_type="none", noise_variance=0):
         super().__init__(experiment=experiment,
                          method="mlp",
                          name_tail=f"{training_set.name}-d{depth}-h{hidden_dim}")
@@ -828,7 +837,8 @@ class MLP(TrainedNetwork):
         self.scheduler = scheduler
         self.scheduler_step = scheduler_step
         self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
-        generate_scheduler_args(self, end_lr)
+        self.noise_type = noise_type
+        self.noise_variance = noise_variance
 
     def description(self):
         template = {
@@ -877,6 +887,11 @@ class MLP(TrainedNetwork):
         }
         if self.validation_set is not None:
             template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
+        if self.noise_type != "none":
+            template["phase_args"]["training"]["noise"] = {
+                "type": self.noise_type,
+                "variance": self.noise_variance
+            }
         return template
 
 
