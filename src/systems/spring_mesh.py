@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.integrate import solve_ivp
 from .defs import System, TrajectoryResult, SystemResult, StatePair
 from collections import namedtuple
 import logging
@@ -30,16 +29,21 @@ class SpringMeshSystem(System):
                                deriv.p.reshape((-1, ))),
                               axis=-1)
 
-    def derivative(self, q, p):
+    def compute_forces(self, q):
         q = q.reshape((-1, self.n_particles, self.n_dims))
-        p = p.reshape((-1, self.n_particles, self.n_dims))
-        # Compute action of forces on each particle
-        forces = np.zeros_like(p)
+        forces = np.zeros_like(q)
         for edge in self.edges:
             length = np.expand_dims(np.linalg.norm(q[:, edge.a] - q[:, edge.b], ord=2, axis=-1), axis=-1)
             for a, b in [(edge.a, edge.b), (edge.b, edge.a)]:
                 diff = q[:, a] - q[:, b]
                 forces[:, a] += -1 * edge.spring_const * (length - edge.rest_length) / length * diff
+        return forces
+
+    def derivative(self, q, p):
+        q = q.reshape((-1, self.n_particles, self.n_dims))
+        p = p.reshape((-1, self.n_particles, self.n_dims))
+        # Compute action of forces on each particle
+        forces = self.compute_forces(q=q)
         # Update positions
         pos = np.zeros_like(q)
         for i, particle in enumerate(self.particles):
@@ -50,23 +54,47 @@ class SpringMeshSystem(System):
                 pos[:, i] = (1/particle.mass) * p[:, i]
         return StatePair(q=pos, p=forces)
 
+    def _compute_next_step(self, q, q_dot, time_step_size, step_vel_decay=1.0):
+        forces = self.compute_forces(q=q)[0]
+        vel = np.zeros_like(q_dot)
+        for i, part in enumerate(self.particles):
+            if part.is_fixed:
+                continue
+            vel[i] = q_dot[i] + time_step_size * (1/part.mass) * forces[i]
+        vel *= step_vel_decay
+        pos = q + time_step_size * vel
+        return pos, vel
+
     def generate_trajectory(self, q0, p0, num_time_steps, time_step_size, rtol=1e-10,
-                            noise_sigma=0.0):
+                            subsample=1, noise_sigma=0.0, vel_decay=1.0):
         # Check shapes of inputs
         if (q0.shape != (self.n_particles, self.n_dims)) or (p0.shape != (self.n_particles, self.n_dims)):
             raise ValueError("Invalid input shape for particle system")
-        x0 = np.concatenate((q0.reshape((-1, )), p0.reshape((-1, ))), axis=-1).reshape((-1, ))
-        # Run the solver
-        t_span = (0, num_time_steps * time_step_size)
+
         t_eval = np.arange(num_time_steps) * time_step_size
-        particle_ivp = solve_ivp(fun=self._dynamics, t_span=t_span, y0=x0,
-                                 t_eval=t_eval, rtol=rtol)
-        # Extract results
-        res = particle_ivp['y']
-        res = np.moveaxis(res, 0, -1)
-        qs, ps = np.split(res, 2, axis=-1)
-        qs = qs.reshape(num_time_steps, self.n_particles, self.n_dims)
-        ps = ps.reshape(num_time_steps, self.n_particles, self.n_dims)
+
+        # Process arguments for subsampling
+        num_steps = num_time_steps * subsample
+        orig_time_step_size = time_step_size
+        time_step_size = time_step_size / subsample
+        step_vel_decay = vel_decay ** time_step_size
+
+        # Compute updates using explicit Euler
+        # TODO: Implicit Euler
+        qs = [q0]
+        q = q0.copy()
+        q_dot = p0.copy()
+
+        for i, part in enumerate(self.particles):
+            q_dot[i] /= part.mass
+        for step_idx in range(1, num_steps):
+            q, q_dot = self._compute_next_step(q=q, q_dot=q_dot, time_step_size=time_step_size, step_vel_decay=step_vel_decay)
+            if step_idx % subsample == 0:
+                qs.append(q)
+        ps = [self.compute_forces(q) for q in qs]
+
+        qs = np.stack(qs).reshape(num_time_steps, self.n_particles, self.n_dims)
+        ps = np.stack(ps).reshape(num_time_steps, self.n_particles, self.n_dims)
 
         # Compute derivatives
         derivs = self.derivative(q=qs, p=ps)
