@@ -10,6 +10,13 @@ Particle = namedtuple("Particle", ["mass", "is_fixed"])
 # Particle numbers are zero indexed
 Edge = namedtuple("Edge", ["a", "b", "spring_const", "rest_length"])
 
+ParticleTrajectoryResult = namedtuple("ParticleTrajectoryResult",
+                                      ["q", "p",
+                                       "dq_dt", "dp_dt",
+                                       "t_steps",
+                                       "p_noiseless", "q_noiseless",
+                                       "masses", "edge_indices", "fixed_mask"])
+
 
 class SpringMeshSystem(System):
     def __init__(self, n_dims, particles, edges):
@@ -108,14 +115,24 @@ class SpringMeshSystem(System):
         qs_noisy = qs + noise_qs
         ps_noisy = ps + noise_ps
 
-        return TrajectoryResult(
+        # Gather other data
+        masses = np.array([p.mass for p in self.particles], dtype=np.float64)
+        fixed_mask = np.array([p.is_fixed for p in self.particles], dtype=np.bool)
+        edge_indices = np.array([(e.a, e.b) for e in self.edges] +
+                                [(e.b, e.a) for e in self.edges], dtype=np.int64).T
+
+        return ParticleTrajectoryResult(
             q=qs_noisy,
             p=ps_noisy,
             dq_dt=dq_dt,
             dp_dt=dp_dt,
             t_steps=t_eval,
             q_noiseless=qs,
-            p_noiseless=ps)
+            p_noiseless=ps,
+            masses=masses,
+            edge_indices=edge_indices,
+            fixed_mask=fixed_mask)
+
 
 def generate_data(system_args, base_logger=None):
     if base_logger:
@@ -123,4 +140,97 @@ def generate_data(system_args, base_logger=None):
     else:
         logger = logging.getLogger("spring-mesh")
 
-    system = SpringMeshSystem()
+    trajectory_metadata = []
+    trajectories = {}
+    trajectory_defs = system_args["trajectory_defs"]
+    for i, traj_def in enumerate(trajectory_defs):
+        traj_name = f"traj_{i:05}"
+        logger.info(f"Generating trajectory {traj_name}")
+
+        # Create the trajectory
+        particle_defs = traj_def["particles"]
+        spring_defs = traj_def["springs"]
+        num_time_steps = traj_def["num_time_steps"]
+        time_step_size = traj_def["time_step_size"]
+        noise_sigma = traj_def.get("noise_sigma", 0.0)
+        subsample = int(traj_def.get("subsample", 1))
+
+        # Split particles and springs into components
+        q0 = []
+        particles = []
+        edges = []
+        for pdef in particle_defs:
+            particles.append(
+                Particle(mass=pdef["mass"],
+                         is_fixed=pdef["is_fixed"]))
+            q0.append(np.array(pdef["position"]))
+        for edef in spring_defs:
+            edges.append(
+                Edge(a=edef["a"],
+                     b=edef["b"],
+                     spring_const=edef["spring_const"],
+                     rest_length=edef["rest_length"]))
+        q0 = np.stack(q0)
+        p0 = np.zeros_like(q0)
+
+        n_dims = q0.shape[-1]
+        n_particles = len(particle_defs)
+        system = SpringMeshSystem(n_dims=n_dims, particles=particles,
+                                  edges=edges)
+
+        traj_gen_start = time.perf_counter()
+        traj_result = system.generate_trajectory(q0=q0,
+                                                 p0=p0,
+                                                 num_time_steps=num_time_steps,
+                                                 time_step_size=time_step_size,
+                                                 subsample=subsample,
+                                                 noise_sigma=noise_sigma)
+        traj_gen_elapsed = time.perf_counter() - traj_gen_start
+        logger.info(f"Generating {traj_name} in {traj_gen_elapsed} sec")
+
+        # Store trajectory data
+        trajectories.update({
+            f"{traj_name}_p": traj_result.p,
+            f"{traj_name}_q": traj_result.q,
+            f"{traj_name}_dqdt": traj_result.dq_dt,
+            f"{traj_name}_dpdt": traj_result.dp_dt,
+            f"{traj_name}_t": traj_result.t_steps,
+            f"{traj_name}_p_noiseless": traj_result.p_noiseless,
+            f"{traj_name}_q_noiseless": traj_result.q_noiseless,
+            f"{traj_name}_masses": traj_result.masses,
+            f"{traj_name}_edge_indices": traj_result.edge_indices,
+            f"{traj_name}_fixed_mask": traj_result.fixed_mask,
+        })
+
+        # Store per-trajectory metadata
+        trajectory_metadata.append(
+            {"name": traj_name,
+             "num_time_steps": num_time_steps,
+             "time_step_size": time_step_size,
+             "noise_sigma": noise_sigma,
+             "field_keys": {
+                 "p": f"{traj_name}_p",
+                 "q": f"{traj_name}_q",
+                 "dpdt": f"{traj_name}_dpdt",
+                 "dqdt": f"{traj_name}_dqdt",
+                 "t": f"{traj_name}_t",
+                 "p_noiseless": f"{traj_name}_p_noiseless",
+                 "q_noiseless": f"{traj_name}_q_noiseless",
+                 "masses": f"{traj_name}_masses",
+                 "edge_indices": f"{traj_name}_edge_indices",
+                 "fixed_mask": f"{traj_name}_fixed_mask",
+             },
+             "timing": {
+                 "traj_gen_time": traj_gen_elapsed
+             }})
+
+    logger.info("Done generating trajectories")
+
+    return SystemResult(trajectories=trajectories,
+                        metadata={
+                            "n_grid": n_dims,
+                            "n_dim": n_dims,
+                            "n_particles": n_particles,
+                            "system_type": "spring-mesh",
+                        },
+                        trajectory_metadata=trajectory_metadata)
