@@ -171,7 +171,7 @@ def generate_data(system_args, base_logger=None):
                      b=edef["b"],
                      spring_const=edef["spring_const"],
                      rest_length=edef["rest_length"]))
-        q0 = np.stack(q0)
+        q0 = np.stack(q0).astype(np.float64)
         p0 = np.zeros_like(q0)
 
         n_dims = q0.shape[-1]
