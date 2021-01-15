@@ -5,6 +5,7 @@ import json
 import math
 import re
 import dataclasses
+import itertools
 
 
 def generate_packing_args(instance, system, dataset):
@@ -207,6 +208,67 @@ class ParticleInitialConditionSource(InitialConditionSource):
             "masses": self.masses.tolist(),
         }
         return state
+
+
+class SpringMeshGridGenerator:
+    def __init__(self, grid_shape):
+        self.grid_shape = grid_shape
+        self.n_dims = len(grid_shape)
+        self._particles = None
+        self._springs = None
+
+    def generate_mesh(self):
+        if self._particles is None:
+            particles = []
+            springs = []
+            ranges = [range(s) for s in self.grid_shape]
+            # Generate particle descriptions
+            for coords in itertools.product(*ranges):
+                fixed = all(i == 0 or i == m - 1 for i, m in zip(coords, self.grid_shape))
+                particle_def = {
+                    "mass": 1.0,
+                    "is_fixed": fixed,
+                    "position": list(coords),
+                }
+                particles.append(particle_def)
+            # Add edges
+            for (a, part_a), (b, part_b) in itertools.combinations(enumerate(particles), 2):
+                # Determine if we want an edge
+                dist = max(abs(pa - pb) for pa, pb in zip(part_a["position"], part_b["position"]))
+                if dist != 1:
+                    continue
+                # Add the edge
+                length = math.sqrt(sum((pa - pb) ** 2 for pa, pb in zip(part_a["position"], part_b["position"])))
+                spring_def = {
+                    "a": a,
+                    "b": b,
+                    "spring_const": 1.0,
+                    "rest_length": length,
+                }
+                springs.append(spring_def)
+            self._particles = particles
+            self._springs = springs
+        return copy.deepcopy(self._particles), copy.deepcopy(self._springs)
+
+
+class SpringMeshManualPerturb(InitialConditionSource):
+    def __init__(self, mesh_generator, perturbations):
+        super().__init__()
+        self.mesh_generator = mesh_generator
+        self.perturbations = perturbations
+
+    def _generate_initial_condition(self):
+        particles, springs = self.mesh_generator.generate_mesh()
+        # Apply perturbation
+        for particle in particles:
+            for target_coord, perturb in self.perturbations:
+                if all(p == tc for p, tc in zip(particle["position"], target_coord)):
+                    # Apply perturbation
+                    particle["position"] = [pos + diff for pos, diff in zip(particle["position"], perturb)]
+        return {
+            "particles": particles,
+            "springs": springs,
+        }
 
 
 class WritableDescription:
