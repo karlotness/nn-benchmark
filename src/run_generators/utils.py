@@ -839,6 +839,7 @@ class MLP(TrainedNetwork):
         self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
         self.noise_type = noise_type
         self.noise_variance = noise_variance
+        generate_scheduler_args(self, end_lr)
 
     def description(self):
         template = {
