@@ -214,6 +214,10 @@ class SpringMeshGridGenerator:
     def __init__(self, grid_shape):
         self.grid_shape = grid_shape
         self.n_dims = len(grid_shape)
+        self.n_dim = self.n_dims
+        self.n_particles = 1
+        for s in grid_shape:
+            self.n_particles *= s
         self._particles = None
         self._springs = None
 
@@ -256,6 +260,8 @@ class SpringMeshManualPerturb(InitialConditionSource):
         super().__init__()
         self.mesh_generator = mesh_generator
         self.perturbations = perturbations
+        self.n_dim = mesh_generator.n_dim
+        self.n_particles = mesh_generator.n_particles
 
     def _generate_initial_condition(self):
         particles, springs = self.mesh_generator.generate_mesh()
@@ -476,6 +482,58 @@ class ParticleDataset(Dataset):
                 "time": "00:30:00",
                 "cpus": 8,
                 "mem": 6,
+            },
+        }
+        return template
+
+    def input_size(self):
+        return 2 * self.n_dim * self.n_particles
+
+
+class SpringMeshDataset(Dataset):
+    def __init__(self, experiment, initial_cond_source, num_traj,
+                 set_type="train",
+                 num_time_steps=500, time_step_size=0.1,
+                 subsampling=10, noise_sigma=0.0, vel_decay=1.0):
+        super().__init__(experiment=experiment,
+                         name_tail=f"n{num_traj}-t{num_time_steps}-n{noise_sigma}",
+                         system="spring-mesh",
+                         set_type=set_type)
+        self.initial_cond_source = initial_cond_source
+        self.num_traj = num_traj
+        self.num_time_steps = num_time_steps
+        self.time_step_size = time_step_size
+        self.subsampling = subsampling
+        self.noise_sigma = noise_sigma
+        self.vel_decay = vel_decay
+        self.initial_conditions = self.initial_cond_source.sample_initial_conditions(self.num_traj)
+        self.n_dim = initial_cond_source.n_dim
+        self.n_particles = initial_cond_source.n_particles
+
+    def description(self):
+        trajectories = []
+        for icond in self.initial_conditions:
+            traj = {
+                "num_time_steps": self.num_time_steps,
+                "time_step_size": self.time_step_size,
+                "noise_sigma": self.noise_sigma,
+                "subsample": self.subsampling,
+                "vel_decay": self.vel_decay,
+            }
+            traj.update(icond)
+            trajectories.append(traj)
+        template = {
+            "phase_args": {
+                "system": "spring-mesh",
+                "system_args": {
+                    "trajectory_defs": trajectories,
+                }
+            },
+            "slurm_args": {
+                "gpu": False,
+                "time": "03:00:00",
+                "cpus": 8,
+                "mem": 32,
             },
         }
         return template

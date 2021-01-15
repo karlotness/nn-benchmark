@@ -255,10 +255,10 @@ def generate_data(system_args, base_logger=None):
         })
     for edge in trajectory_defs[0]["springs"]:
         edge_records.append({
-            "a", edge["a"],
-            "b", edge["b"],
-            "spring_const", edge["spring_const"],
-            "rest_length", edge["rest_length"],
+            "a": edge["a"],
+            "b": edge["b"],
+            "spring_const": edge["spring_const"],
+            "rest_length": edge["rest_length"],
         })
 
     return SystemResult(trajectories=trajectories,
