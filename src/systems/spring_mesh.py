@@ -72,7 +72,7 @@ class SpringMeshSystem(System):
         pos = q + time_step_size * vel
         return pos, vel
 
-    def generate_trajectory(self, q0, p0, num_time_steps, time_step_size, rtol=1e-10,
+    def generate_trajectory(self, q0, p0, num_time_steps, time_step_size,
                             subsample=1, noise_sigma=0.0, vel_decay=1.0):
         # Check shapes of inputs
         if (q0.shape != (self.n_particles, self.n_dims)) or (p0.shape != (self.n_particles, self.n_dims)):
@@ -152,6 +152,7 @@ def generate_data(system_args, base_logger=None):
         spring_defs = traj_def["springs"]
         num_time_steps = traj_def["num_time_steps"]
         time_step_size = traj_def["time_step_size"]
+        vel_decay = traj_def.get("vel_decay", 1.0)
         noise_sigma = traj_def.get("noise_sigma", 0.0)
         subsample = int(traj_def.get("subsample", 1))
 
@@ -184,6 +185,7 @@ def generate_data(system_args, base_logger=None):
                                                  num_time_steps=num_time_steps,
                                                  time_step_size=time_step_size,
                                                  subsample=subsample,
+                                                 vel_decay=vel_decay,
                                                  noise_sigma=noise_sigma)
         traj_gen_elapsed = time.perf_counter() - traj_gen_start
         logger.info(f"Generating {traj_name} in {traj_gen_elapsed} sec")
