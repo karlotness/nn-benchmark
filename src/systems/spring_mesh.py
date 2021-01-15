@@ -134,6 +134,24 @@ class SpringMeshSystem(System):
             fixed_mask=fixed_mask)
 
 
+def system_from_records(n_dims, particles, edges):
+    parts = []
+    edgs = []
+    for pdef in particles:
+        parts.append(
+            Particle(mass=pdef["mass"],
+                     is_fixed=pdef["is_fixed"]))
+    for edef in edges:
+        edgs.append(
+            Edge(a=edef["a"],
+                 b=edef["b"],
+                 spring_const=edef["spring_const"],
+                 rest_length=edef["rest_length"]))
+    return SpringMeshSystem(n_dims=n_dims,
+                            particles=parts,
+                            edges=edgs)
+
+
 def generate_data(system_args, base_logger=None):
     if base_logger:
         logger = base_logger.getChild("spring-mesh")
@@ -228,11 +246,28 @@ def generate_data(system_args, base_logger=None):
 
     logger.info("Done generating trajectories")
 
+    particle_records = []
+    edge_records = []
+    for part in trajectory_defs[0]["particles"]:
+        particle_records.append({
+            "mass": part["mass"],
+            "is_fixed": part["is_fixed"],
+        })
+    for edge in trajectory_defs[0]["springs"]:
+        edge_records.append({
+            "a", edge["a"],
+            "b", edge["b"],
+            "spring_const", edge["spring_const"],
+            "rest_length", edge["rest_length"],
+        })
+
     return SystemResult(trajectories=trajectories,
                         metadata={
                             "n_grid": n_dims,
                             "n_dim": n_dims,
                             "n_particles": n_particles,
                             "system_type": "spring-mesh",
+                            "particles": particle_records,
+                            "edges": edge_records,
                         },
                         trajectory_metadata=trajectory_metadata)
