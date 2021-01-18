@@ -44,6 +44,8 @@ def get_edge_index(connection_args):
                 torch.cat((idx[1:], idx[:-1])),
                 torch.cat((idx[:-1], idx[1:]))), dim=0)
         return adj.long()
+    elif conn_type == "native":
+        return None
     else:
         raise ValueError(f"Unknown connection type {conn_type}")
 
@@ -105,6 +107,9 @@ def package_data(data_set, package_args, system):
         proc_part = particle_process_func(p=p, q=q,
                                           dp_dt=dp_dt, dq_dt=dq_dt,
                                           masses=masses)
+        if edge_index is None:
+            # Pull directly from batch
+            edge_index = torch.tensor(batch.edge_index).long()
         packaged = package_func(p=proc_part.p, q=proc_part.q,
                                 dp_dt=proc_part.dp_dt, dq_dt=proc_part.dq_dt,
                                 masses=proc_part.masses, edge_index=edge_index,

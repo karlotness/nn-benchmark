@@ -25,6 +25,8 @@ def package_batch(system, p, q, dp_dt, dq_dt, masses, edge_index, boundary_verti
         p = np.pad(p, ((0, 0), (1, 0)), "constant", constant_values=0)
         if dp_dt is not None:
           dp_dt = np.pad(dp_dt, ((0, 0), (1, 0)), "constant", constant_values=0)
+    elif system == "spring-mesh":
+        x = torch.from_numpy(q)
     else:
         raise ValueError(f"Invalid system {system}")
 

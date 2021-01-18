@@ -38,7 +38,7 @@ class RandomCorrectedNoise:
 
     def process_batch(self, batch):
         noise_sigma = np.sqrt(self.variance)
-        if not hasattr(batch, "edge_index"):
+        if hasattr(batch, "dp_dt"):
             noise_p = noise_sigma * torch.randn(*batch.p.shape,
                                                 dtype=batch.p.dtype,
                                                 device=batch.p.device)
@@ -55,7 +55,8 @@ class RandomCorrectedNoise:
                 trajectory_meta=batch.trajectory_meta,
                 p_noiseless=batch.p_noiseless,
                 q_noiseless=batch.q_noiseless,
-                masses=batch.masses)
+                masses=batch.masses,
+                edge_index=batch.edge_index)
         else:
             noise_pos = noise_sigma * torch.randn(*batch.pos.shape,
                                                   dtype=batch.pos.dtype,

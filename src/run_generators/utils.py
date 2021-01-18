@@ -36,6 +36,19 @@ def generate_packing_args(instance, system, dataset):
         instance.e_features = 6
         instance.mesh_coords = [[x, 0] for x in np.linspace(0, 1, dim)]
         instance.static_nodes = [0 for i in np.arange(dim)]
+    elif system == "spring-mesh":
+        dim = dataset.input_size() // 2
+        instance.particle_process_type = "identity"
+        instance.adjacency_args = {
+            "type": "native",
+            "boundary_conditions": None,
+            "boundary_vertices": None,
+            "dimension": dim,
+            }
+        instance.v_features = 4
+        instance.e_features = 6
+        instance.mesh_coords = [list(map(float, p["position"])) for p in dataset.initial_cond_source.particle_properties()]
+        instance.static_nodes = [1 if p["is_fixed"] else 0 for p in dataset.initial_cond_source.particle_properties()]
     else:
         raise ValueError(f"Invalid system {system}")
 
@@ -262,6 +275,10 @@ class SpringMeshManualPerturb(InitialConditionSource):
         self.perturbations = perturbations
         self.n_dim = mesh_generator.n_dim
         self.n_particles = mesh_generator.n_particles
+
+    def particle_properties(self):
+        particles, _springs = self.mesh_generator.generate_mesh()
+        return particles
 
     def _generate_initial_condition(self):
         particles, springs = self.mesh_generator.generate_mesh()
