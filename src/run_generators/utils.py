@@ -535,7 +535,6 @@ class SpringMeshDataset(Dataset):
                 "time_step_size": self.time_step_size,
                 "noise_sigma": self.noise_sigma,
                 "subsample": self.subsampling,
-                "vel_decay": self.vel_decay,
             }
             traj.update(icond)
             trajectories.append(traj)
@@ -543,6 +542,7 @@ class SpringMeshDataset(Dataset):
             "phase_args": {
                 "system": "spring-mesh",
                 "system_args": {
+                    "vel_decay": self.vel_decay,
                     "trajectory_defs": trajectories,
                 }
             },
