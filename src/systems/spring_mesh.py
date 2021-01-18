@@ -19,12 +19,13 @@ ParticleTrajectoryResult = namedtuple("ParticleTrajectoryResult",
 
 
 class SpringMeshSystem(System):
-    def __init__(self, n_dims, particles, edges):
+    def __init__(self, n_dims, particles, edges, vel_decay):
         super().__init__()
         self.particles = particles
         self.edges = edges
         self.n_dims = n_dims
         self.n_particles = len(particles)
+        self.vel_decay = vel_decay
 
     def hamiltonian(self, q, p):
         return 0
@@ -44,6 +45,9 @@ class SpringMeshSystem(System):
             for a, b in [(edge.a, edge.b), (edge.b, edge.a)]:
                 diff = q[:, a] - q[:, b]
                 forces[:, a] += -1 * edge.spring_const * (length - edge.rest_length) / length * diff
+        for i, part in enumerate(self.particles):
+            if part.is_fixed:
+                forces[:, i] = 0
         return forces
 
     def derivative(self, q, p):
@@ -59,21 +63,22 @@ class SpringMeshSystem(System):
                 pos[:, i] = 0
             else:
                 pos[:, i] = (1/particle.mass) * p[:, i]
-        return StatePair(q=pos, p=forces)
+        return StatePair(q=self.vel_decay * pos, p=forces)
 
     def _compute_next_step(self, q, q_dot, time_step_size, step_vel_decay=1.0):
         forces = self.compute_forces(q=q)[0]
         vel = np.zeros_like(q_dot)
+        p = np.zeros_like(q_dot)
         for i, part in enumerate(self.particles):
             if part.is_fixed:
                 continue
-            vel[i] = q_dot[i] + time_step_size * (1/part.mass) * forces[i]
-        vel *= step_vel_decay
+            vel[i] = step_vel_decay * (q_dot[i] + time_step_size * (1/part.mass) * forces[i])
+            p[i] = part.mass * vel[i]
         pos = q + time_step_size * vel
-        return pos, vel
+        return pos, vel, p, forces
 
     def generate_trajectory(self, q0, p0, num_time_steps, time_step_size,
-                            subsample=1, noise_sigma=0.0, vel_decay=1.0):
+                            subsample=1, noise_sigma=0.0):
         # Check shapes of inputs
         if (q0.shape != (self.n_particles, self.n_dims)) or (p0.shape != (self.n_particles, self.n_dims)):
             raise ValueError("Invalid input shape for particle system")
@@ -84,29 +89,36 @@ class SpringMeshSystem(System):
         num_steps = num_time_steps * subsample
         orig_time_step_size = time_step_size
         time_step_size = time_step_size / subsample
-        step_vel_decay = vel_decay ** time_step_size
+        step_vel_decay = self.vel_decay ** time_step_size
 
         # Compute updates using explicit Euler
         # TODO: Implicit Euler
+
+        init_vel = np.zeros_like(q0)
+        for i, part in enumerate(self.particles):
+            init_vel[i] = (1/part.mass) * p0[i]
+
         qs = [q0]
+        q_dots = [init_vel]
+        ps = [p0]
+        p_dots = [self.compute_forces(q=q0)[0]]
         q = q0.copy()
         q_dot = p0.copy()
 
         for i, part in enumerate(self.particles):
             q_dot[i] /= part.mass
         for step_idx in range(1, num_steps):
-            q, q_dot = self._compute_next_step(q=q, q_dot=q_dot, time_step_size=time_step_size, step_vel_decay=step_vel_decay)
+            q, q_dot, p, p_dot = self._compute_next_step(q=q, q_dot=q_dot, time_step_size=time_step_size, step_vel_decay=step_vel_decay)
             if step_idx % subsample == 0:
                 qs.append(q)
-        ps = [self.compute_forces(q) for q in qs]
+                q_dots.append(q_dot)
+                ps.append(p)
+                p_dots.append(p_dot)
 
         qs = np.stack(qs).reshape(num_time_steps, self.n_particles, self.n_dims)
         ps = np.stack(ps).reshape(num_time_steps, self.n_particles, self.n_dims)
-
-        # Compute derivatives
-        derivs = self.derivative(q=qs, p=ps)
-        dq_dt = derivs.q
-        dp_dt = derivs.p
+        dq_dt = np.stack(q_dots).reshape(num_time_steps, self.n_particles, self.n_dims)
+        dp_dt = np.stack(p_dots).reshape(num_time_steps, self.n_particles, self.n_dims)
 
         # Add configured noise
         noise_ps = noise_sigma * np.random.randn(*ps.shape)
@@ -134,7 +146,7 @@ class SpringMeshSystem(System):
             fixed_mask=fixed_mask)
 
 
-def system_from_records(n_dims, particles, edges):
+def system_from_records(n_dims, particles, edges, vel_decay):
     parts = []
     edgs = []
     for pdef in particles:
@@ -149,7 +161,8 @@ def system_from_records(n_dims, particles, edges):
                  rest_length=edef["rest_length"]))
     return SpringMeshSystem(n_dims=n_dims,
                             particles=parts,
-                            edges=edgs)
+                            edges=edgs,
+                            vel_decay=vel_decay)
 
 
 def generate_data(system_args, base_logger=None):
@@ -160,6 +173,7 @@ def generate_data(system_args, base_logger=None):
 
     trajectory_metadata = []
     trajectories = {}
+    vel_decay = system_args.get("vel_decay", 1.0)
     trajectory_defs = system_args["trajectory_defs"]
     for i, traj_def in enumerate(trajectory_defs):
         traj_name = f"traj_{i:05}"
@@ -170,7 +184,6 @@ def generate_data(system_args, base_logger=None):
         spring_defs = traj_def["springs"]
         num_time_steps = traj_def["num_time_steps"]
         time_step_size = traj_def["time_step_size"]
-        vel_decay = traj_def.get("vel_decay", 1.0)
         noise_sigma = traj_def.get("noise_sigma", 0.0)
         subsample = int(traj_def.get("subsample", 1))
 
@@ -195,7 +208,7 @@ def generate_data(system_args, base_logger=None):
         n_dims = q0.shape[-1]
         n_particles = len(particle_defs)
         system = SpringMeshSystem(n_dims=n_dims, particles=particles,
-                                  edges=edges)
+                                  edges=edges, vel_decay=vel_decay)
 
         traj_gen_start = time.perf_counter()
         traj_result = system.generate_trajectory(q0=q0,
@@ -269,5 +282,6 @@ def generate_data(system_args, base_logger=None):
                             "system_type": "spring-mesh",
                             "particles": particle_records,
                             "edges": edge_records,
+                            "vel_decay": vel_decay,
                         },
                         trajectory_metadata=trajectory_metadata)
