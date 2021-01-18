@@ -239,30 +239,30 @@ def run_phase(base_dir, out_dir, phase_args):
         import dataset_geometric
 
         package_args = eval_args["package_args"]
-        GnMockDataset = namedtuple("GnMockDataset", ["p", "q", "dp_dt", "dq_dt", "masses"])
+        GnMockDataset = namedtuple("GnMockDataset", ["p", "q", "dp_dt", "dq_dt", "masses", "edge_index"])
 
         GNPrediction = namedtuple("GNPrediction", ["p", "q"])
-        def model_next_step(p, q, dt):
-            time_step_size = dt
-            mocked = GnMockDataset(p=p.detach().numpy(), q=q.detach().numpy(),
-                masses=masses, dp_dt=None, dq_dt=None)
-            bundled = dataset_geometric.package_data([mocked],
-                package_args=package_args, system=eval_dataset.system)[0]
-            accel = net(torch.unsqueeze(bundled.pos, 0),
-                torch.unsqueeze(bundled.x, 0),
-                torch.unsqueeze(bundled.edge_index, 0))
+        def gn_time_deriv_func(edges):
+            def model_next_step(p, q, dt):
+                time_step_size = dt
+                mocked = GnMockDataset(p=p.detach().numpy(), q=q.detach().numpy(),
+                    masses=masses, dp_dt=None, dq_dt=None, edge_index=edges)
+                bundled = dataset_geometric.package_data([mocked],
+                    package_args=package_args, system=eval_dataset.system)[0]
+                accel = net(torch.unsqueeze(bundled.pos, 0),
+                    torch.unsqueeze(bundled.x, 0),
+                    torch.unsqueeze(bundled.edge_index, 0))
 
-            accel = gn.unpack_results(accel, eval_dataset.system)
+                accel = gn.unpack_results(accel, eval_dataset.system)
 
-            p_next = p + time_step_size * accel
-            q_next = q + time_step_size * p_next
+                p_next = p + time_step_size * accel
+                q_next = q + time_step_size * p_next
 
-            p_next = p_next.to(device, dtype=eval_dtype)
-            q_next = q_next.to(device, dtype=eval_dtype)
+                p_next = p_next.to(device, dtype=eval_dtype)
+                q_next = q_next.to(device, dtype=eval_dtype)
 
-            return GNPrediction(p=p_next, q=q_next)
+                return GNPrediction(p=p_next, q=q_next)
 
-        time_deriv_func = model_next_step
         time_deriv_method = METHOD_DIRECT_DERIV
         if integrator_type != "null":
           raise ValueError(f"GN predictions do not work with integrator {integrator_type}")
@@ -282,6 +282,7 @@ def run_phase(base_dir, out_dir, phase_args):
         masses = trajectory.masses.to(device, dtype=eval_dtype)
         num_time_steps = trajectory.trajectory_meta["num_time_steps"][0]
         time_step_size = trajectory.trajectory_meta["time_step_size"][0]
+        edges = None
 
         # Compute hamiltonians
         # Construct systems
@@ -314,6 +315,8 @@ def run_phase(base_dir, out_dir, phase_args):
             # Pull out masses for HOGN
             time_deriv_func = hogn_time_deriv_func(masses=masses)
             hamiltonian_func = hogn_hamiltonian_func(masses=masses)
+        elif eval_type == "gn":
+            time_deriv_func = gn_time_deriv_func(edges=edges)
 
         p0 = p[:, 0]
         q0 = q[:, 0]

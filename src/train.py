@@ -30,7 +30,7 @@ class RandomCorrectedNoise:
     NoiseBatch = namedtuple("NoiseBatch", ["name", "p", "q", "dp_dt", "dq_dt",
                                            "t", "trajectory_meta",
                                            "p_noiseless", "q_noiseless",
-                                           "masses"])
+                                           "masses", "edge_index"])
 
     def __init__(self, variance, gamma=0.1):
         self.variance = variance
