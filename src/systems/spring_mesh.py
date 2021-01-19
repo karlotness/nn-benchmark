@@ -216,7 +216,6 @@ def generate_data(system_args, base_logger=None):
                                                  num_time_steps=num_time_steps,
                                                  time_step_size=time_step_size,
                                                  subsample=subsample,
-                                                 vel_decay=vel_decay,
                                                  noise_sigma=noise_sigma)
         traj_gen_elapsed = time.perf_counter() - traj_gen_start
         logger.info(f"Generating {traj_name} in {traj_gen_elapsed} sec")
