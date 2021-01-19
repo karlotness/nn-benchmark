@@ -11,11 +11,11 @@ parser.add_argument("base_dir", type=str,
 writable_objects = []
 
 experiment = utils.Experiment("springmesh-test")
-mesh_gen = utils.SpringMeshGridGenerator(grid_shape=(5, 5))
-init_cond = utils.SpringMeshManualPerturb(mesh_gen, [((2, 2), (-0.2, 0.2))])
-dset = utils.SpringMeshDataset(experiment, init_cond, 1,
+mesh_gen = utils.SpringMeshGridGenerator(grid_shape=(3, 3), fix_particles="top")
+init_cond = utils.SpringMeshRowPerturb(mesh_generator=mesh_gen, magnitude=0.25, row=0)
+dset = utils.SpringMeshDataset(experiment, init_cond, 3,
                                set_type="train",
-                               num_time_steps=500, time_step_size=0.1,
+                               num_time_steps=1000, time_step_size=0.1,
                                subsampling=10, noise_sigma=0.0, vel_decay=0.8)
 print("INPUT_SIZE", dset.input_size())
 writable_objects.append(dset)
