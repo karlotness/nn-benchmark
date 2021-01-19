@@ -28,14 +28,7 @@ class SpringMeshSystem(System):
         self.vel_decay = vel_decay
 
     def hamiltonian(self, q, p):
-        return 0
-
-    def _dynamics(self, time, coord):
-        q, p = np.split(coord, 2, axis=-1)
-        deriv = self.derivative(q=q, p=p)
-        return np.concatenate((deriv.q.reshape((-1, )),
-                               deriv.p.reshape((-1, ))),
-                              axis=-1)
+        return torch.zeros(q.shape[0], q.shape[1])
 
     def compute_forces(self, q):
         q = q.reshape((-1, self.n_particles, self.n_dims))
