@@ -1408,4 +1408,6 @@ class BaselineIntegrator(Evaluation):
                 "mem": self._get_mem_requirement(eval_set=self.eval_set),
             },
         }
+        if self.eval_set.system == "spring-mesh":
+            template["phase_args"]["eval_data"]["linearize"] = True
         return template
