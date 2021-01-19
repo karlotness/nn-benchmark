@@ -224,7 +224,7 @@ class ParticleInitialConditionSource(InitialConditionSource):
 
 
 class SpringMeshGridGenerator:
-    def __init__(self, grid_shape):
+    def __init__(self, grid_shape, fix_particles="corners"):
         self.grid_shape = grid_shape
         self.n_dims = len(grid_shape)
         self.n_dim = self.n_dims
@@ -233,6 +233,10 @@ class SpringMeshGridGenerator:
             self.n_particles *= s
         self._particles = None
         self._springs = None
+        if fix_particles == "corners":
+            self._fixed_pred = lambda self, coords: all(i == 0 or i == m - 1 for i, m in zip(coords, self.grid_shape))
+        elif fix_particles == "top":
+            self._fixed_pred = lambda self, coords: coords[1] == self.grid_shape[1] - 1
 
     def generate_mesh(self):
         if self._particles is None:
@@ -241,7 +245,7 @@ class SpringMeshGridGenerator:
             ranges = [range(s) for s in self.grid_shape]
             # Generate particle descriptions
             for coords in itertools.product(*ranges):
-                fixed = all(i == 0 or i == m - 1 for i, m in zip(coords, self.grid_shape))
+                fixed = self._fixed_pred(self, coords)
                 particle_def = {
                     "mass": 1.0,
                     "is_fixed": fixed,
@@ -266,6 +270,40 @@ class SpringMeshGridGenerator:
             self._particles = particles
             self._springs = springs
         return copy.deepcopy(self._particles), copy.deepcopy(self._springs)
+
+
+class SpringMeshRowPerturb(InitialConditionSource):
+    def __init__(self, mesh_generator, magnitude, row=0):
+        super().__init__()
+        self.mesh_generator = mesh_generator
+        self.magnitude = magnitude
+        self.row = row
+        self.n_dim = mesh_generator.n_dim
+        self.n_particles = mesh_generator.n_particles
+        assert self.n_dim == 2
+
+    def particle_properties(self):
+        particles, _springs = self.mesh_generator.generate_mesh()
+        return particles
+
+    def _generate_initial_condition(self):
+        angle = np.random.uniform(0, 2 * np.pi)
+        perturb_x = np.cos(angle) * self.magnitude
+        perturb_y = np.sin(angle) * self.magnitude
+        particles, springs = self.mesh_generator.generate_mesh()
+        # Apply perturbation
+        for particle in particles:
+            if particle["is_fixed"]:
+                # Do not perturb fixed particles
+                continue
+            if particle["position"][1] == self.row:
+                # Apply perturbation
+                particle["position"][0] += perturb_x
+                particle["position"][1] += perturb_y
+        return {
+            "particles": particles,
+            "springs": springs,
+        }
 
 
 class SpringMeshManualPerturb(InitialConditionSource):
