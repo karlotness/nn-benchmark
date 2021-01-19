@@ -17,7 +17,7 @@ SPRING_DT = 0.3 / 100
 SPRING_STEPS = math.ceil(SPRING_END_TIME / SPRING_DT)
 VEL_DECAY = 0.9
 
-NUM_TRAJ = 200
+NUM_TRAJ = 100
 
 writable_objects = []
 
