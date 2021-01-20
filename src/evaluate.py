@@ -332,6 +332,8 @@ def run_phase(base_dir, out_dir, phase_args):
             traj_steps = p.shape[1]
             p = p.reshape((num_traj, traj_steps, -1))
             q = q.reshape((num_traj, traj_steps, -1))
+            p_noiseless = p_noiseless.reshape((num_traj, traj_steps, -1))
+            q_noiseless = q_noiseless.reshape((num_traj, traj_steps, -1))
 
         p0 = p[:, 0]
         q0 = q[:, 0]
