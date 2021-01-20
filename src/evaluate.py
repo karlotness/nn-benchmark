@@ -242,9 +242,15 @@ def run_phase(base_dir, out_dir, phase_args):
         GnMockDataset = namedtuple("GnMockDataset", ["p", "q", "dp_dt", "dq_dt", "masses", "edge_index"])
 
         GNPrediction = namedtuple("GNPrediction", ["p", "q"])
-        def gn_time_deriv_func(edges):
+        def gn_time_deriv_func(masses, edges, n_particles):
             def model_next_step(p, q, dt):
                 time_step_size = dt
+                p_orig_shape = p.shape
+                q_orig_shape = q.shape
+                batch_size = p.shape[0]
+                assert batch_size == 1
+                p = p.reshape((n_particles, -1))
+                q = q.reshape((n_particles, -1))
                 mocked = GnMockDataset(p=p.detach().numpy(), q=q.detach().numpy(),
                     masses=masses, dp_dt=None, dq_dt=None, edge_index=edges)
                 bundled = dataset_geometric.package_data([mocked],
@@ -261,7 +267,7 @@ def run_phase(base_dir, out_dir, phase_args):
                 p_next = p_next.to(device, dtype=eval_dtype)
                 q_next = q_next.to(device, dtype=eval_dtype)
 
-                return GNPrediction(p=p_next, q=q_next)
+                return GNPrediction(p=p_next.reshape(p_orig_shape), q=q_next.reshape(q_orig_shape))
             return model_next_step
 
         time_deriv_method = METHOD_DIRECT_DERIV
@@ -305,6 +311,7 @@ def run_phase(base_dir, out_dir, phase_args):
         elif eval_dataset.system == "spring-mesh":
             n_dim = eval_dataset.system_metadata["n_dim"]
             particles = eval_dataset.system_metadata["particles"]
+            n_particles = len(eval_dataset.system_metadata["particles"])
             edges_dict = eval_dataset.system_metadata["edges"]
             edges = np.array([(e["a"], e["b"]) for e in edges_dict] +
                              [(e["b"], e["a"]) for e in edges_dict], dtype=np.int64).T
@@ -319,7 +326,12 @@ def run_phase(base_dir, out_dir, phase_args):
             time_deriv_func = hogn_time_deriv_func(masses=masses)
             hamiltonian_func = hogn_hamiltonian_func(masses=masses)
         elif eval_type == "gn":
-            time_deriv_func = gn_time_deriv_func(edges=edges)
+            n_particles = net.static_nodes.shape[0]
+            time_deriv_func = gn_time_deriv_func(masses=masses, edges=edges, n_particles=n_particles)
+            num_traj = p.shape[0]
+            traj_steps = p.shape[1]
+            p = p.reshape((num_traj, traj_steps, -1))
+            q = q.reshape((num_traj, traj_steps, -1))
 
         p0 = p[:, 0]
         q0 = q[:, 0]

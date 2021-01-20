@@ -1299,7 +1299,7 @@ class NetworkEvaluation(Evaluation):
                 "eval_net_file": self.network_file,
                 "eval_data": {
                     "data_dir": self.eval_set.path,
-                    "linearize": (self.network.method != "hogn"),
+                    "linearize": (self.network.method not in {"hogn", "gn"}),
                 },
                 "eval": {
                     "eval_type": eval_type,

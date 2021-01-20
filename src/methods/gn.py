@@ -53,6 +53,8 @@ def unpack_results(result, system):
         return result[:, 1, 1]
     elif system == "wave":
         return result[:, :, 1]
+    elif system == "spring-mesh":
+        return result
     else:
       raise ValueError(f"Invalid system {system}")
 
