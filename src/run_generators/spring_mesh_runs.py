@@ -23,11 +23,11 @@ writable_objects = []
 
 experiment_general = utils.Experiment("springmesh-test")
 experiment_outdist = utils.Experiment("springmesh-test-outdist")
-mesh_gen = utils.SpringMeshGridGenerator(grid_shape=(3, 3), fix_particles="top")
-train_source = utils.SpringMeshRowPerturb(mesh_generator=mesh_gen, magnitude=0.25, row=0)
-val_source = utils.SpringMeshRowPerturb(mesh_generator=mesh_gen, magnitude=0.25, row=0)
-eval_source = utils.SpringMeshRowPerturb(mesh_generator=mesh_gen, magnitude=0.25, row=0)
-eval_outdist_source = utils.SpringMeshRowPerturb(mesh_generator=mesh_gen, magnitude=0.35, row=0)
+mesh_gen = utils.SpringMeshGridGenerator(grid_shape=(5, 5), fix_particles="top")
+train_source = utils.SpringMeshRowPerturb(mesh_generator=mesh_gen, magnitude=0.75, row=0)
+val_source = utils.SpringMeshRowPerturb(mesh_generator=mesh_gen, magnitude=0.75, row=0)
+eval_source = utils.SpringMeshRowPerturb(mesh_generator=mesh_gen, magnitude=0.75, row=0)
+eval_outdist_source = utils.SpringMeshRowPerturb(mesh_generator=mesh_gen, magnitude=1.0, row=0)
 
 data_sets = {}
 
