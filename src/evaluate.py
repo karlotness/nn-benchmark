@@ -157,8 +157,26 @@ def run_phase(base_dir, out_dir, phase_args):
         time_deriv_func = hnn_model_time_deriv
         time_deriv_method = METHOD_DIRECT_DERIV
         hamiltonian_func = model_hamiltonian
-    elif eval_type in {"mlp", "nn-kernel", "cnn"}:
+    elif eval_type in {"mlp", "nn-kernel"}:
         time_deriv_func = net
+        time_deriv_method = METHOD_DIRECT_DERIV
+    elif eval_type == "cnn":
+        CNNDerivative = namedtuple("CNNDerivative", ["dq_dt", "dp_dt"])
+        def cnn_time_deriv(p, q):
+            unsqueezed = False
+            if len(p.shape) < 3:
+                # Unsqueeze all tensors
+                p = p.unsqueeze(1)
+                q = q.unsqueeze(1)
+                unsqueezed = True
+            res = net(p=p, q=q)
+            if unsqueezed:
+                res = CNNDerivative(
+                    dq_dt=res.dq_dt[:, 0],
+                    dp_dt=res.dp_dt[:, 0],
+                )
+            return res
+        time_deriv_func = cnn_time_deriv
         time_deriv_method = METHOD_DIRECT_DERIV
     elif eval_type in {"knn-regressor", "knn-regressor-oneshot"}:
         # Use the time_derivative
