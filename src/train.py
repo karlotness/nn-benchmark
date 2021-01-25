@@ -223,6 +223,13 @@ class TorchTypeConverter:
         return x.to(self.device, dtype=self.dtype)
 
 
+def shape_product(shape):
+    prod = 1
+    for i in shape:
+        prod *= i
+    return prod
+
+
 TrainLossResult = namedtuple("TrainLossResult",
                              ["loss", "total_loss_denom_incr"])
 
@@ -240,7 +247,7 @@ def train_hnn(net, batch, loss_fn, train_type_args, tensor_converter):
     dx_dt_pred = torch.cat([deriv_pred.dp_dt, deriv_pred.dq_dt], dim=-1)
     loss = loss_fn(dx_dt_pred, dx_dt)
     return TrainLossResult(loss=loss,
-                           total_loss_denom_incr=p.shape[0])
+                           total_loss_denom_incr=shape_product(p.shape))
 
 
 def train_srnn(net, batch, loss_fn, train_type_args, tensor_converter):
@@ -272,7 +279,7 @@ def train_srnn(net, batch, loss_fn, train_type_args, tensor_converter):
     x_pred = torch.cat([int_res.p, int_res.q], dim=-1)
     loss = loss_fn(x_pred, x)
     return TrainLossResult(loss=loss,
-                           total_loss_denom_incr=p.shape[0] * p.shape[1])
+                           total_loss_denom_incr=shape_product(p.shape))
 
 
 def train_mlp(net, batch, loss_fn, train_type_args, tensor_converter):
@@ -288,7 +295,7 @@ def train_mlp(net, batch, loss_fn, train_type_args, tensor_converter):
     dx_dt_pred = torch.cat([deriv_pred.dp_dt, deriv_pred.dq_dt], dim=-1)
     loss = loss_fn(dx_dt_pred, dx_dt)
     return TrainLossResult(loss=loss,
-                           total_loss_denom_incr=p.shape[0])
+                           total_loss_denom_incr=shape_product(p.shape))
 
 
 def train_hogn(net, batch, loss_fn, train_type_args, tensor_converter):
@@ -317,7 +324,7 @@ def train_gn(net, batch, loss_fn, train_type_args, tensor_converter):
 
     loss = loss_fn(accel_pred, accel)
     return TrainLossResult(loss=loss,
-                           total_loss_denom_incr=graph_batch.x.shape[0])
+                           total_loss_denom_incr=shape_product(accel.shape))
 
 
 TRAIN_FUNCTIONS = {
