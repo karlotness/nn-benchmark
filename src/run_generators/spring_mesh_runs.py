@@ -43,25 +43,25 @@ for dt_factor in [1]:
     key = DatasetKey(type="val", dt_factor=dt_factor, n_traj=5)
     dset = utils.SpringMeshDataset(experiment_general, val_source, 5,
                                    set_type="val",
-                                   num_time_steps=SPRING_STEPS, time_step_size=time_step_size,
+                                   num_time_steps=num_steps, time_step_size=time_step_size,
                                    subsampling=1, noise_sigma=0.0, vel_decay=VEL_DECAY)
     data_sets[key] = dset
     key = DatasetKey(type="eval", dt_factor=dt_factor, n_traj=15)
     dset = utils.SpringMeshDataset(experiment_general, eval_source, 15,
                                    set_type="eval",
-                                   num_time_steps=SPRING_STEPS, time_step_size=time_step_size,
+                                   num_time_steps=num_steps, time_step_size=time_step_size,
                                    subsampling=1, noise_sigma=0.0, vel_decay=VEL_DECAY)
     data_sets[key] = dset
     key = DatasetKey(type="eval-outdist", dt_factor=dt_factor, n_traj=15)
     dset = utils.SpringMeshDataset(experiment_outdist, eval_outdist_source, 15,
                                    set_type="eval-outdist",
-                                   num_time_steps=SPRING_STEPS, time_step_size=time_step_size,
+                                   num_time_steps=num_steps, time_step_size=time_step_size,
                                    subsampling=1, noise_sigma=0.0, vel_decay=VEL_DECAY)
     data_sets[key] = dset
     key = DatasetKey(type="eval-long", dt_factor=dt_factor, n_traj=5)
-    dset = utils.SpringMeshDataset(experiment_long, eval_outdist_source, 5,
+    dset = utils.SpringMeshDataset(experiment_long, eval_source, 5,
                                    set_type="eval-outdist",
-                                   num_time_steps=3 * SPRING_STEPS, time_step_size=time_step_size,
+                                   num_time_steps=3 * num_steps, time_step_size=time_step_size,
                                    subsampling=1, noise_sigma=0.0, vel_decay=VEL_DECAY)
     data_sets[key] = dset
     # Generate training sets
@@ -69,7 +69,7 @@ for dt_factor in [1]:
         key = DatasetKey(type="train", dt_factor=dt_factor, n_traj=num_traj)
         dset = utils.SpringMeshDataset(experiment_general, train_source, num_traj,
                                        set_type="train",
-                                       num_time_steps=SPRING_STEPS, time_step_size=time_step_size,
+                                       num_time_steps=num_steps, time_step_size=time_step_size,
                                        subsampling=1, noise_sigma=0.0, vel_decay=VEL_DECAY)
         data_sets[key] = dset
 writable_objects.extend(data_sets.values())
