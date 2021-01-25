@@ -9,7 +9,7 @@ parser = argparse.ArgumentParser(description="Generate run descriptions")
 parser.add_argument("base_dir", type=str,
                     help="Base directory for run descriptions")
 
-EPOCHS = 400
+EPOCHS = 250
 GN_EPOCHS = 25
 NUM_REPEATS = 3
 # Wave base parameters
