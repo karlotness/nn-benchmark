@@ -78,7 +78,7 @@ writable_objects.extend(data_sets.values())
 for key, dset in data_sets.items():
     if key.type not in {"eval", "eval-long", "eval-outdist", "eval-easy"}:
         continue
-    for integrator in ["leapfrog", "euler", "rk4", "scipy-RK45",
+    for integrator in ["leapfrog", "euler", "rk4",
                        "back-euler", "implicit-rk"]:
         integration_run_float = utils.BaselineIntegrator(experiment=experiment_general,
                                                          eval_set=dset,
@@ -104,7 +104,7 @@ for dt_factor in [1]:
         knn_predict_eval = utils.KNNPredictorOneshot(experiment_general, training_set=train_set, eval_set=eval_set)
         knn_predict_eval_outdist = utils.KNNPredictorOneshot(experiment_outdist, training_set=train_set, eval_set=eval_set_outdist)
         writable_objects.extend([knn_predict_eval, knn_predict_eval_outdist])
-        for eval_integrator in ["leapfrog", "euler", "rk4", "scipy-RK45"]:
+        for eval_integrator in ["leapfrog", "euler", "rk4"]:
             knn_regressor = utils.KNNRegressorOneshot(experiment_general, training_set=train_set, eval_set=eval_set, integrator=eval_integrator)
             knn_regressor_outdist = utils.KNNRegressorOneshot(experiment_outdist, training_set=train_set, eval_set=eval_set_outdist, integrator=eval_integrator)
             writable_objects.extend([knn_regressor, knn_regressor_outdist])
@@ -157,7 +157,7 @@ for num_traj in [NUM_TRAJ]:
                 trained_nets.append(mlp_train)
         # Evaluate the networks
         writable_objects.extend(trained_nets)
-        for eval_integrator in ["leapfrog", "euler", "rk4", "scipy-RK45"]:
+        for eval_integrator in ["leapfrog", "euler", "rk4"]:
             for trained_net in trained_nets:
                 eval_general = utils.NetworkEvaluation(experiment=experiment_general,
                                                        network=trained_net,
