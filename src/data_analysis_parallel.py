@@ -16,6 +16,7 @@ flags.DEFINE_string("root_dir",
                     "Root directory that contains the logged data.")
 flags.DEFINE_string("output_dir", None, "Directory to output the dataframe.")
 flags.DEFINE_integer("processes", 16, "Number of processes to use.")
+flags.DEFINE_boolean("output_json", False, "Whether to only output aggregate data, as json.")
 
 def get_aggregate_data_dict():
     return {
@@ -31,6 +32,9 @@ def get_aggregate_data_dict():
         "num_epochs" : None,
         "inference_time" : None,
         "integrator_timestep_size" : None,
+        "relerr_l2" : None,
+        "raw_l2" : None,
+        "mse" : None,
     }
 
 def get_ground_truth_data_dict(experiment_name=None, trajectory_number=None, timestep_number=None):
@@ -52,11 +56,12 @@ def get_inferred_data_dict(experiment_name=None, trajectory_number=None, timeste
 
 
 def build_experiment_dataframe(input_args):
-    path, run_description = input_args
+    path, run_description, output_json = input_args
 
     aggregate_data_df = []
-    ground_truth_data_df = []
-    inferred_data_df = []
+    if not output_json:
+        ground_truth_data_df = []
+        inferred_data_df = []
 
     try:
         with run_description.open() as file_:
@@ -120,35 +125,60 @@ def build_experiment_dataframe(input_args):
         for i in results_metadata["integration_stats"]
     ])
 
-    ground_truth_trajectories = np.load(
-        (path / metadata["phase_args"]["eval_data"]["data_dir"] / "trajectories.npz"))
-    for trajectory_index, trajectory in enumerate(system_metadata["trajectories"]):
-        data = np.stack([
-            ground_truth_trajectories[trajectory["field_keys"]["p"]],
-            ground_truth_trajectories[trajectory["field_keys"]["q"]],
-        ], axis=-1)
-        for time_index in range(data.shape[0]):
-            row = get_ground_truth_data_dict(df_row_dict["experiment_name"], trajectory_index, time_index)
-            row["ground_truth_data"] = data[time_index, ...]
-            ground_truth_data_df.append(row)
+    if output_json:
+        inferred_trajectories = np.load(run_description.parent.parent / "integrated_trajectories.npz")
+        errors = [[], [], []]
+        for trajectory_index, trajectory in enumerate(results_metadata["integration_stats"]):
+            data = np.stack([
+                inferred_trajectories[trajectory["file_names"]["p"]],
+                inferred_trajectories[trajectory["file_names"]["q"]]],
+                axis=-1)
+            error_relerr_l2 = [inferred_trajectories[trajectory["file_names"]["relerr_l2"]][time_index]
+                     for time_index in range(data.shape[0])]
+            error_raw_l2 = [inferred_trajectories[trajectory["file_names"]["raw_l2"]][time_index]
+                     for time_index in range(data.shape[0])]
+            error_mse = [inferred_trajectories[trajectory["file_names"]["mse"]][time_index]
+                     for time_index in range(data.shape[0])]
+            errors[0].append(error_relerr_l2)
+            errors[1].append(error_raw_l2)
+            errors[2].append(error_mse)
+        errors = np.array(errors).mean(axis=0)
+        df_row_dict["relerr_l2"] = errors[0].tolist()
+        df_row_dict["raw_l2"] = errors[1].tolist()
+        df_row_dict["mse"] = errors[2].tolist()
+    else:
+        ground_truth_trajectories = np.load(
+            (path / metadata["phase_args"]["eval_data"]["data_dir"] / "trajectories.npz"))
+        for trajectory_index, trajectory in enumerate(system_metadata["trajectories"]):
+            data = np.stack([
+                ground_truth_trajectories[trajectory["field_keys"]["p"]],
+                ground_truth_trajectories[trajectory["field_keys"]["q"]],
+            ], axis=-1)
+            for time_index in range(data.shape[0]):
+                row = get_ground_truth_data_dict(df_row_dict["experiment_name"], trajectory_index, time_index)
+                row["ground_truth_data"] = data[time_index, ...]
+                ground_truth_data_df.append(row)
 
-    inferred_trajectories = np.load(run_description.parent.parent / "integrated_trajectories.npz")
-    for trajectory_index, trajectory in enumerate(results_metadata["integration_stats"]):
-        data = np.stack([
-            inferred_trajectories[trajectory["file_names"]["p"]],
-            inferred_trajectories[trajectory["file_names"]["q"]]],
-            axis=-1)
-        for time_index in range(data.shape[0]):
-            row = get_inferred_data_dict(df_row_dict["experiment_name"], trajectory_index, time_index)
-            row["inferred_data"] = data[time_index, ...]
-            row["relerr_l2"] = inferred_trajectories[trajectory["file_names"]["relerr_l2"]][time_index]
-            inferred_data_df.append(row)
+        inferred_trajectories = np.load(run_description.parent.parent / "integrated_trajectories.npz")
+        for trajectory_index, trajectory in enumerate(results_metadata["integration_stats"]):
+            data = np.stack([
+                inferred_trajectories[trajectory["file_names"]["p"]],
+                inferred_trajectories[trajectory["file_names"]["q"]]],
+                axis=-1)
+            for time_index in range(data.shape[0]):
+                row = get_inferred_data_dict(df_row_dict["experiment_name"], trajectory_index, time_index)
+                row["inferred_data"] = data[time_index, ...]
+                row["relerr_l2"] = inferred_trajectories[trajectory["file_names"]["relerr_l2"]][time_index]
+                inferred_data_df.append(row)
 
-    aggregate_data_df.append(df_row_dict)
     print("Processed example at {}".format(run_description))
 
-    return aggregate_data_df, ground_truth_data_df, inferred_data_df
+    aggregate_data_df.append(df_row_dict)
 
+    if not export_json:
+        return aggregate_data_df, ground_truth_data_df, inferred_data_df
+    else:
+        return aggregate_data_df
 
 
 def build_dataframe(dir_prefix, processes):
@@ -159,9 +189,10 @@ def build_dataframe(dir_prefix, processes):
     path = Path(dir_prefix)
 
     with multiprocessing.Pool(processes) as pool:
-        results = pool.map(build_experiment_dataframe, itertools.product([path], path.glob("run/eval/*/launch/run_description.json")))
+        results = pool.map(build_experiment_dataframe, itertools.product([path], path.glob("run/eval/*/launch/run_description.json"), [False]))
 
     aggregate_data_df = aggregate_data_df.from_records(itertools.chain(*[agg for agg, _, _ in results]))
+
     ground_truth_data_df = ground_truth_data_df.from_records(itertools.chain(*[ground for _, ground, _ in results]))
     inferred_data_df = inferred_data_df.from_records(itertools.chain(*[inferred for _, _, inferred in results]))
 
@@ -169,14 +200,32 @@ def build_dataframe(dir_prefix, processes):
             "ground_truth_data" : ground_truth_data_df,
             "inferred_data" : inferred_data_df}
 
-def main(argv):
-    df_dict = build_dataframe(FLAGS.root_dir, FLAGS.processes)
 
-    print("Aggregate dataframe has {} entries".format(len(df_dict["aggregate_data"])))
+
+def build_json(dir_prefix, processes, output_json):
+    path = Path(dir_prefix)
+
+    with multiprocessing.Pool(processes) as pool:
+        results = pool.map(build_experiment_dataframe, itertools.product([path], path.glob("run/eval/*/launch/run_description.json"), [output_json]))
+
+    return {"results" : results}
+
+
+def main(argv):
+    if not FLAGS.output_json:
+        df_dict = build_dataframe(FLAGS.root_dir, FLAGS.processes)
+    else:
+        df_dict = build_json(FLAGS.root_dir, FLAGS.processes, FLAGS.output_json)
 
     if FLAGS.output_dir:
-        for k, v in df_dict.items():
-            v.to_pickle(os.path.join(FLAGS.output_dir, k + ".pkl"))
+        print("Aggregate dataframe has {} entries".format(len(df_dict["aggregate_data"])))
+
+        if not FLAGS.output_json:
+            for k, v in df_dict.items():
+                v.to_pickle(os.path.join(FLAGS.output_dir, k + ".pkl"))
+        else:
+            with open(os.path.join(FLAGS.output_dir, "aggregate_data.json"), "w") as file_:
+                json.dump(df_dict, file_)
 
 if __name__ == "__main__":
     app.run(main)
