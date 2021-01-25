@@ -61,7 +61,7 @@ class TrajectoryDataset(data.Dataset):
         if "edge_indices" in meta["field_keys"]:
             edge_index = self._npz_file[meta["field_keys"]["edge_indices"]]
         else:
-            edge_index = None
+            edge_index = []
         # Package and return
         return Trajectory(name=name, trajectory_meta=meta,
                           p=self.__linearize(p),
