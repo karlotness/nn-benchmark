@@ -298,6 +298,28 @@ def train_mlp(net, batch, loss_fn, train_type_args, tensor_converter):
                            total_loss_denom_incr=shape_product(p.shape))
 
 
+def train_cnn(net, batch, loss_fn, train_type_args, tensor_converter):
+    # Extract values from batch
+    p = tensor_converter(batch.p)
+    q = tensor_converter(batch.q)
+    dp_dt = tensor_converter(batch.dp_dt)
+    dq_dt = tensor_converter(batch.dq_dt)
+    if len(p.shape) < 3:
+        # Unsqueeze all tensors
+        p = p.unsqueeze(1)
+        q = q.unsqueeze(1)
+        dp_dt = dp_dt.unsqueeze(1)
+        dq_dt = dq_dt.unsqueeze(1)
+    # Perform training
+    # Assume snapshot dataset (shape [batch_size, n_grid])
+    deriv_pred = net(p=p, q=q)
+    dx_dt = torch.cat([dp_dt, dq_dt], dim=-1)
+    dx_dt_pred = torch.cat([deriv_pred.dp_dt, deriv_pred.dq_dt], dim=-1)
+    loss = loss_fn(dx_dt_pred, dx_dt)
+    return TrainLossResult(loss=loss,
+                           total_loss_denom_incr=shape_product(p.shape))
+
+
 def train_hogn(net, batch, loss_fn, train_type_args, tensor_converter):
     # Extract values from batch
     graph_batch = batch
@@ -332,7 +354,7 @@ TRAIN_FUNCTIONS = {
     "srnn": train_srnn,
     "mlp": train_mlp,
     "nn-kernel": train_mlp,
-    "cnn": train_mlp,
+    "cnn": train_cnn,
     "hogn": train_hogn,
     "gn": train_gn,
 }

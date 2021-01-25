@@ -16,8 +16,7 @@ class CNN(torch.nn.Module):
         assert layer_defs[0].in_chans == layer_defs[-1].out_chans
         for layer_def in layer_defs:
             kern_size = layer_def.kernel_size
-            pad = (math.floor(kern_size / 2),
-                   math.ceil(kern_size / 2))
+            pad = (kern_size - 1) // 2
             layers.append(torch.nn.Conv1d(
                 layer_def.in_chans,
                 layer_def.out_chans,
@@ -34,7 +33,7 @@ class CNN(torch.nn.Module):
         # Pass through operations
         # Split input
         x = torch.cat((q, p), dim=-2)
-        split_size = q.shape[-1]
+        split_size = q.shape[-2]
         y = self.ops(x)
         dq, dp = torch.split(y, [split_size, split_size], dim=-2)
         return TimeDerivative(dq_dt=dq, dp_dt=dp)
