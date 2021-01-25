@@ -20,7 +20,7 @@ WAVE_SUBSAMPLE = 1000 // 250
 WAVE_N_GRID = 125
 
 DT_FACTORS = [1, 2, 4, 8, 10, 16]
-NUM_TRAIN_TRAJS = [10, 25, 50, 75, 100, 500]
+NUM_TRAIN_TRAJS = [10, 25, 50, 75, 100, 250]
 ARCHITECTURES = [(200, 3), (2048, 2)]
 
 experiment_general = utils.Experiment("wave-runs")
