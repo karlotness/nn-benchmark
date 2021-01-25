@@ -298,6 +298,7 @@ def run_phase(base_dir, out_dir, phase_args):
     trajectory_results = []
 
     for traj_num, trajectory in enumerate(eval_loader):
+        logger.info(f"Starting trajectory number {traj_num}")
         traj_name = trajectory.name[0]
         p = trajectory.p.to(device, dtype=eval_dtype)
         q = trajectory.q.to(device, dtype=eval_dtype)
