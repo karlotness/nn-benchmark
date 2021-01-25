@@ -21,8 +21,10 @@ NUM_TRAJ = 100
 
 writable_objects = []
 
-experiment_general = utils.Experiment("springmesh-test")
-experiment_outdist = utils.Experiment("springmesh-test-outdist")
+experiment_general = utils.Experiment("springmesh-runs")
+experiment_outdist = utils.Experiment("springmesh-runs-outdist")
+experiment_noise = utils.Experiment("springmesh-runs-noise")
+experiment_long = utils.Experiment("springmesh-runs-long")
 mesh_gen = utils.SpringMeshGridGenerator(grid_shape=(5, 5), fix_particles="top")
 train_source = utils.SpringMeshRowPerturb(mesh_generator=mesh_gen, magnitude=0.75, row=0)
 val_source = utils.SpringMeshRowPerturb(mesh_generator=mesh_gen, magnitude=0.75, row=0)
@@ -54,6 +56,12 @@ for dt_factor in [1]:
     dset = utils.SpringMeshDataset(experiment_outdist, eval_outdist_source, 15,
                                    set_type="eval-outdist",
                                    num_time_steps=SPRING_STEPS, time_step_size=time_step_size,
+                                   subsampling=1, noise_sigma=0.0, vel_decay=VEL_DECAY)
+    data_sets[key] = dset
+    key = DatasetKey(type="eval-long", dt_factor=dt_factor, n_traj=5)
+    dset = utils.SpringMeshDataset(experiment_long, eval_outdist_source, 5,
+                                   set_type="eval-outdist",
+                                   num_time_steps=3 * SPRING_STEPS, time_step_size=time_step_size,
                                    subsampling=1, noise_sigma=0.0, vel_decay=VEL_DECAY)
     data_sets[key] = dset
     # Generate training sets
