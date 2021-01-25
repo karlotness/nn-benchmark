@@ -332,6 +332,7 @@ TRAIN_FUNCTIONS = {
     "srnn": train_srnn,
     "mlp": train_mlp,
     "nn-kernel": train_mlp,
+    "cnn": train_mlp,
     "hogn": train_hogn,
     "gn": train_gn,
 }
