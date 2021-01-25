@@ -252,9 +252,17 @@ for num_traj in NUM_TRAIN_TRAJS:
                                   validation_set=val_set, epochs=EPOCHS)
             mlp_train_easy = utils.MLP(experiment=experiment_easy, training_set=train_set_easy,
                                        hidden_dim=width, depth=depth,
-                                       validation_set=val_set, epochs=EPOCHS)
+                                       validation_set=val_set_easy, epochs=EPOCHS)
             trained_nets.append(mlp_train)
             trained_nets_easy.append(mlp_train_easy)
+        cnn_train = utils.CNN(experiment=experiment_general, training_set=train_set,
+                              validation_set=val_set, epochs=EPOCHS,
+                              chans_inout_kenel=[(None, 32, 5), (32, 64, 5), (64, None, 5)])
+        cnn_train_easy = utils.CNN(experiment=experiment_easy, training_set=train_set_easy,
+                                   validation_set=val_set_easy, epochs=EPOCHS,
+                                   chans_inout_kenel=[(None, 32, 5), (32, 64, 5), (64, None, 5)])
+        trained_nets.append(cnn_train)
+        trained_nets_easy.append(cnn_train_easy)
     # Evaluate the networks
     writable_objects.extend(trained_nets)
     writable_objects.extend(trained_nets_easy)
