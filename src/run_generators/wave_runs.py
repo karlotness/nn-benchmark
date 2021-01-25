@@ -114,6 +114,7 @@ for dt_factor in DT_FACTORS:
                                  num_traj=6,
                                  set_type=f"eval-easy-dtfactor{dt_factor}",
                                  n_grid=WAVE_N_GRID,
+                                 num_time_steps=num_time_steps,
                                  time_step_size=time_step_size,
                                  wave_speed=0.1,
                                  subsampling=wave_subsample)
@@ -124,6 +125,7 @@ for dt_factor in DT_FACTORS:
                                  num_traj=3,
                                  set_type=f"val-easy-dtfactor{dt_factor}",
                                  n_grid=WAVE_N_GRID,
+                                 num_time_steps=num_time_steps,
                                  time_step_size=time_step_size,
                                  wave_speed=0.1,
                                  subsampling=wave_subsample)
@@ -136,6 +138,7 @@ for dt_factor in DT_FACTORS:
                                  num_traj=num_traj,
                                  set_type=f"train-dtfactor{dt_factor}",
                                  n_grid=WAVE_N_GRID,
+                                 num_time_steps=num_time_steps,
                                  time_step_size=time_step_size,
                                  wave_speed=0.1,
                                  subsampling=wave_subsample)
@@ -147,6 +150,7 @@ for dt_factor in DT_FACTORS:
                                      num_traj=num_traj,
                                      set_type=f"train-dtfactor{dt_factor}",
                                      n_grid=WAVE_N_GRID,
+                                     num_time_steps=num_time_steps,
                                      time_step_size=time_step_size,
                                      wave_speed=0.1,
                                      subsampling=wave_subsample)
