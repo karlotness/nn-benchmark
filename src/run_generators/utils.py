@@ -5,6 +5,7 @@ import json
 import math
 import re
 import dataclasses
+import itertools
 
 
 def generate_packing_args(instance, system, dataset):
@@ -35,8 +36,34 @@ def generate_packing_args(instance, system, dataset):
         instance.e_features = 6
         instance.mesh_coords = [[x, 0] for x in np.linspace(0, 1, dim)]
         instance.static_nodes = [0 for i in np.arange(dim)]
+    elif system == "spring-mesh":
+        dim = dataset.input_size() // 2
+        instance.particle_process_type = "identity"
+        instance.adjacency_args = {
+            "type": "native",
+            "boundary_conditions": None,
+            "boundary_vertices": None,
+            "dimension": dim,
+            }
+        instance.v_features = 4
+        instance.e_features = 6
+        instance.mesh_coords = [list(map(float, p["position"])) for p in dataset.initial_cond_source.particle_properties()]
+        instance.static_nodes = [1 if p["is_fixed"] else 0 for p in dataset.initial_cond_source.particle_properties()]
     else:
         raise ValueError(f"Invalid system {system}")
+
+
+def generate_scheduler_args(instance, end_lr):
+    def gamma_factor(initial_lr, final_lr, epochs):
+        return np.power(final_lr / initial_lr, 1. / epochs)
+
+    if end_lr is not None and instance.scheduler == "exponential":
+        instance.scheduler_args = {
+            "gamma": gamma_factor(
+                instance.learning_rate, end_lr, instance.epochs),
+        }
+    else:
+        instance.scheduler_args = None
 
 
 class Experiment:
@@ -194,6 +221,115 @@ class ParticleInitialConditionSource(InitialConditionSource):
             "masses": self.masses.tolist(),
         }
         return state
+
+
+class SpringMeshGridGenerator:
+    def __init__(self, grid_shape, fix_particles="corners"):
+        self.grid_shape = grid_shape
+        self.n_dims = len(grid_shape)
+        self.n_dim = self.n_dims
+        self.n_particles = 1
+        for s in grid_shape:
+            self.n_particles *= s
+        self._particles = None
+        self._springs = None
+        if fix_particles == "corners":
+            self._fixed_pred = lambda self, coords: all(i == 0 or i == m - 1 for i, m in zip(coords, self.grid_shape))
+        elif fix_particles == "top":
+            self._fixed_pred = lambda self, coords: coords[1] == self.grid_shape[1] - 1
+
+    def generate_mesh(self):
+        if self._particles is None:
+            particles = []
+            springs = []
+            ranges = [range(s) for s in self.grid_shape]
+            # Generate particle descriptions
+            for coords in itertools.product(*ranges):
+                fixed = self._fixed_pred(self, coords)
+                particle_def = {
+                    "mass": 1.0,
+                    "is_fixed": fixed,
+                    "position": list(coords),
+                }
+                particles.append(particle_def)
+            # Add edges
+            for (a, part_a), (b, part_b) in itertools.combinations(enumerate(particles), 2):
+                # Determine if we want an edge
+                dist = max(abs(pa - pb) for pa, pb in zip(part_a["position"], part_b["position"]))
+                if dist != 1:
+                    continue
+                # Add the edge
+                length = math.sqrt(sum((pa - pb) ** 2 for pa, pb in zip(part_a["position"], part_b["position"])))
+                spring_def = {
+                    "a": a,
+                    "b": b,
+                    "spring_const": 1.0,
+                    "rest_length": length,
+                }
+                springs.append(spring_def)
+            self._particles = particles
+            self._springs = springs
+        return copy.deepcopy(self._particles), copy.deepcopy(self._springs)
+
+
+class SpringMeshRowPerturb(InitialConditionSource):
+    def __init__(self, mesh_generator, magnitude, row=0):
+        super().__init__()
+        self.mesh_generator = mesh_generator
+        self.magnitude = magnitude
+        self.row = row
+        self.n_dim = mesh_generator.n_dim
+        self.n_particles = mesh_generator.n_particles
+        assert self.n_dim == 2
+
+    def particle_properties(self):
+        particles, _springs = self.mesh_generator.generate_mesh()
+        return particles
+
+    def _generate_initial_condition(self):
+        angle = np.random.uniform(0, 2 * np.pi)
+        perturb_x = np.cos(angle) * self.magnitude
+        perturb_y = np.sin(angle) * self.magnitude
+        particles, springs = self.mesh_generator.generate_mesh()
+        # Apply perturbation
+        for particle in particles:
+            if particle["is_fixed"]:
+                # Do not perturb fixed particles
+                continue
+            if particle["position"][1] == self.row:
+                # Apply perturbation
+                particle["position"][0] += perturb_x
+                particle["position"][1] += perturb_y
+        return {
+            "particles": particles,
+            "springs": springs,
+        }
+
+
+class SpringMeshManualPerturb(InitialConditionSource):
+    def __init__(self, mesh_generator, perturbations):
+        super().__init__()
+        self.mesh_generator = mesh_generator
+        self.perturbations = perturbations
+        self.n_dim = mesh_generator.n_dim
+        self.n_particles = mesh_generator.n_particles
+
+    def particle_properties(self):
+        particles, _springs = self.mesh_generator.generate_mesh()
+        return particles
+
+    def _generate_initial_condition(self):
+        particles, springs = self.mesh_generator.generate_mesh()
+        # Apply perturbation
+        for particle in particles:
+            for target_coord, perturb in self.perturbations:
+                if all(p == tc for p, tc in zip(particle["position"], target_coord)):
+                    # Apply perturbation
+                    particle["position"] = [pos + diff for pos, diff in zip(particle["position"], perturb)]
+        return {
+            "particles": particles,
+            "springs": springs,
+        }
 
 
 class WritableDescription:
@@ -401,6 +537,58 @@ class ParticleDataset(Dataset):
                 "time": "00:30:00",
                 "cpus": 8,
                 "mem": 6,
+            },
+        }
+        return template
+
+    def input_size(self):
+        return 2 * self.n_dim * self.n_particles
+
+
+class SpringMeshDataset(Dataset):
+    def __init__(self, experiment, initial_cond_source, num_traj,
+                 set_type="train",
+                 num_time_steps=500, time_step_size=0.1,
+                 subsampling=10, noise_sigma=0.0, vel_decay=1.0):
+        super().__init__(experiment=experiment,
+                         name_tail=f"n{num_traj}-t{num_time_steps}-n{noise_sigma}",
+                         system="spring-mesh",
+                         set_type=set_type)
+        self.initial_cond_source = initial_cond_source
+        self.num_traj = num_traj
+        self.num_time_steps = num_time_steps
+        self.time_step_size = time_step_size
+        self.subsampling = subsampling
+        self.noise_sigma = noise_sigma
+        self.vel_decay = vel_decay
+        self.initial_conditions = self.initial_cond_source.sample_initial_conditions(self.num_traj)
+        self.n_dim = initial_cond_source.n_dim
+        self.n_particles = initial_cond_source.n_particles
+
+    def description(self):
+        trajectories = []
+        for icond in self.initial_conditions:
+            traj = {
+                "num_time_steps": self.num_time_steps,
+                "time_step_size": self.time_step_size,
+                "noise_sigma": self.noise_sigma,
+                "subsample": self.subsampling,
+            }
+            traj.update(icond)
+            trajectories.append(traj)
+        template = {
+            "phase_args": {
+                "system": "spring-mesh",
+                "system_args": {
+                    "vel_decay": self.vel_decay,
+                    "trajectory_defs": trajectories,
+                }
+            },
+            "slurm_args": {
+                "gpu": False,
+                "time": "03:00:00",
+                "cpus": 8,
+                "mem": 32,
             },
         }
         return template
@@ -713,8 +901,9 @@ class HOGN(TrainedNetwork):
 
 class GN(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, hidden_dim=128,
-                 learning_rate=1e-4, epochs=300,
-                 scheduler="none", scheduler_step="epoch", scheduler_args={},
+                 learning_rate=1e-4, end_lr=1e-6, epochs=300, layer_norm=False,
+                 scheduler="exponential", scheduler_step="epoch",
+                 noise_type="none", noise_variance=0,
                  train_dtype="float", batch_size=100, validation_set=None):
         super().__init__(experiment=experiment,
                          method="gn",
@@ -724,14 +913,19 @@ class GN(TrainedNetwork):
         self.gpu = gpu
         self.learning_rate = learning_rate
         self.epochs = epochs
+        self.layer_norm = layer_norm
         self.train_dtype = train_dtype
         self.batch_size = batch_size
         self.validation_set = validation_set
         self.scheduler = scheduler
         self.scheduler_step = scheduler_step
-        self.scheduler_args = scheduler_args
-        self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
-        generate_packing_args(self, self.training_set.system, self.training_set)
+        self.noise_type = noise_type
+        self.noise_variance = noise_variance
+        self._check_val_set(
+            train_set=self.training_set, val_set=self.validation_set)
+        generate_packing_args(
+            self, self.training_set.system, self.training_set)
+        generate_scheduler_args(self, end_lr)
 
     def description(self):
         template = {
@@ -744,6 +938,7 @@ class GN(TrainedNetwork):
                         "hidden_dim": self.hidden_dim,
                         "mesh_coords": self.mesh_coords,
                         "static_nodes": self.static_nodes,
+                        "layer_norm": self.layer_norm,
                     },
                 },
                 "training": {
@@ -786,6 +981,11 @@ class GN(TrainedNetwork):
         }
         if self.validation_set is not None:
             template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
+        if self.noise_type != "none":
+            template["phase_args"]["training"]["noise"] = {
+                "type": self.noise_type,
+                "variance": self.noise_variance
+            }
         return template
 
 
@@ -794,7 +994,9 @@ class GN(TrainedNetwork):
 class MLP(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, learning_rate=1e-3,
                  hidden_dim=2048, depth=2, train_dtype="float",
-                 batch_size=750, epochs=1000, validation_set=None):
+                 scheduler="none", scheduler_step="epoch", end_lr=None,
+                 batch_size=750, epochs=1000, validation_set=None,
+                 noise_type="none", noise_variance=0):
         super().__init__(experiment=experiment,
                          method="mlp",
                          name_tail=f"{training_set.name}-d{depth}-h{hidden_dim}")
@@ -807,7 +1009,12 @@ class MLP(TrainedNetwork):
         self.batch_size = batch_size
         self.epochs = epochs
         self.validation_set = validation_set
+        self.scheduler = scheduler
+        self.scheduler_step = scheduler_step
         self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
+        self.noise_type = noise_type
+        self.noise_variance = noise_variance
+        generate_scheduler_args(self, end_lr)
 
     def description(self):
         template = {
@@ -832,6 +1039,9 @@ class MLP(TrainedNetwork):
                     "train_dtype": self.train_dtype,
                     "train_type": "mlp",
                     "train_type_args": {},
+                    "scheduler": self.scheduler,
+                    "scheduler_step": self.scheduler_step,
+                    "scheduler_args": self.scheduler_args,
                 },
                 "train_data": {
                     "data_dir": self.training_set.path,
@@ -853,6 +1063,97 @@ class MLP(TrainedNetwork):
         }
         if self.validation_set is not None:
             template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
+        if self.noise_type != "none":
+            template["phase_args"]["training"]["noise"] = {
+                "type": self.noise_type,
+                "variance": self.noise_variance
+            }
+        return template
+
+
+class CNN(TrainedNetwork):
+    def __init__(self, experiment, training_set, gpu=True, learning_rate=1e-3,
+                 chans_inout_kenel=((None, 32, 5), (32, None, 5)),
+                 train_dtype="float",
+                 scheduler="none", scheduler_step="epoch", scheduler_args={},
+                 batch_size=750, epochs=1000, validation_set=None,
+                 noise_type="none", noise_variance=0):
+        base_num_chans = getattr(training_set, "n_particles", 2)
+        chan_records = [
+            {
+                "kernel_size": ks,
+                "in_chans": ic or base_num_chans,
+                "out_chans": oc or base_num_chans,
+            }
+            for ic, oc, ks in chans_inout_kenel]
+        name_key = ";".join([f"{cr['kernel_size']}:{cr['in_chans']}:{cr['out_chans']}" for cr in chan_records])
+        super().__init__(experiment=experiment,
+                         method="cnn",
+                         name_tail=f"{training_set.name}-a{name_key}")
+        self.training_set = training_set
+        self.gpu = gpu
+        self.learning_rate = learning_rate
+        self.train_dtype = train_dtype
+        self.batch_size = batch_size
+        self.epochs = epochs
+        self.validation_set = validation_set
+        self.scheduler = scheduler
+        self.scheduler_step = scheduler_step
+        self.scheduler_args = {}
+        self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
+        self.noise_type = noise_type
+        self.noise_variance = noise_variance
+        self.layer_defs = chan_records
+
+    def description(self):
+        template = {
+            "phase_args": {
+                "network": {
+                    "arch": "cnn",
+                    "arch_args": {
+                        "nonlinearity": "relu",
+                        "layer_defs": self.layer_defs,
+                    },
+                },
+                "training": {
+                    "optimizer": "adam",
+                    "optimizer_args": {
+                        "learning_rate": self.learning_rate,
+                    },
+                    "max_epochs": self.epochs,
+                    "try_gpu": self.gpu,
+                    "train_dtype": self.train_dtype,
+                    "train_type": "cnn",
+                    "train_type_args": {},
+                    "scheduler": self.scheduler,
+                    "scheduler_step": self.scheduler_step,
+                    "scheduler_args": self.scheduler_args,
+                },
+                "train_data": {
+                    "data_dir": self.training_set.path,
+                    "dataset": "snapshot",
+                    "linearize": False,
+                    "dataset_args": {},
+                    "loader": {
+                        "batch_size": self.batch_size,
+                        "shuffle": True,
+                    },
+                },
+            },
+            "slurm_args": {
+                "gpu": self.gpu,
+                "time": "15:00:00",
+                "cpus": 8 if self.gpu else 20,
+                "mem": self._get_mem_requirement(train_set=self.training_set),
+            },
+        }
+        if self.validation_set is not None:
+            template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
+        if self.noise_type != "none":
+            template["phase_args"]["training"]["noise"] = {
+                "type": self.noise_type,
+                "variance": self.noise_variance
+            }
         return template
 
 
@@ -1084,7 +1385,7 @@ class NetworkEvaluation(Evaluation):
                 "eval_net_file": self.network_file,
                 "eval_data": {
                     "data_dir": self.eval_set.path,
-                    "linearize": (self.network.method != "hogn"),
+                    "linearize": (self.network.method not in {"hogn", "gn", "cnn"}),
                 },
                 "eval": {
                     "eval_type": eval_type,
@@ -1193,4 +1494,6 @@ class BaselineIntegrator(Evaluation):
                 "mem": self._get_mem_requirement(eval_set=self.eval_set),
             },
         }
+        if self.eval_set.system == "spring-mesh":
+            template["phase_args"]["eval_data"]["linearize"] = True
         return template

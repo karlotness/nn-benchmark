@@ -1,7 +1,7 @@
 import logging
 import pathlib
 import numpy as np
-from systems import spring, wave, particle
+from systems import spring, wave, particle, spring_mesh
 import json
 
 
@@ -22,6 +22,9 @@ def run_phase(base_dir, out_dir, phase_args):
     elif system == "particle":
         sys_result = particle.generate_data(system_args=system_args,
                                             base_logger=logger)
+    elif system == "spring-mesh":
+        sys_result = spring_mesh.generate_data(system_args=system_args,
+                                               base_logger=logger)
     else:
         raise ValueError(f"Invalid system: {system}")
 

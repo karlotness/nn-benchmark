@@ -44,6 +44,8 @@ def get_edge_index(connection_args):
                 torch.cat((idx[1:], idx[:-1])),
                 torch.cat((idx[:-1], idx[1:]))), dim=0)
         return adj.long()
+    elif conn_type == "native":
+        return None
     else:
         raise ValueError(f"Unknown connection type {conn_type}")
 
@@ -72,7 +74,7 @@ def particle_type_identity(p, q, dp_dt, dq_dt, masses):
         masses=masses.reshape((-1, 1)))
 
 
-def package_data(data_set, package_args):
+def package_data(data_set, package_args, system):
     particle_process_type = package_args["particle_processing"]
     package_type = package_args["package_type"]
     adjacency_args = package_args["adjacency_args"]
@@ -82,7 +84,7 @@ def package_data(data_set, package_args):
         package_func = hogn.package_batch
         boundary_vertices = None
     elif package_type == "gn":
-        package_func = gn.package_batch
+        package_func = lambda *args, **kwargs: gn.package_batch(system, *args, **kwargs)
         boundary_vertices = adjacency_args["boundary_vertices"]
     else:
         raise ValueError(f"Unknown package type {package_type}")
@@ -105,6 +107,9 @@ def package_data(data_set, package_args):
         proc_part = particle_process_func(p=p, q=q,
                                           dp_dt=dp_dt, dq_dt=dq_dt,
                                           masses=masses)
+        if edge_index is None:
+            # Pull directly from batch
+            edge_index = torch.tensor(batch.edge_index).long()
         packaged = package_func(p=proc_part.p, q=proc_part.q,
                                 dp_dt=proc_part.dp_dt, dq_dt=proc_part.dq_dt,
                                 masses=proc_part.masses, edge_index=edge_index,

@@ -8,7 +8,7 @@ from torch.utils import data
 Trajectory = namedtuple("Trajectory", ["name", "p", "q", "dp_dt", "dq_dt",
                                        "t", "trajectory_meta",
                                        "p_noiseless", "q_noiseless",
-                                       "masses"])
+                                       "masses", "edge_index"])
 
 
 class TrajectoryDataset(data.Dataset):
@@ -58,6 +58,10 @@ class TrajectoryDataset(data.Dataset):
         else:
             num_particles = p.shape[1]
             masses = np.ones(num_particles)
+        if "edge_indices" in meta["field_keys"]:
+            edge_index = self._npz_file[meta["field_keys"]["edge_indices"]]
+        else:
+            edge_index = []
         # Package and return
         return Trajectory(name=name, trajectory_meta=meta,
                           p=self.__linearize(p),
@@ -67,7 +71,8 @@ class TrajectoryDataset(data.Dataset):
                           t=t,
                           p_noiseless=self.__linearize(p_noiseless),
                           q_noiseless=self.__linearize(q_noiseless),
-                          masses=masses)
+                          masses=masses,
+                          edge_index=edge_index)
 
     def __len__(self):
         return len(self._trajectory_meta)
@@ -75,7 +80,7 @@ class TrajectoryDataset(data.Dataset):
 Snapshot = namedtuple("Snapshot", ["name", "p", "q", "dp_dt", "dq_dt",
                                    "t", "trajectory_meta",
                                    "p_noiseless", "q_noiseless",
-                                   "masses"])
+                                   "masses", "edge_index"])
 
 class SnapshotDataset(data.Dataset):
 
@@ -96,6 +101,7 @@ class SnapshotDataset(data.Dataset):
         p_noiseless = []
         q_noiseless = []
         masses = []
+        edge_indices = []
 
         for traj_i in range(len(self._traj_dataset)):
             traj = self._traj_dataset[traj_i]
@@ -111,6 +117,7 @@ class SnapshotDataset(data.Dataset):
             p_noiseless.append(traj.p_noiseless)
             q_noiseless.append(traj.q_noiseless)
             masses.extend([traj.masses] * traj_num_steps)
+            edge_indices.extend([traj.edge_index] * traj_num_steps)
 
         # Load each trajectory and join the components
         self._name = name
@@ -123,6 +130,7 @@ class SnapshotDataset(data.Dataset):
         self._p_noiseless = np.concatenate(p_noiseless)
         self._q_noiseless = np.concatenate(q_noiseless)
         self._masses = masses
+        self._edge_indices = edge_indices
 
     def __getitem__(self, idx):
         return Snapshot(name=self._name[idx],
@@ -132,7 +140,8 @@ class SnapshotDataset(data.Dataset):
                         t=self._t[idx],
                         p_noiseless=self._p_noiseless[idx],
                         q_noiseless=self._q_noiseless[idx],
-                        masses=self._masses[idx])
+                        masses=self._masses[idx],
+                        edge_index=self._edge_indices[idx])
 
     def __len__(self):
         return len(self._traj_meta)

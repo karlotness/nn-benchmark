@@ -10,7 +10,7 @@ from train import create_dataset as train_create_dataset
 import methods
 import dataset
 import integrators
-from systems import spring, wave, particle
+from systems import spring, wave, particle, spring_mesh
 import joblib
 from collections import namedtuple
 
@@ -129,6 +129,7 @@ def run_phase(base_dir, out_dir, phase_args):
     # Send network to correct device if PyTorch
     if isinstance(net, (torch.nn.Module, torch.Tensor)):
         net = net.to(device, dtype=eval_dtype)
+        net.eval()
 
     # Handle possible knn "oneshot" training before evaluation
     if eval_type in {"knn-regressor-oneshot", "knn-predictor-oneshot"}:
@@ -158,6 +159,24 @@ def run_phase(base_dir, out_dir, phase_args):
         hamiltonian_func = model_hamiltonian
     elif eval_type in {"mlp", "nn-kernel"}:
         time_deriv_func = net
+        time_deriv_method = METHOD_DIRECT_DERIV
+    elif eval_type == "cnn":
+        CNNDerivative = namedtuple("CNNDerivative", ["dq_dt", "dp_dt"])
+        def cnn_time_deriv(p, q):
+            unsqueezed = False
+            if len(p.shape) < 3:
+                # Unsqueeze all tensors
+                p = p.unsqueeze(1)
+                q = q.unsqueeze(1)
+                unsqueezed = True
+            res = net(p=p, q=q)
+            if unsqueezed:
+                res = CNNDerivative(
+                    dq_dt=res.dq_dt[:, 0],
+                    dp_dt=res.dp_dt[:, 0],
+                )
+            return res
+        time_deriv_func = cnn_time_deriv
         time_deriv_method = METHOD_DIRECT_DERIV
     elif eval_type in {"knn-regressor", "knn-regressor-oneshot"}:
         # Use the time_derivative
@@ -224,7 +243,8 @@ def run_phase(base_dir, out_dir, phase_args):
                     mocked = HognMockDataset(p=p[i], q=q[i], masses=masses[i],
                                              dp_dt=None, dq_dt=None)
                     bundled = dataset_geometric.package_data(dataset=[mocked],
-                                                             package_args=package_args)[0]
+                                                             package_args=package_args,
+                                                             system=dataset.system)[0]
                     h = net(bundled).sum()
                     hamilts.append(h)
                 return np.array(hamilts)
@@ -237,30 +257,37 @@ def run_phase(base_dir, out_dir, phase_args):
         import dataset_geometric
 
         package_args = eval_args["package_args"]
-        GnMockDataset = namedtuple("GnMockDataset", ["p", "q", "dp_dt", "dq_dt", "masses"])
+        GnMockDataset = namedtuple("GnMockDataset", ["p", "q", "dp_dt", "dq_dt", "masses", "edge_index"])
 
         GNPrediction = namedtuple("GNPrediction", ["p", "q"])
-        def model_next_step(p, q, dt):
-            time_step_size = dt
-            mocked = GnMockDataset(p=p.detach().numpy(), q=q.detach().numpy(),
-                masses=masses, dp_dt=None, dq_dt=None)
-            bundled = dataset_geometric.package_data([mocked],
-                package_args=package_args)[0]
-            accel = net(torch.unsqueeze(bundled.pos, 0),
-                torch.unsqueeze(bundled.x, 0),
-                torch.unsqueeze(bundled.edge_index, 0))
+        def gn_time_deriv_func(masses, edges, n_particles):
+            def model_next_step(p, q, dt):
+                time_step_size = dt
+                p_orig_shape = p.shape
+                q_orig_shape = q.shape
+                batch_size = p.shape[0]
+                assert batch_size == 1
+                p = p.reshape((n_particles, -1))
+                q = q.reshape((n_particles, -1))
+                mocked = GnMockDataset(p=p.detach().numpy(), q=q.detach().numpy(),
+                    masses=masses, dp_dt=None, dq_dt=None, edge_index=edges)
+                bundled = dataset_geometric.package_data([mocked],
+                    package_args=package_args, system=eval_dataset.system)[0]
+                accel = net(torch.unsqueeze(bundled.pos, 0),
+                    torch.unsqueeze(bundled.x, 0),
+                    torch.unsqueeze(bundled.edge_index, 0))
 
-            accel = gn.unpack_results(accel, eval_dataset.system)
+                accel = gn.unpack_results(accel, eval_dataset.system)
 
-            p_next = p + time_step_size * accel
-            q_next = q + time_step_size * p_next
+                p_next = p + time_step_size * accel
+                q_next = q + time_step_size * p_next
 
-            p_next = p_next.to(device, dtype=eval_dtype)
-            q_next = q_next.to(device, dtype=eval_dtype)
+                p_next = p_next.to(device, dtype=eval_dtype)
+                q_next = q_next.to(device, dtype=eval_dtype)
 
-            return GNPrediction(p=p_next, q=q_next)
+                return GNPrediction(p=p_next.reshape(p_orig_shape), q=q_next.reshape(q_orig_shape))
+            return model_next_step
 
-        time_deriv_func = model_next_step
         time_deriv_method = METHOD_DIRECT_DERIV
         if integrator_type != "null":
           raise ValueError(f"GN predictions do not work with integrator {integrator_type}")
@@ -271,6 +298,7 @@ def run_phase(base_dir, out_dir, phase_args):
     trajectory_results = []
 
     for traj_num, trajectory in enumerate(eval_loader):
+        logger.info(f"Starting trajectory number {traj_num}")
         traj_name = trajectory.name[0]
         p = trajectory.p.to(device, dtype=eval_dtype)
         q = trajectory.q.to(device, dtype=eval_dtype)
@@ -280,6 +308,7 @@ def run_phase(base_dir, out_dir, phase_args):
         masses = trajectory.masses.to(device, dtype=eval_dtype)
         num_time_steps = trajectory.trajectory_meta["num_time_steps"][0]
         time_step_size = trajectory.trajectory_meta["time_step_size"][0]
+        edges = None
 
         # Compute hamiltonians
         # Construct systems
@@ -298,6 +327,16 @@ def run_phase(base_dir, out_dir, phase_args):
             g = eval_dataset.system_metadata["g"]
             system = particle.ParticleSystem(n_particles=n_particles,
                                              n_dim=n_dim, g=g)
+        elif eval_dataset.system == "spring-mesh":
+            n_dim = eval_dataset.system_metadata["n_dim"]
+            particles = eval_dataset.system_metadata["particles"]
+            n_particles = len(eval_dataset.system_metadata["particles"])
+            edges_dict = eval_dataset.system_metadata["edges"]
+            edges = np.array([(e["a"], e["b"]) for e in edges_dict] +
+                             [(e["b"], e["a"]) for e in edges_dict], dtype=np.int64).T
+            vel_decay = eval_dataset.system_metadata["vel_decay"]
+            system = spring_mesh.system_from_records(n_dim, particles, edges_dict,
+                                                     vel_decay=vel_decay)
         else:
             raise ValueError(f"Unknown system type {eval_dataset.system}")
 
@@ -305,6 +344,15 @@ def run_phase(base_dir, out_dir, phase_args):
             # Pull out masses for HOGN
             time_deriv_func = hogn_time_deriv_func(masses=masses)
             hamiltonian_func = hogn_hamiltonian_func(masses=masses)
+        elif eval_type == "gn":
+            n_particles = net.static_nodes.shape[0]
+            time_deriv_func = gn_time_deriv_func(masses=masses, edges=edges, n_particles=n_particles)
+            num_traj = p.shape[0]
+            traj_steps = p.shape[1]
+            p = p.reshape((num_traj, traj_steps, -1))
+            q = q.reshape((num_traj, traj_steps, -1))
+            p_noiseless = p_noiseless.reshape((num_traj, traj_steps, -1))
+            q_noiseless = q_noiseless.reshape((num_traj, traj_steps, -1))
 
         p0 = p[:, 0]
         q0 = q[:, 0]

@@ -18,6 +18,68 @@ TRAIN_DTYPES = {
 }
 
 
+class NoNoise:
+    def __init__(self):
+        pass
+
+    def process_batch(self, batch):
+        return batch
+
+
+class RandomCorrectedNoise:
+    NoiseBatch = namedtuple("NoiseBatch", ["name", "p", "q", "dp_dt", "dq_dt",
+                                           "t", "trajectory_meta",
+                                           "p_noiseless", "q_noiseless",
+                                           "masses", "edge_index"])
+
+    def __init__(self, variance, gamma=0.1):
+        self.variance = variance
+        self.gamma = gamma
+
+    def process_batch(self, batch):
+        noise_sigma = np.sqrt(self.variance)
+        if hasattr(batch, "dp_dt"):
+            noise_p = noise_sigma * torch.randn(*batch.p.shape,
+                                                dtype=batch.p.dtype,
+                                                device=batch.p.device)
+            noise_q = noise_sigma * torch.randn(*batch.q.shape,
+                                                dtype=batch.q.dtype,
+                                                device=batch.q.device)
+            return self.NoiseBatch(
+                name=batch.name,
+                p=batch.p + noise_p,
+                q=batch.q + noise_q,
+                dp_dt=batch.dp_dt - noise_p,
+                dq_dt=batch.dq_dt - noise_q,
+                t=batch.t,
+                trajectory_meta=batch.trajectory_meta,
+                p_noiseless=batch.p_noiseless,
+                q_noiseless=batch.q_noiseless,
+                masses=batch.masses,
+                edge_index=batch.edge_index)
+        else:
+            noise_pos = noise_sigma * torch.randn(*batch.pos.shape,
+                                                  dtype=batch.pos.dtype,
+                                                  device=batch.pos.device)
+            batch.pos += noise_pos
+            batch.x += noise_pos
+            batch.y -= (self.gamma * (2 * noise_pos)) + (
+                (1 - self.gamma) * noise_pos)
+            return batch
+
+
+def create_live_noise(noise_args, base_logger):
+    logger = base_logger.getChild("live-noise")
+    noise_type = noise_args.get("type", "none")
+    if noise_type == "none":
+        logger.info("No noise added during training")
+        return NoNoise()
+    elif noise_type == "gn-corrected":
+        variance = noise_args["variance"]
+        logger.info(f"Adding GN-style corrected noise variance={variance}")
+        return RandomCorrectedNoise(variance=variance)
+
+
 def save_network(net, network_args, train_type, out_dir, base_logger,
                  model_file_name="model.pt"):
     logger = base_logger.getChild("save_network")
@@ -123,7 +185,8 @@ def create_dataset(base_dir, data_args):
             package_args = loader_args["package_args"]
             loader = geometric_data.DenseDataLoader(
                 dataset=dataset_geometric.package_data(data_set,
-                                                       package_args=package_args),
+                                                       package_args=package_args,
+                                                       system=data_set.system),
                 batch_size=loader_args["batch_size"],
                 shuffle=loader_args["shuffle"])
         else:
@@ -160,6 +223,13 @@ class TorchTypeConverter:
         return x.to(self.device, dtype=self.dtype)
 
 
+def shape_product(shape):
+    prod = 1
+    for i in shape:
+        prod *= i
+    return prod
+
+
 TrainLossResult = namedtuple("TrainLossResult",
                              ["loss", "total_loss_denom_incr"])
 
@@ -177,7 +247,7 @@ def train_hnn(net, batch, loss_fn, train_type_args, tensor_converter):
     dx_dt_pred = torch.cat([deriv_pred.dp_dt, deriv_pred.dq_dt], dim=-1)
     loss = loss_fn(dx_dt_pred, dx_dt)
     return TrainLossResult(loss=loss,
-                           total_loss_denom_incr=p.shape[0])
+                           total_loss_denom_incr=shape_product(p.shape))
 
 
 def train_srnn(net, batch, loss_fn, train_type_args, tensor_converter):
@@ -209,7 +279,7 @@ def train_srnn(net, batch, loss_fn, train_type_args, tensor_converter):
     x_pred = torch.cat([int_res.p, int_res.q], dim=-1)
     loss = loss_fn(x_pred, x)
     return TrainLossResult(loss=loss,
-                           total_loss_denom_incr=p.shape[0] * p.shape[1])
+                           total_loss_denom_incr=shape_product(p.shape))
 
 
 def train_mlp(net, batch, loss_fn, train_type_args, tensor_converter):
@@ -225,7 +295,29 @@ def train_mlp(net, batch, loss_fn, train_type_args, tensor_converter):
     dx_dt_pred = torch.cat([deriv_pred.dp_dt, deriv_pred.dq_dt], dim=-1)
     loss = loss_fn(dx_dt_pred, dx_dt)
     return TrainLossResult(loss=loss,
-                           total_loss_denom_incr=p.shape[0])
+                           total_loss_denom_incr=shape_product(p.shape))
+
+
+def train_cnn(net, batch, loss_fn, train_type_args, tensor_converter):
+    # Extract values from batch
+    p = tensor_converter(batch.p)
+    q = tensor_converter(batch.q)
+    dp_dt = tensor_converter(batch.dp_dt)
+    dq_dt = tensor_converter(batch.dq_dt)
+    if len(p.shape) < 3:
+        # Unsqueeze all tensors
+        p = p.unsqueeze(1)
+        q = q.unsqueeze(1)
+        dp_dt = dp_dt.unsqueeze(1)
+        dq_dt = dq_dt.unsqueeze(1)
+    # Perform training
+    # Assume snapshot dataset (shape [batch_size, n_grid])
+    deriv_pred = net(p=p, q=q)
+    dx_dt = torch.cat([dp_dt, dq_dt], dim=-1)
+    dx_dt_pred = torch.cat([deriv_pred.dp_dt, deriv_pred.dq_dt], dim=-1)
+    loss = loss_fn(dx_dt_pred, dx_dt)
+    return TrainLossResult(loss=loss,
+                           total_loss_denom_incr=shape_product(p.shape))
 
 
 def train_hogn(net, batch, loss_fn, train_type_args, tensor_converter):
@@ -254,7 +346,7 @@ def train_gn(net, batch, loss_fn, train_type_args, tensor_converter):
 
     loss = loss_fn(accel_pred, accel)
     return TrainLossResult(loss=loss,
-                           total_loss_denom_incr=graph_batch.x.shape[0])
+                           total_loss_denom_incr=shape_product(accel.shape))
 
 
 TRAIN_FUNCTIONS = {
@@ -262,6 +354,7 @@ TRAIN_FUNCTIONS = {
     "srnn": train_srnn,
     "mlp": train_mlp,
     "nn-kernel": train_mlp,
+    "cnn": train_cnn,
     "hogn": train_hogn,
     "gn": train_gn,
 }
@@ -289,6 +382,11 @@ def run_phase(base_dir, out_dir, phase_args):
     # Load the data
     logger.info("Constructing dataset")
     train_dataset, train_loader, val_dataset, val_loader = create_dataset(base_dir, phase_args["train_data"])
+
+    # Set up noise injection
+    noise_injector = create_live_noise(
+        noise_args=training_args.get("noise", {}),
+        base_logger=logger)
 
     # If training a knn, this is all we need.
     if train_type == "knn-regressor":
@@ -367,7 +465,10 @@ def run_phase(base_dir, out_dir, phase_args):
             total_loss_denom = 0
             time_train_start = time.perf_counter()
             # Do training
+            net.train()
             for batch_num, batch in enumerate(train_loader):
+                batch = noise_injector.process_batch(batch)
+
                 optim.zero_grad()
                 time_forward_start = time.perf_counter()
                 train_result = train_fn(net=net, batch=batch, loss_fn=loss_fn,
@@ -408,6 +509,7 @@ def run_phase(base_dir, out_dir, phase_args):
                 val_total_loss = 0
                 val_total_loss_denom = 0
                 time_val_start = time.perf_counter()
+                net.eval()
                 for val_batch_num, val_batch in enumerate(val_loader):
                     val_result = train_fn(net=net, batch=val_batch,
                                           loss_fn=loss_fn,
