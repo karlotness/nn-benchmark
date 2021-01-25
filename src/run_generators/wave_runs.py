@@ -28,6 +28,10 @@ experiment_noise = utils.Experiment("wave-runs-noise")
 experiment_long = utils.Experiment("wave-runs-long")
 experiment_outdist = utils.Experiment("wave-runs-outdist")
 experiment_easy = utils.Experiment("wave-runs-easy")
+
+NOISE_TYPES = [(experiment_general, "none", 0),
+               (experiment_noise, "gn-corrected", 1.6e-5)]
+
 writable_objects = []
 
 train_source = utils.WaveInitialConditionSource(height_range=(0.75, 1.25),
@@ -249,30 +253,37 @@ for num_traj in NUM_TRAIN_TRAJS:
         trained_nets.append((experiment_general, nn_kern_train))
         trained_nets_easy.append(nn_kern_train_easy)
         for width, depth in ARCHITECTURES:
-            mlp_train = utils.MLP(experiment=experiment_general, training_set=train_set,
-                                  hidden_dim=width, depth=depth,
-                                  validation_set=val_set, epochs=EPOCHS)
+            for experiment, noise_type, noise_variance in NOISE_TYPES:
+                mlp_train = utils.MLP(experiment=experiment, training_set=train_set,
+                                      hidden_dim=width, depth=depth,
+                                      noise_type=noise_type, noise_variance=noise_variance,
+                                      validation_set=val_set, epochs=EPOCHS)
+                trained_nets.append((experiment, mlp_train))
             mlp_train_easy = utils.MLP(experiment=experiment_easy, training_set=train_set_easy,
                                        hidden_dim=width, depth=depth,
                                        validation_set=val_set_easy, epochs=EPOCHS)
-            trained_nets.append((experiment_general, mlp_train))
             trained_nets_easy.append(mlp_train_easy)
-        cnn_train = utils.CNN(experiment=experiment_general, training_set=train_set,
-                              validation_set=val_set, epochs=EPOCHS,
-                              chans_inout_kenel=[(None, 32, 5), (32, 64, 5), (64, None, 5)])
+        for experiment, noise_type, noise_variance in NOISE_TYPES:
+            cnn_train = utils.CNN(experiment=experiment, training_set=train_set,
+                                  validation_set=val_set, epochs=EPOCHS,
+                                  noise_type=noise_type, noise_variance=noise_variance,
+                                  chans_inout_kenel=[(None, 32, 5), (32, 64, 5), (64, None, 5)])
+            trained_nets.append((experiment, cnn_train))
         cnn_train_easy = utils.CNN(experiment=experiment_easy, training_set=train_set_easy,
                                    validation_set=val_set_easy, epochs=EPOCHS,
                                    chans_inout_kenel=[(None, 32, 5), (32, 64, 5), (64, None, 5)])
-        gn_train = utils.GN(experiment=experiment_general,
-                            training_set=train_set,
-                            validation_set=val_set,
-                            epochs=GN_EPOCHS)
+        for experiment, noise_type, noise_variance in NOISE_TYPES:
+            gn_train = utils.GN(experiment=experiment,
+                                training_set=train_set,
+                                validation_set=val_set,
+                                noise_type=noise_type,
+                                noise_variance=noise_variance,
+                                epochs=GN_EPOCHS)
+            trained_nets.append((experiment, gn_train))
         gn_train_easy = utils.GN(experiment=experiment_easy,
                                  training_set=train_set_easy,
                                  validation_set=val_set_easy,
                                  epochs=GN_EPOCHS)
-        trained_nets.extend([(experiment_general, cnn_train),
-                             (experiment_general, gn_train)])
         trained_nets_easy.extend([cnn_train_easy, gn_train_easy])
     # Evaluate the networks
     writable_objects.extend([rec for _exp, rec in trained_nets])
