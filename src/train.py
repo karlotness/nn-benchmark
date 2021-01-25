@@ -63,7 +63,7 @@ class RandomCorrectedNoise:
                                                   device=batch.pos.device)
             batch.pos += noise_pos
             batch.x += noise_pos
-            batch.accel -= (self.gamma * (2 * noise_pos)) + (
+            batch.y -= (self.gamma * (2 * noise_pos)) + (
                 (1 - self.gamma) * noise_pos)
             return batch
 
