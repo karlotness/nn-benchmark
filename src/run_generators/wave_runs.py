@@ -288,7 +288,7 @@ for num_traj in NUM_TRAIN_TRAJS:
     # Evaluate the networks
     writable_objects.extend([rec for _exp, rec in trained_nets])
     writable_objects.extend(trained_nets_easy)
-    for eval_integrator in ["leapfrog", "euler", "rk4"]:
+    for int_idx, eval_integrator in enumerate(["leapfrog", "euler", "rk4"]):
         for experiment, trained_net in trained_nets:
             eval_general = utils.NetworkEvaluation(experiment=experiment,
                                                    network=trained_net,
@@ -302,13 +302,15 @@ for num_traj in NUM_TRAIN_TRAJS:
                                                 network=trained_net,
                                                 eval_set=eval_set_long,
                                                 integrator=eval_integrator)
-            writable_objects.extend([eval_general, eval_outdist, eval_long])
+            if not isinstance(trained_net, utils.GN) or int_idx == 0:
+                writable_objects.extend([eval_general, eval_outdist, eval_long])
         for trained_net_easy in trained_nets_easy:
             eval_easy = utils.NetworkEvaluation(experiment=experiment_easy,
                                                 network=trained_net_easy,
                                                 eval_set=eval_set_easy,
                                                 integrator=eval_integrator)
-            writable_objects.append(eval_easy)
+            if not isinstance(trained_net, utils.GN) or int_idx == 0:
+                writable_objects.append(eval_easy)
 
 if __name__ == "__main__":
     args = parser.parse_args()
