@@ -1071,6 +1071,92 @@ class MLP(TrainedNetwork):
         return template
 
 
+class CNN(TrainedNetwork):
+    def __init__(self, experiment, training_set, gpu=True, learning_rate=1e-3,
+                 chans_inout_kenel=((None, 32, 5), (32, None, 5)),
+                 train_dtype="float",
+                 scheduler="none", scheduler_step="epoch", scheduler_args={},
+                 batch_size=750, epochs=1000, validation_set=None,
+                 noise_type="none", noise_variance=0):
+        base_num_chans = getattr(training_set, "n_particles", 2)
+        chan_records = [
+            {
+                "kernel_size": ks,
+                "in_chans": ic or base_num_chans,
+                "out_chans": oc or base_num_chans,
+            }
+            for ic, oc, ks in chans_inout_kenel]
+        name_key = ";".join([f"{cr['kernel_size']}:{cr['in_chans']}:{cr['out_chans']}" for cr in chan_records])
+        super().__init__(experiment=experiment,
+                         method="cnn",
+                         name_tail=f"{training_set.name}-a{name_key}")
+        self.training_set = training_set
+        self.gpu = gpu
+        self.learning_rate = learning_rate
+        self.train_dtype = train_dtype
+        self.batch_size = batch_size
+        self.epochs = epochs
+        self.validation_set = validation_set
+        self.scheduler = scheduler
+        self.scheduler_step = scheduler_step
+        self.scheduler_args = {}
+        self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
+        self.noise_type = noise_type
+        self.noise_variance = noise_variance
+        self.layer_defs = chan_records
+
+    def description(self):
+        template = {
+            "phase_args": {
+                "network": {
+                    "arch": "cnn",
+                    "arch_args": {
+                        "nonlinearity": "relu",
+                        "layer_defs": self.layer_defs,
+                    },
+                },
+                "training": {
+                    "optimizer": "adam",
+                    "optimizer_args": {
+                        "learning_rate": self.learning_rate,
+                    },
+                    "max_epochs": self.epochs,
+                    "try_gpu": self.gpu,
+                    "train_dtype": self.train_dtype,
+                    "train_type": "cnn",
+                    "train_type_args": {},
+                    "scheduler": self.scheduler,
+                    "scheduler_step": self.scheduler_step,
+                    "scheduler_args": self.scheduler_args,
+                },
+                "train_data": {
+                    "data_dir": self.training_set.path,
+                    "dataset": "snapshot",
+                    "linearize": False,
+                    "dataset_args": {},
+                    "loader": {
+                        "batch_size": self.batch_size,
+                        "shuffle": True,
+                    },
+                },
+            },
+            "slurm_args": {
+                "gpu": self.gpu,
+                "time": "15:00:00",
+                "cpus": 8 if self.gpu else 20,
+                "mem": self._get_mem_requirement(train_set=self.training_set),
+            },
+        }
+        if self.validation_set is not None:
+            template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
+        if self.noise_type != "none":
+            template["phase_args"]["training"]["noise"] = {
+                "type": self.noise_type,
+                "variance": self.noise_variance
+            }
+        return template
+
+
 class NNKernel(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, learning_rate=1e-3,
                  hidden_dim=2048, train_dtype="float",
@@ -1299,7 +1385,7 @@ class NetworkEvaluation(Evaluation):
                 "eval_net_file": self.network_file,
                 "eval_data": {
                     "data_dir": self.eval_set.path,
-                    "linearize": (self.network.method not in {"hogn", "gn"}),
+                    "linearize": (self.network.method not in {"hogn", "gn", "cnn"}),
                 },
                 "eval": {
                     "eval_type": eval_type,
