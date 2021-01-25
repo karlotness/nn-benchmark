@@ -10,6 +10,7 @@ parser.add_argument("base_dir", type=str,
                     help="Base directory for run descriptions")
 
 EPOCHS = 400
+GN_EPOCHS = 25
 NUM_REPEATS = 3
 # Wave base parameters
 WAVE_END_TIME = 5
@@ -23,6 +24,7 @@ NUM_TRAIN_TRAJS = [10, 25, 50, 75, 100, 500]
 ARCHITECTURES = [(200, 3), (2048, 2)]
 
 experiment_general = utils.Experiment("wave-runs")
+experiment_noise = utils.Experiment("wave-runs-noise")
 experiment_long = utils.Experiment("wave-runs-long")
 experiment_outdist = utils.Experiment("wave-runs-outdist")
 experiment_easy = utils.Experiment("wave-runs-easy")
@@ -244,7 +246,7 @@ for num_traj in NUM_TRAIN_TRAJS:
                                             optimizer="sgd",
                                             batch_size=750, epochs=EPOCHS, validation_set=val_set_easy,
                                             nonlinearity="relu")
-        trained_nets.append(nn_kern_train)
+        trained_nets.append((experiment_general, nn_kern_train))
         trained_nets_easy.append(nn_kern_train_easy)
         for width, depth in ARCHITECTURES:
             mlp_train = utils.MLP(experiment=experiment_general, training_set=train_set,
@@ -253,7 +255,7 @@ for num_traj in NUM_TRAIN_TRAJS:
             mlp_train_easy = utils.MLP(experiment=experiment_easy, training_set=train_set_easy,
                                        hidden_dim=width, depth=depth,
                                        validation_set=val_set_easy, epochs=EPOCHS)
-            trained_nets.append(mlp_train)
+            trained_nets.append((experiment_general, mlp_train))
             trained_nets_easy.append(mlp_train_easy)
         cnn_train = utils.CNN(experiment=experiment_general, training_set=train_set,
                               validation_set=val_set, epochs=EPOCHS,
@@ -261,22 +263,31 @@ for num_traj in NUM_TRAIN_TRAJS:
         cnn_train_easy = utils.CNN(experiment=experiment_easy, training_set=train_set_easy,
                                    validation_set=val_set_easy, epochs=EPOCHS,
                                    chans_inout_kenel=[(None, 32, 5), (32, 64, 5), (64, None, 5)])
-        trained_nets.append(cnn_train)
-        trained_nets_easy.append(cnn_train_easy)
+        gn_train = utils.GN(experiment=experiment_general,
+                            training_set=train_set,
+                            validation_set=val_set,
+                            epochs=GN_EPOCHS)
+        gn_train_easy = utils.GN(experiment=experiment_easy,
+                                 training_set=train_set_easy,
+                                 validation_set=val_set_easy,
+                                 epochs=GN_EPOCHS)
+        trained_nets.extend([(experiment_general, cnn_train),
+                             (experiment_general, gn_train)])
+        trained_nets_easy.extend([cnn_train_easy, gn_train_easy])
     # Evaluate the networks
-    writable_objects.extend(trained_nets)
+    writable_objects.extend([rec for _exp, rec in trained_nets])
     writable_objects.extend(trained_nets_easy)
     for eval_integrator in ["leapfrog", "euler", "rk4"]:
-        for trained_net in trained_nets:
-            eval_general = utils.NetworkEvaluation(experiment=experiment_general,
+        for experiment, trained_net in trained_nets:
+            eval_general = utils.NetworkEvaluation(experiment=experiment,
                                                    network=trained_net,
                                                    eval_set=eval_set,
                                                    integrator=eval_integrator)
-            eval_outdist = utils.NetworkEvaluation(experiment=experiment_outdist,
+            eval_outdist = utils.NetworkEvaluation(experiment=experiment,
                                                    network=trained_net,
                                                    eval_set=eval_set_outdist,
                                                    integrator=eval_integrator)
-            eval_long = utils.NetworkEvaluation(experiment=experiment_long,
+            eval_long = utils.NetworkEvaluation(experiment=experiment,
                                                 network=trained_net,
                                                 eval_set=eval_set_long,
                                                 integrator=eval_integrator)
