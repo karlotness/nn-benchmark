@@ -1,7 +1,6 @@
 import torch
 from torch.nn import Sequential as Seq, Linear as Lin, ReLU
 from torch_geometric.nn import MetaLayer
-from torch.autograd import grad
 from torch_geometric.data import data
 from torch_scatter import scatter_sum
 import numpy as np

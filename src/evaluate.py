@@ -262,30 +262,33 @@ def run_phase(base_dir, out_dir, phase_args):
         GNPrediction = namedtuple("GNPrediction", ["p", "q"])
         def gn_time_deriv_func(masses, edges, n_particles):
             def model_next_step(p, q, dt):
-                time_step_size = dt
-                p_orig_shape = p.shape
-                q_orig_shape = q.shape
-                batch_size = p.shape[0]
-                assert batch_size == 1
-                p = p.reshape((n_particles, -1))
-                q = q.reshape((n_particles, -1))
-                mocked = GnMockDataset(p=p.detach().numpy(), q=q.detach().numpy(),
-                    masses=masses, dp_dt=None, dq_dt=None, edge_index=edges)
-                bundled = dataset_geometric.package_data([mocked],
-                    package_args=package_args, system=eval_dataset.system)[0]
-                accel = net(torch.unsqueeze(bundled.pos, 0),
-                    torch.unsqueeze(bundled.x, 0),
-                    torch.unsqueeze(bundled.edge_index, 0))
+                with torch.no_grad():
+                    time_step_size = dt
+                    p_orig_shape = p.shape
+                    q_orig_shape = q.shape
+                    batch_size = p.shape[0]
+                    assert batch_size == 1
+                    p = p.reshape((n_particles, -1))
+                    q = q.reshape((n_particles, -1))
+                    mocked = GnMockDataset(p=p.detach().numpy(), q=q.detach().numpy(),
+                        masses=masses, dp_dt=None, dq_dt=None, edge_index=edges)
+                    bundled = dataset_geometric.package_data([mocked],
+                        package_args=package_args, system=eval_dataset.system)[0]
 
-                accel = gn.unpack_results(accel, eval_dataset.system).reshape(p.shape)
+                    accel = net(torch.unsqueeze(bundled.pos, 0),
+                        torch.unsqueeze(bundled.x, 0),
+                        torch.unsqueeze(bundled.edge_index, 0))
 
-                p_next = p + time_step_size * accel
-                q_next = q + time_step_size * p_next
+                    accel = gn.unpack_results(accel, eval_dataset.system).reshape(p.shape)
 
-                p_next = p_next.to(device, dtype=eval_dtype)
-                q_next = q_next.to(device, dtype=eval_dtype)
+                    p_next = p + time_step_size * accel
+                    q_next = q + time_step_size * p_next
 
-                return GNPrediction(p=p_next.reshape(p_orig_shape), q=q_next.reshape(q_orig_shape))
+                    p_next = p_next.to(device, dtype=eval_dtype)
+                    q_next = q_next.to(device, dtype=eval_dtype)
+
+                    return GNPrediction(p=p_next.reshape(p_orig_shape).detach(),
+                                        q=q_next.reshape(q_orig_shape).detach())
             return model_next_step
 
         time_deriv_method = METHOD_DIRECT_DERIV
