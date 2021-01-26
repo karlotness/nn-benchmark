@@ -277,7 +277,7 @@ def run_phase(base_dir, out_dir, phase_args):
                     torch.unsqueeze(bundled.x, 0),
                     torch.unsqueeze(bundled.edge_index, 0))
 
-                accel = gn.unpack_results(accel, eval_dataset.system)
+                accel = gn.unpack_results(accel, eval_dataset.system).reshape(p.shape)
 
                 p_next = p + time_step_size * accel
                 q_next = q + time_step_size * p_next
