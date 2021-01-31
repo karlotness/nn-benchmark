@@ -158,24 +158,28 @@ def run_phase(base_dir, out_dir, phase_args):
         time_deriv_method = METHOD_DIRECT_DERIV
         hamiltonian_func = model_hamiltonian
     elif eval_type in {"mlp", "nn-kernel"}:
-        time_deriv_func = net
+        def net_no_grad(p, q):
+            with torch.no_grad():
+                return net(q=q, p=p)
+        time_deriv_func = net_no_grad
         time_deriv_method = METHOD_DIRECT_DERIV
     elif eval_type == "cnn":
         CNNDerivative = namedtuple("CNNDerivative", ["dq_dt", "dp_dt"])
         def cnn_time_deriv(p, q):
-            unsqueezed = False
-            if len(p.shape) < 3:
-                # Unsqueeze all tensors
-                p = p.unsqueeze(1)
-                q = q.unsqueeze(1)
-                unsqueezed = True
-            res = net(p=p, q=q)
-            if unsqueezed:
-                res = CNNDerivative(
-                    dq_dt=res.dq_dt[:, 0],
-                    dp_dt=res.dp_dt[:, 0],
-                )
-            return res
+            with torch.no_grad():
+                unsqueezed = False
+                if len(p.shape) < 3:
+                    # Unsqueeze all tensors
+                    p = p.unsqueeze(1)
+                    q = q.unsqueeze(1)
+                    unsqueezed = True
+                res = net(p=p, q=q)
+                if unsqueezed:
+                    res = CNNDerivative(
+                        dq_dt=res.dq_dt[:, 0],
+                        dp_dt=res.dp_dt[:, 0],
+                    )
+                return res
         time_deriv_func = cnn_time_deriv
         time_deriv_method = METHOD_DIRECT_DERIV
     elif eval_type in {"knn-regressor", "knn-regressor-oneshot"}:
