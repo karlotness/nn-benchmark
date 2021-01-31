@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.linalg import lu_factor, lu_solve
 from .defs import System, TrajectoryResult, SystemResult, StatePair
 from collections import namedtuple
 import logging
@@ -26,6 +27,35 @@ class SpringMeshSystem(System):
         self.n_dims = n_dims
         self.n_particles = len(particles)
         self.vel_decay = vel_decay
+        self.masses = np.array([p.mass for p in self.particles], dtype=np.float64)
+        self.fixed_mask = np.array([p.is_fixed for p in self.particles], dtype=np.bool)
+        # Compute the update matrices
+        mass_matrix = np.diag(np.tile(np.expand_dims(self.masses, 1), (1, self.n_dims)).reshape((-1,)))
+        assert mass_matrix.shape == (self.n_particles * self.n_dims, self.n_particles * self.n_dims)
+        # Build the stiffness matrix
+        stiff_mat_parts = [[np.zeros((self.n_dims, self.n_dims)) for _ in range(self.n_particles)] for _ in range(self.n_particles)]
+        for edge in self.edges:
+            m_aa = np.diag([edge.spring_const] * self.n_dims)
+            m_ab = np.diag([-1 * edge.spring_const] * self.n_dims)
+            m_ba = m_ab
+            m_bb = m_aa
+            stiff_mat_parts[edge.a][edge.a] += m_aa
+            stiff_mat_parts[edge.a][edge.b] += m_ab
+            stiff_mat_parts[edge.b][edge.a] += m_ba
+            stiff_mat_parts[edge.b][edge.b] += m_bb
+        stiff_mat = np.block(stiff_mat_parts)
+        assert stiff_mat.shape == (self.n_particles * self.n_dims, self.n_particles * self.n_dims)
+        # Compute the selection matrix for non-fixed vertices
+        n_non_fixed = self.n_particles - np.count_nonzero(self.fixed_mask)
+        unfixed_mask_parts = [[np.zeros((self.n_dims, self.n_dims), dtype=np.bool) for _ in range(self.n_particles)] for _ in range(n_non_fixed)]
+        for i, j in enumerate(np.nonzero(np.logical_not(self.fixed_mask))[0]):
+            unfixed_mask_parts[i][j] = np.eye(self.n_dims, dtype=np.bool)
+        unfixed_mask_mat = np.block(unfixed_mask_parts)
+        assert unfixed_mask_mat.shape == (n_non_fixed * self.n_dims, self.n_particles * self.n_dims)
+        # Store system matrices
+        self._mass_matrix = mass_matrix
+        self._select_matrix = unfixed_mask_mat
+        self._stiff_mat = stiff_mat
 
     def hamiltonian(self, q, p):
         return torch.zeros(q.shape[0], q.shape[1])
@@ -62,17 +92,26 @@ class SpringMeshSystem(System):
         p_out = forces.reshape(orig_p_shape)
         return StatePair(q=q_out, p=p_out)
 
-    def _compute_next_step(self, q, q_dot, time_step_size, step_vel_decay=1.0):
-        forces = self.compute_forces(q=q)[0]
-        vel = np.zeros_like(q_dot)
-        p = np.zeros_like(q_dot)
+    def _compute_next_step(self, q, q_dot, time_step_size, mat_unknown_factors, step_vel_decay=1.0):
+        # Input states are (n_particle, n_dim)
+        forces_orig = self.compute_forces(q=q)[0]
+        forces = forces_orig.reshape((-1,))
+        q = q.reshape((-1, ))
+        q_dot = q_dot.reshape((-1, ))
+        known = self._select_matrix @ (self._mass_matrix @ q_dot) + (time_step_size * (self._select_matrix @ forces))
+        # Two of the values to return
+        q_dot_hat_next = step_vel_decay * lu_solve(mat_unknown_factors, known)
+        q_next = q + time_step_size * (self._select_matrix.T @ q_dot_hat_next)
+        # Reshape
+        q_dot_next = (self._select_matrix.T @ q_dot_hat_next).reshape((self.n_particles, self.n_dims))
+        q_next = q_next.reshape((self.n_particles, self.n_dims))
+        # Get the p values to return
+        p = np.zeros_like(q_dot, shape=(self.n_particles, self.n_dims))
         for i, part in enumerate(self.particles):
             if part.is_fixed:
                 continue
-            vel[i] = step_vel_decay * (q_dot[i] + time_step_size * (1/part.mass) * forces[i])
-            p[i] = part.mass * vel[i]
-        pos = q + time_step_size * vel
-        return pos, vel, p, forces
+            p[i] = part.mass * q_dot_next[i]
+        return q_next, q_dot_next, p, forces_orig
 
     def generate_trajectory(self, q0, p0, num_time_steps, time_step_size,
                             subsample=1, noise_sigma=0.0):
@@ -89,6 +128,9 @@ class SpringMeshSystem(System):
         step_vel_decay = self.vel_decay ** time_step_size
 
         # Compute updates using explicit Euler
+        # compute update matrices
+        mat_unknown = self._select_matrix @ (self._mass_matrix - (time_step_size ** 2) * self._stiff_mat) @ self._select_matrix.T
+        mat_unknown_factors = lu_factor(mat_unknown)
         # TODO: Implicit Euler
 
         init_vel = np.zeros_like(q0)
@@ -105,7 +147,9 @@ class SpringMeshSystem(System):
         for i, part in enumerate(self.particles):
             q_dot[i] /= part.mass
         for step_idx in range(1, num_steps):
-            q, q_dot, p, p_dot = self._compute_next_step(q=q, q_dot=q_dot, time_step_size=time_step_size, step_vel_decay=step_vel_decay)
+            q, q_dot, p, p_dot = self._compute_next_step(q=q, q_dot=q_dot, time_step_size=time_step_size,
+                                                         mat_unknown_factors=mat_unknown_factors,
+                                                         step_vel_decay=step_vel_decay)
             if step_idx % subsample == 0:
                 qs.append(q)
                 q_dots.append(q_dot)
@@ -125,8 +169,6 @@ class SpringMeshSystem(System):
         ps_noisy = ps + noise_ps
 
         # Gather other data
-        masses = np.array([p.mass for p in self.particles], dtype=np.float64)
-        fixed_mask = np.array([p.is_fixed for p in self.particles], dtype=np.bool)
         edge_indices = np.array([(e.a, e.b) for e in self.edges] +
                                 [(e.b, e.a) for e in self.edges], dtype=np.int64).T
 
@@ -138,9 +180,9 @@ class SpringMeshSystem(System):
             t_steps=t_eval,
             q_noiseless=qs,
             p_noiseless=ps,
-            masses=masses,
+            masses=self.masses,
             edge_indices=edge_indices,
-            fixed_mask=fixed_mask)
+            fixed_mask=self.fixed_mask)
 
 
 def system_from_records(n_dims, particles, edges, vel_decay):
