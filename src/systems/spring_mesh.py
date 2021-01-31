@@ -73,7 +73,8 @@ class SpringMeshSystem(System):
                 forces[:, i] = 0
         return forces
 
-    def derivative(self, q, p):
+    def derivative(self, q, p, dt=1):
+        step_vel_decay = self.vel_decay ** dt
         orig_q_shape = q.shape
         orig_p_shape = p.shape
         q = q.reshape((-1, self.n_particles, self.n_dims))
@@ -88,7 +89,7 @@ class SpringMeshSystem(System):
                 pos[:, i] = 0
             else:
                 pos[:, i] = (1/particle.mass) * p[:, i]
-        q_out = (self.vel_decay * pos).reshape(orig_q_shape)
+        q_out = (step_vel_decay * pos).reshape(orig_q_shape)
         p_out = forces.reshape(orig_p_shape)
         return StatePair(q=q_out, p=p_out)
 

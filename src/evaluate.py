@@ -148,7 +148,7 @@ def run_phase(base_dir, out_dir, phase_args):
         time_deriv_method = METHOD_HNET
         hamiltonian_func = net
     elif eval_type == "hnn":
-        def model_hamiltonian(p, q):
+        def model_hamiltonian(p, q, dt):
             hamilt = net(p=p, q=q)
             return hamilt[0] + hamilt[1]
 
@@ -158,14 +158,14 @@ def run_phase(base_dir, out_dir, phase_args):
         time_deriv_method = METHOD_DIRECT_DERIV
         hamiltonian_func = model_hamiltonian
     elif eval_type in {"mlp", "nn-kernel"}:
-        def net_no_grad(p, q):
+        def net_no_grad(p, q, dt):
             with torch.no_grad():
                 return net(q=q, p=p)
         time_deriv_func = net_no_grad
         time_deriv_method = METHOD_DIRECT_DERIV
     elif eval_type == "cnn":
         CNNDerivative = namedtuple("CNNDerivative", ["dq_dt", "dp_dt"])
-        def cnn_time_deriv(p, q):
+        def cnn_time_deriv(p, q, dt):
             with torch.no_grad():
                 unsqueezed = False
                 if len(p.shape) < 3:
@@ -185,7 +185,7 @@ def run_phase(base_dir, out_dir, phase_args):
     elif eval_type in {"knn-regressor", "knn-regressor-oneshot"}:
         # Use the time_derivative
         KNNDerivative = namedtuple("KNNDerivative", ["dq_dt", "dp_dt"])
-        def model_time_deriv(p, q):
+        def model_time_deriv(p, q, dt):
             x = torch.cat([p, q], axis=-1).detach().cpu().numpy()
             ret = net.predict(x)
             dpdt, dqdt = np.split(ret, 2, axis=-1)
@@ -210,10 +210,10 @@ def run_phase(base_dir, out_dir, phase_args):
     elif eval_type == "integrator-baseline":
         # Use the time_derivative
         SystemDerivative = namedtuple("SystemDerivative", ["dq_dt", "dp_dt"])
-        def system_derivative(p, q):
+        def system_derivative(p, q, dt=1.0):
             p = p.detach().cpu().numpy()
             q = q.detach().cpu().numpy()
-            derivative = system.derivative(p=p, q=q)
+            derivative = system.derivative(p=p, q=q, dt=dt)
             dp_dt = torch.from_numpy(derivative.p).to(device, dtype=eval_dtype)
             dq_dt = torch.from_numpy(derivative.q).to(device, dtype=eval_dtype)
             return SystemDerivative(dp_dt=dp_dt, dq_dt=dq_dt)
@@ -228,7 +228,7 @@ def run_phase(base_dir, out_dir, phase_args):
         HognMockDataset = namedtuple("HognMockDataset", ["p", "q", "dp_dt", "dq_dt", "masses"])
 
         def hogn_time_deriv_func(masses):
-            def model_time_deriv(p, q):
+            def model_time_deriv(p, q, dt:
                 mocked = HognMockDataset(p=p, q=q, masses=masses,
                                          dp_dt=None, dq_dt=None)
                 bundled = dataset_geometric.package_data(dataset=[mocked],

@@ -23,7 +23,7 @@ class SpringSystem(System):
         deriv = self.derivative(q=q, p=p)
         return np.concatenate((deriv.q, deriv.p), axis=-1)
 
-    def derivative(self, q, p):
+    def derivative(self, q, p, dt=1.0):
         grad = self._hamiltonian_grad(q=q, p=p)
         dqdt, dpdt = grad.q, grad.p
         return StatePair(q=dpdt, p=-dqdt)

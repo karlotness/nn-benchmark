@@ -118,7 +118,7 @@ def leapfrog(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu')
     range_of_for_loop = range(T)
 
     if is_Hamilt:
-        hamilt = Func(p=p, q=q)
+        hamilt = Func(p=p, q=q, dt=dt)
         dpdt = -grad(hamilt.sum(), q, create_graph=not volatile)[0]
 
         for i in range_of_for_loop:
@@ -131,12 +131,12 @@ def leapfrog(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu')
                 trajectories[i, :, :p_0.shape[1]] = p
                 trajectories[i, :, p_0.shape[1]:] = q
 
-            hamilt = Func(p=p_half, q=q)
+            hamilt = Func(p=p_half, q=q, dt=dt)
             dqdt = grad(hamilt.sum(), p, create_graph=not volatile)[0]
 
             q_next = q + dqdt * dt
 
-            hamilt = Func(p=p_half, q=q_next)
+            hamilt = Func(p=p_half, q=q_next, dt=dt)
             dpdt = -grad(hamilt.sum(), q_next, create_graph=not volatile)[0]
 
             p_next = p_half + dpdt * (dt / 2)
@@ -146,7 +146,7 @@ def leapfrog(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu')
 
     else:
         dim = p_0.shape[1]
-        time_drvt = Func(q=q, p=p)
+        time_drvt = Func(q=q, p=p, dt=dt)
         dpdt = time_drvt.dp_dt
 
         for i in range_of_for_loop:
@@ -159,12 +159,12 @@ def leapfrog(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu')
                 trajectories[i, :, :dim] = p
                 trajectories[i, :, dim:] = q
 
-            time_drvt = Func(p=p_half, q=q)
+            time_drvt = Func(p=p_half, q=q, dt=dt)
             dqdt = time_drvt.dq_dt
 
             q_next = q + dqdt * dt
 
-            time_drvt = Func(p=p_half, q=q_next)
+            time_drvt = Func(p=p_half, q=q_next, dt=dt)
             dpdt = time_drvt.dp_dt
 
             p_next = p_half + dpdt * (dt / 2)
@@ -201,7 +201,7 @@ def euler(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
                 trajectories[i, :, :p_0.shape[1]] = p
                 trajectories[i, :, p_0.shape[1]:] = q
 
-            hamilt = Func(p=p, q=q)
+            hamilt = Func(p=p, q=q, dt=dt)
             dpdt = -grad(hamilt.sum(), q, create_graph=not volatile)[0]
             dqdt = grad(hamilt.sum(), p, create_graph=not volatile)[0]
 
@@ -223,7 +223,7 @@ def euler(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
                 trajectories[i, :, :dim] = p
                 trajectories[i, :, dim:] = q
 
-            time_drvt = Func(p=p, q=q)
+            time_drvt = Func(p=p, q=q, dt=dt)
             dpdt = time_drvt.dp_dt
             dqdt = time_drvt.dq_dt
 
@@ -263,7 +263,7 @@ def rk4(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
                 trajectories[i, :, p_0.shape[1]:] = q
 
             def dpdt_dqdt(p_, q_):
-                hamilt = Func(p=p_, q=q_)
+                hamilt = Func(p=p_, q=q_, dt=dt)
                 dpdt = -grad(hamilt.sum(), q_, create_graph=not volatile)[0]
                 dqdt = grad(hamilt.sum(), p_, create_graph=not volatile)[0]
                 return dpdt, dqdt
@@ -292,7 +292,7 @@ def rk4(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
                 trajectories[i, :, dim:] = q
 
             def dpdt_dqdt(p_, q_):
-                time_drvt = Func(p=p_, q=q_)
+                time_drvt = Func(p=p_, q=q_, dt=dt)
                 dpdt = time_drvt.dp_dt
                 dqdt = time_drvt.dq_dt
                 return dpdt, dqdt
@@ -368,12 +368,12 @@ def scipy_integrator(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, devic
             # Do backprop for hamiltonian
             p.requires_grad_()
             q.requires_grad_()
-            hamilt = Func(p=p, q=q)
+            hamilt = Func(p=p, q=q, dt=dt)
             dpdt = -grad(hamilt.sum(), q, create_graph=not volatile)[0]
             dqdt = grad(hamilt.sum(), p, create_graph=not volatile)[0]
         else:
             # Do direct integration
-            deriv = Func(p=p, q=q)
+            deriv = Func(p=p, q=q, dt=dt)
             dpdt = deriv.dp_dt
             dqdt = deriv.dq_dt
         # Process return values

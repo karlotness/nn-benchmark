@@ -65,7 +65,7 @@ class WaveSystem(System):
 
         return self.d_x * np.sum((t1 + t2 + t3), axis=-1)
 
-    def derivative(self, q, p):
+    def derivative(self, q, p, dt=1.0):
         coord = np.concatenate((q, p), axis=-1)
         deriv_coord = coord @ self.k.T
         dqdt = deriv_coord[..., :self.n_grid]
