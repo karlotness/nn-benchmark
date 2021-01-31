@@ -228,7 +228,7 @@ def run_phase(base_dir, out_dir, phase_args):
         HognMockDataset = namedtuple("HognMockDataset", ["p", "q", "dp_dt", "dq_dt", "masses"])
 
         def hogn_time_deriv_func(masses):
-            def model_time_deriv(p, q, dt):
+            def model_time_deriv(p, q, dt=1.0):
                 mocked = HognMockDataset(p=p, q=q, masses=masses,
                                          dp_dt=None, dq_dt=None)
                 bundled = dataset_geometric.package_data(dataset=[mocked],
