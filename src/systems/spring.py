@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.integrate import solve_ivp
+from scipy.linalg import lu_factor, lu_solve
 from .defs import System, TrajectoryResult, SystemResult, StatePair
 import logging
 import time
@@ -37,7 +37,7 @@ class SpringSystem(System):
     def implicit_matrix(self, x):
         return torch.from_numpy(self._deriv_mat)
 
-    def generate_trajectory(self, q0, p0, t_span, time_step_size, rtol=1e-10,
+    def generate_trajectory(self, q0, p0, t_span, time_step_size, subsample=1,
                             noise_sigma=0.0):
         t_min, t_max = t_span
         assert t_min < t_max
@@ -46,12 +46,23 @@ class SpringSystem(System):
 
         x0 = np.stack((q0, p0))
 
-        spring_ivp = solve_ivp(fun=self._dynamics, t_span=t_span, y0=x0,
-                               t_eval=t_eval, rtol=rtol)
-        q, p = spring_ivp['y'][0], spring_ivp['y'][1]
-        dydt = [self._dynamics(None, y) for y in spring_ivp['y'].T]
+        # Update value of x
+        deriv_mat = self._deriv_mat
+        unknown_mat = (np.eye(2) - time_step_size * deriv_mat)
+        unknown_mat_factor = lu_factor(unknown_mat)
+
+        steps = [x0]
+        step = x0
+        for step_idx in range(1, num_steps):
+            step = lu_solve(unknown_mat_factor, step)
+            if step_idx % subsample == 0:
+                steps.append(step)
+        steps = np.stack(steps)
+        q = steps[:, 0]
+        p = steps[:, 1]
+        dydt = [self._dynamics(None, steps[i]) for i in range(steps.shape[0])]
         dydt = np.stack(dydt).T
-        dqdt, dpdt = np.split(dydt,2)
+        dqdt, dpdt = np.split(dydt, 2)
 
         noise_p = noise_sigma * np.random.randn(*p.shape)
         noise_q = noise_sigma * np.random.randn(*q.shape)
@@ -95,7 +106,7 @@ def generate_data(system_args, base_logger=None):
         time_step_size = traj_def["time_step_size"]
         noise_sigma = traj_def.get("noise_sigma", 0.0)
         t_span = (0, num_time_steps * time_step_size)
-        rtol = traj_def.get("rtol", 1e-10)
+        subsample = int(traj_def.get("subsample", 1))
 
         # Generate trajectory
         traj_gen_start = time.perf_counter()
@@ -103,7 +114,7 @@ def generate_data(system_args, base_logger=None):
                                                  q0=q0,
                                                  t_span=t_span,
                                                  time_step_size=time_step_size,
-                                                 rtol=rtol,
+                                                 subsample=subsample,
                                                  noise_sigma=noise_sigma)
         traj_gen_end = time.perf_counter()
 
