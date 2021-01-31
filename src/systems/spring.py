@@ -41,8 +41,12 @@ class SpringSystem(System):
                             noise_sigma=0.0):
         t_min, t_max = t_span
         assert t_min < t_max
-        num_steps = int(np.ceil((t_max - t_min) / time_step_size)) * subsample
-        t_eval = np.arange(num_steps) * time_step_size + t_min
+        base_num_steps = int(np.ceil((t_max - t_min) / time_step_size))
+        num_steps = base_num_steps * subsample
+        orig_time_step_size = time_step_size
+        time_step_size = time_step_size / subsample
+
+        t_eval = (np.arange(base_num_steps) * orig_time_step_size).astype(np.float64)
 
         x0 = np.stack((q0, p0))
 
