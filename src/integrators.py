@@ -107,8 +107,8 @@ def implicit_rk_gauss2(p_0, q_0, Func, T, dt, system, volatile=True, is_Hamilt=T
 
 
 def leapfrog(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
-
-    trajectories = torch.empty((T, p_0.shape[0], 2 * p_0.shape[1]), requires_grad=False).to(device)
+    torch_dtype = p_0.dtype
+    trajectories = torch.empty((T, p_0.shape[0], 2 * p_0.shape[1]), requires_grad=False).to(device, dtype=torch_dtype)
 
     p = p_0
     q = q_0
@@ -180,8 +180,8 @@ def leapfrog(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu')
 
 
 def euler(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
-
-    trajectories = torch.empty((T, p_0.shape[0], 2 * p_0.shape[1]), requires_grad=False).to(device)
+    torch_dtype = p_0.dtype
+    trajectories = torch.empty((T, p_0.shape[0], 2 * p_0.shape[1]), requires_grad=False).to(device, dtype=torch_dtype)
 
     p = p_0
     q = q_0
@@ -241,8 +241,8 @@ def euler(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
 
 
 def rk4(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=True, device='cpu'):
-
-    trajectories = torch.empty((T, p_0.shape[0], 2 * p_0.shape[1]), requires_grad=False).to(device)
+    torch_dtype = p_0.dtype
+    trajectories = torch.empty((T, p_0.shape[0], 2 * p_0.shape[1]), requires_grad=False).to(device, dtype=torch_dtype)
 
     p = p_0
     q = q_0
@@ -322,8 +322,9 @@ def null_integrator(p_0, q_0, Func, T, dt, volatile=True, is_Hamilt=False, devic
 
     p = p_0
     q = q_0
+    torch_dtype = p_0.dtype
 
-    trajectories = torch.empty((T, p_0.shape[0], 2 * p_0.shape[1]), requires_grad=False).to(device)
+    trajectories = torch.empty((T, p_0.shape[0], 2 * p_0.shape[1]), requires_grad=False).to(device, dtype=torch_dtype)
 
     for i in range(T):
         trajectories[i, :, :p_0.shape[1]] = p.detach()
