@@ -383,7 +383,7 @@ class Dataset(WritableDescription):
 class SpringDataset(Dataset):
     def __init__(self, experiment, initial_cond_source, num_traj,
                  set_type="train",
-                 num_time_steps=30, time_step_size=0.3, rtol=1e-10,
+                 num_time_steps=30, time_step_size=0.3, subsampling=1,
                  noise_sigma=0.0,
                  mesh_based=False):
         super().__init__(experiment=experiment,
@@ -394,7 +394,7 @@ class SpringDataset(Dataset):
         self.initial_cond_source = initial_cond_source
         self.num_time_steps = num_time_steps
         self.time_step_size = time_step_size
-        self.rtol = rtol
+        self.subsampling = subsampling
         self.noise_sigma = noise_sigma
         self.initial_conditions = self.initial_cond_source.sample_initial_conditions(self.num_traj)
         self.mesh_based = mesh_based
@@ -407,7 +407,7 @@ class SpringDataset(Dataset):
             traj = {
                 "num_time_steps": self.num_time_steps,
                 "time_step_size": self.time_step_size,
-                "rtol": self.rtol,
+                "subsample": self.subsampling,
                 "noise_sigma": self.noise_sigma
             }
             traj.update(icond)
