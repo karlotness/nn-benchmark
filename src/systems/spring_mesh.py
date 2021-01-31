@@ -132,7 +132,6 @@ class SpringMeshSystem(System):
         # compute update matrices
         mat_unknown = self._select_matrix @ (self._mass_matrix - (time_step_size ** 2) * self._stiff_mat) @ self._select_matrix.T
         mat_unknown_factors = lu_factor(mat_unknown)
-        # TODO: Implicit Euler
 
         init_vel = np.zeros_like(q0)
         for i, part in enumerate(self.particles):
