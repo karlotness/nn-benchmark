@@ -148,7 +148,7 @@ def run_phase(base_dir, out_dir, phase_args):
         time_deriv_method = METHOD_HNET
         hamiltonian_func = net
     elif eval_type == "hnn":
-        def model_hamiltonian(p, q, dt):
+        def model_hamiltonian(p, q, dt=1.0):
             hamilt = net(p=p, q=q)
             return hamilt[0] + hamilt[1]
 
@@ -158,14 +158,14 @@ def run_phase(base_dir, out_dir, phase_args):
         time_deriv_method = METHOD_DIRECT_DERIV
         hamiltonian_func = model_hamiltonian
     elif eval_type in {"mlp", "nn-kernel"}:
-        def net_no_grad(p, q, dt):
+        def net_no_grad(p, q, dt=1.0):
             with torch.no_grad():
                 return net(q=q, p=p)
         time_deriv_func = net_no_grad
         time_deriv_method = METHOD_DIRECT_DERIV
     elif eval_type == "cnn":
         CNNDerivative = namedtuple("CNNDerivative", ["dq_dt", "dp_dt"])
-        def cnn_time_deriv(p, q, dt):
+        def cnn_time_deriv(p, q, dt=1.0):
             with torch.no_grad():
                 unsqueezed = False
                 if len(p.shape) < 3:
@@ -185,7 +185,7 @@ def run_phase(base_dir, out_dir, phase_args):
     elif eval_type in {"knn-regressor", "knn-regressor-oneshot"}:
         # Use the time_derivative
         KNNDerivative = namedtuple("KNNDerivative", ["dq_dt", "dp_dt"])
-        def model_time_deriv(p, q, dt):
+        def model_time_deriv(p, q, dt=1.0):
             x = torch.cat([p, q], axis=-1).detach().cpu().numpy()
             ret = net.predict(x)
             dpdt, dqdt = np.split(ret, 2, axis=-1)
@@ -196,7 +196,7 @@ def run_phase(base_dir, out_dir, phase_args):
         time_deriv_method = METHOD_DIRECT_DERIV
     elif eval_type in {"knn-predictor", "knn-predictor-oneshot"}:
         KNNPrediction = namedtuple("KNNPrediction", ["q", "p"])
-        def model_next_step(p, q, dt):
+        def model_next_step(p, q, dt=1.0):
             x = torch.cat([p, q], axis=-1).detach().cpu().numpy()
             ret = net.predict(x)
             next_p, next_q = np.split(ret, 2, axis=-1)
@@ -265,7 +265,7 @@ def run_phase(base_dir, out_dir, phase_args):
 
         GNPrediction = namedtuple("GNPrediction", ["p", "q"])
         def gn_time_deriv_func(masses, edges, n_particles):
-            def model_next_step(p, q, dt):
+            def model_next_step(p, q, dt=1.0):
                 with torch.no_grad():
                     time_step_size = dt
                     p_orig_shape = p.shape
