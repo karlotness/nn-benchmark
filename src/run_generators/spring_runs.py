@@ -118,6 +118,12 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
                                batch_size=750, epochs=EPOCHS, validation_set=val_set,
                                nonlinearity="relu")
     general_int_nets.append(nn_kernel)
+    cnn_train = utils.CNN(experiment=experiment_general,
+                          training_set=train_set,
+                          validation_set=val_set,
+                          epochs=EPOCHS,
+                          chans_inout_kenel=[(None, 32, 5), (32, 64, 5), (64, None, 5)])
+    general_int_nets.append(cnn_train)
     for width, depth in [(200, 3), (2048, 2)]:
         mlp_train = utils.MLP(experiment=experiment_general,
                               training_set=train_set,
