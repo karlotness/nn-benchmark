@@ -211,6 +211,8 @@ def run_phase(base_dir, out_dir, phase_args):
         # Use the time_derivative
         SystemDerivative = namedtuple("SystemDerivative", ["dq_dt", "dp_dt"])
         def system_derivative(p, q, dt=1.0):
+            if torch.is_tensor(dt):
+                dt = dt.item()
             p = p.detach().cpu().numpy()
             q = q.detach().cpu().numpy()
             derivative = system.derivative(p=p, q=q, dt=dt)
