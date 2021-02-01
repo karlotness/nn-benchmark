@@ -26,24 +26,26 @@ def backward_euler(p_0, q_0, Func, T, dt, system, volatile=True, is_Hamilt=True,
     if is_Hamilt:
         raise ValueError("Backward Euler does not support Hamiltonian systems")
 
-    for i in range_of_for_loop:
-        if volatile:
-            trajectories[i, :, :] = x.detach()
-        else:
-            trajectories[i, :, :] = x
+    with torch.no_grad():
 
-        # Update value of x
-        deriv_mat = system.implicit_matrix(x).to(device, dtype=torch_dtype)
-        unknown_mat = (deriv_eye - dt * deriv_mat).unsqueeze(0)
-        x_next, _ = torch.solve(torch.transpose(x, -1, -2), unknown_mat)
-        x = torch.transpose(x_next, -1, -2)
+        for i in range_of_for_loop:
+            if volatile:
+                trajectories[i, :, :] = x.detach()
+            else:
+                trajectories[i, :, :] = x
 
-    # Unpackage result and return
-    trajectories = trajectories.permute(1, 0, 2)
-    ret_split = system.implicit_matrix_unpackage(trajectories)
-    ret_q = ret_split.q
-    ret_p = ret_split.p
-    return IntegrationResult(q=ret_q, p=ret_p)
+            # Update value of x
+            deriv_mat = system.implicit_matrix(x).to(device, dtype=torch_dtype)
+            unknown_mat = (deriv_eye - dt * deriv_mat).unsqueeze(0)
+            x_next, _ = torch.solve(torch.transpose(x, -1, -2), unknown_mat)
+            x = torch.transpose(x_next, -1, -2)
+
+        # Unpackage result and return
+        trajectories = trajectories.permute(1, 0, 2)
+        ret_split = system.implicit_matrix_unpackage(trajectories)
+        ret_q = ret_split.q
+        ret_p = ret_split.p
+        return IntegrationResult(q=ret_q, p=ret_p)
 
 
 def implicit_rk_gauss2(p_0, q_0, Func, T, dt, system, volatile=True, is_Hamilt=True, device='cpu'):
