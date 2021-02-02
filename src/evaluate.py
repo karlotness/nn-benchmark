@@ -355,6 +355,8 @@ def run_phase(base_dir, out_dir, phase_args):
             hamiltonian_func = hogn_hamiltonian_func(masses=masses)
         elif eval_type == "gn":
             n_particles = net.static_nodes.shape[0]
+            if eval_dataset.system == "spring":
+                n_particles = 1
             time_deriv_func = gn_time_deriv_func(masses=masses, edges=edges, n_particles=n_particles)
             num_traj = p.shape[0]
             traj_steps = p.shape[1]
