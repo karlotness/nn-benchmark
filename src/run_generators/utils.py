@@ -1414,7 +1414,8 @@ class KNNOneshotEvaluation(NetworkEvaluation):
     MockNetwork = dataclasses.make_dataclass("MockNetwork", ["name", "train_dtype", "training_set", "method", "path"])
 
     def __init__(self, experiment, training_set, eval_set, knn_type,
-                 eval_dtype="double", integrator="leapfrog"):
+                 eval_dtype="double", integrator="leapfrog",
+                 dataset_type="snapshot"):
         method = f"knn-{knn_type}-oneshot"
         self._mock_network = self.MockNetwork(name=f"{method}-{training_set.name}",
                                               train_dtype=eval_dtype,
@@ -1425,13 +1426,14 @@ class KNNOneshotEvaluation(NetworkEvaluation):
                          eval_set=eval_set, gpu=False, integrator=integrator,
                          eval_dtype=eval_dtype)
         self.training_set = training_set
+        self.dataset_type = dataset_type
 
     def description(self):
         template = super().description()
         # Add arguments to construct the training set
         template["phase_args"]["eval"]["train_data"] = {
             "data_dir": self.training_set.path,
-            "dataset": "snapshot",
+            "dataset": self.dataset_type,
             "linearize": True,
             "dataset_args": {},
             "loader": {
@@ -1450,7 +1452,8 @@ class KNNPredictorOneshot(KNNOneshotEvaluation):
                          eval_set=eval_set,
                          eval_dtype=eval_dtype,
                          integrator="null",
-                         knn_type="predictor")
+                         knn_type="predictor",
+                         dataset_type="trajectory")
 
 
 class KNNRegressorOneshot(KNNOneshotEvaluation):
