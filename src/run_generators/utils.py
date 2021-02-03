@@ -6,6 +6,7 @@ import math
 import re
 import dataclasses
 import itertools
+from scipy import interpolate
 
 
 def generate_packing_args(instance, system, dataset):
@@ -300,6 +301,99 @@ class SpringMeshRowPerturb(InitialConditionSource):
                 # Apply perturbation
                 particle["position"][0] += perturb_x
                 particle["position"][1] += perturb_y
+        return {
+            "particles": particles,
+            "springs": springs,
+        }
+
+
+class SpringMeshInterpolatePerturb(InitialConditionSource):
+    def __init__(self, mesh_generator, coords, magnitude_range=(0, 0.75)):
+        super().__init__()
+        self.mesh_generator = mesh_generator
+        self.magnitude_range = magnitude_range
+        self.coords = coords
+        self.n_dim = mesh_generator.n_dim
+        self.n_particles = mesh_generator.n_particles
+        assert self.n_dim == 2
+
+    def particle_properties(self):
+        particles, _springs = self.mesh_generator.generate_mesh()
+        return particles
+
+    def _sample_ring_uniform(self, inner_r, outer_r, num_pts=1):
+        theta = np.random.uniform(0, 2*np.pi, num_pts)
+        unifs = np.random.uniform(size=num_pts)
+        r = np.sqrt(unifs * (outer_r**2 - inner_r**2) + inner_r**2)
+        x = r * np.cos(theta)
+        y = r * np.sin(theta)
+        return np.stack((x, y), axis=-1)
+
+    def _generate_initial_condition(self):
+        perturbs = self._sample_ring_uniform(min(self.magnitude_range),
+                                             max(self.magnitude_range),
+                                             num_pts=len(self.coords))
+        coord_arr = np.array(self.coords)
+        pert_fx = interpolate.LinearNDInterpolator(coord_arr, perturbs[:, 0])
+        pert_fy = interpolate.LinearNDInterpolator(coord_arr, perturbs[:, 1])
+
+        particles, springs = self.mesh_generator.generate_mesh()
+        # Apply perturbation
+        for particle in particles:
+            if particle["is_fixed"]:
+                # Do not perturb fixed particles
+                continue
+            # Perturb this particle using interpolated values
+            x = particle["position"][0]
+            y = particle["position"][1]
+            perturb_x = pert_fx(x, y)
+            perturb_y = pert_fy(x, y)
+            # Apply perturbation
+            particle["position"][0] += perturb_x
+            particle["position"][1] += perturb_y
+        return {
+            "particles": particles,
+            "springs": springs,
+        }
+
+
+class SpringMeshAllPerturb(InitialConditionSource):
+    def __init__(self, mesh_generator, magnitude_range=(0, 0.75)):
+        super().__init__()
+        self.mesh_generator = mesh_generator
+        self.magnitude_range = magnitude_range
+        self.n_dim = mesh_generator.n_dim
+        self.n_particles = mesh_generator.n_particles
+        assert self.n_dim == 2
+
+    def particle_properties(self):
+        particles, _springs = self.mesh_generator.generate_mesh()
+        return particles
+
+    def _sample_ring_uniform(self, inner_r, outer_r, num_pts=1):
+        theta = np.random.uniform(0, 2*np.pi, num_pts)
+        unifs = np.random.uniform(size=num_pts)
+        r = np.sqrt(unifs * (outer_r**2 - inner_r**2) + inner_r**2)
+        x = r * np.cos(theta)
+        y = r * np.sin(theta)
+        return np.stack((x, y), axis=-1)
+
+    def _generate_initial_condition(self):
+        particles, springs = self.mesh_generator.generate_mesh()
+        # Apply perturbation
+        for particle in particles:
+            if particle["is_fixed"]:
+                # Do not perturb fixed particles
+                continue
+            # Perturb this particle using interpolated values
+            perturb = self._sample_ring_uniform(min(self.magnitude_range),
+                                                max(self.magnitude_range),
+                                                num_pts=1)
+            perturb_x = perturb[0, 0]
+            perturb_y = perturb[0, 1]
+            # Apply perturbation
+            particle["position"][0] += perturb_x
+            particle["position"][1] += perturb_y
         return {
             "particles": particles,
             "springs": springs,
