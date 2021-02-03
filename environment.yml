@@ -16,6 +16,7 @@ dependencies:
   - scikit-learn
   - pandas
   - joblib
+  - numba
   - gpytorch
   - git
   - pip
