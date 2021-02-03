@@ -147,10 +147,11 @@ class SpringMeshSystem(System):
         for i, part in enumerate(self.particles):
             q_dot[i] /= part.mass
         for step_idx in range(1, num_steps):
-            q, q_dot, p, p_dot = self._compute_next_step(q=q, q_dot=q_dot, time_step_size=time_step_size,
-                                                         mat_unknown_factors=mat_unknown_factors,
-                                                         step_vel_decay=step_vel_decay)
+            q, q_dot, p, _p_dot_next = self._compute_next_step(q=q, q_dot=q_dot, time_step_size=time_step_size,
+                                                               mat_unknown_factors=mat_unknown_factors,
+                                                               step_vel_decay=step_vel_decay)
             if step_idx % subsample == 0:
+                p_dot = self.compute_forces(q=q)[0]
                 qs.append(q)
                 q_dots.append(q_dot)
                 ps.append(p)
