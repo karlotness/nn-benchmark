@@ -38,6 +38,9 @@ class SpringMeshSystem(System):
                                       [e.spring_const for e in self.edges], dtype=np.float64)
         self.rest_lengths = np.array([e.rest_length for e in self.edges] +
                                      [e.rest_length for e in self.edges], dtype=np.float64)
+        self.row_coords = np.concatenate([self.edge_indices[0], self.edge_indices[0]])
+        self.col_coords = np.concatenate([np.repeat(0, 2 * len(edges)),
+                                          np.repeat(1, 2 * len(edges))])
         # Compute the update matrices
         mass_matrix = np.diag(np.tile(np.expand_dims(self.masses, 1), (1, self.n_dims)).reshape((-1,)))
         assert mass_matrix.shape == (self.n_particles * self.n_dims, self.n_particles * self.n_dims)
@@ -81,11 +84,8 @@ class SpringMeshSystem(System):
         edge_forces = np.expand_dims(-1 * spring_consts * (lengths - rest_lengths) / lengths, axis=-1) * diffs
         # Gather forces for each of their "lead" particles
         # Stitch together lists of coordinates
-        row_coords = np.concatenate([self.edge_indices[0], self.edge_indices[0]])
-        col_coords = np.concatenate([np.repeat(0, edge_forces.shape[0]),
-                                     np.repeat(1, edge_forces.shape[0])])
         data = np.concatenate([edge_forces[:, 0], edge_forces[:, 1]])
-        forces_coo = coo_matrix((data, (row_coords, col_coords)), shape=(self.n_particles, self.n_dims))
+        forces_coo = coo_matrix((data, (self.row_coords, self.col_coords)), shape=(self.n_particles, self.n_dims))
         # Mask forces on fixed particles
         forces = forces_coo.todense()
         forces[self.fixed_mask, :] = 0
