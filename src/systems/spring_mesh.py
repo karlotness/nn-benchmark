@@ -69,19 +69,6 @@ class SpringMeshSystem(System):
     def hamiltonian(self, q, p):
         return torch.zeros(q.shape[0], q.shape[1])
 
-    def _old_compute_forces(self, q):
-        q = q.reshape((-1, self.n_particles, self.n_dims))
-        forces = np.zeros_like(q)
-        for edge in self.edges:
-            length = np.expand_dims(np.linalg.norm(q[:, edge.a] - q[:, edge.b], ord=2, axis=-1), axis=-1)
-            for a, b in [(edge.a, edge.b), (edge.b, edge.a)]:
-                diff = q[:, a] - q[:, b]
-                forces[:, a] += -1 * edge.spring_const * (length - edge.rest_length) / length * diff
-        for i, part in enumerate(self.particles):
-            if part.is_fixed:
-                forces[:, i] = 0
-        return forces
-
     def compute_forces(self, q):
         assert q.shape[0] == 1
         q = q.reshape((self.n_particles, self.n_dims))
