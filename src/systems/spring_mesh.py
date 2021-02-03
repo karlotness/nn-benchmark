@@ -5,6 +5,7 @@ from collections import namedtuple
 import logging
 import time
 import torch
+from scipy.sparse import coo_matrix
 
 
 Particle = namedtuple("Particle", ["mass", "is_fixed"])
@@ -25,10 +26,18 @@ class SpringMeshSystem(System):
         self.particles = particles
         self.edges = edges
         self.n_dims = n_dims
+        assert self.n_dims == 2
         self.n_particles = len(particles)
         self.vel_decay = vel_decay
         self.masses = np.array([p.mass for p in self.particles], dtype=np.float64)
         self.fixed_mask = np.array([p.is_fixed for p in self.particles], dtype=np.bool)
+        # Gather other data
+        self.edge_indices = np.array([(e.a, e.b) for e in self.edges] +
+                                     [(e.b, e.a) for e in self.edges], dtype=np.int64).T
+        self.spring_consts = np.array([e.spring_const for e in self.edges] +
+                                      [e.spring_const for e in self.edges], dtype=np.float64)
+        self.rest_lengths = np.array([e.rest_length for e in self.edges] +
+                                     [e.rest_length for e in self.edges], dtype=np.float64)
         # Compute the update matrices
         mass_matrix = np.diag(np.tile(np.expand_dims(self.masses, 1), (1, self.n_dims)).reshape((-1,)))
         assert mass_matrix.shape == (self.n_particles * self.n_dims, self.n_particles * self.n_dims)
@@ -60,7 +69,7 @@ class SpringMeshSystem(System):
     def hamiltonian(self, q, p):
         return torch.zeros(q.shape[0], q.shape[1])
 
-    def compute_forces(self, q):
+    def _old_compute_forces(self, q):
         q = q.reshape((-1, self.n_particles, self.n_dims))
         forces = np.zeros_like(q)
         for edge in self.edges:
@@ -73,6 +82,28 @@ class SpringMeshSystem(System):
                 forces[:, i] = 0
         return forces
 
+    def compute_forces(self, q):
+        assert q.shape[0] == 1
+        q = q.reshape((self.n_particles, self.n_dims))
+        # Compute length of each spring and "diff" directions of the forces
+        diffs = q[self.edge_indices[0], :] - q[self.edge_indices[1], :]
+        lengths = np.linalg.norm(diffs, ord=2, axis=-1)
+        # Compute forces
+        spring_consts = self.spring_consts
+        rest_lengths = self.rest_lengths
+        edge_forces = np.expand_dims(-1 * spring_consts * (lengths - rest_lengths) / lengths, axis=-1) * diffs
+        # Gather forces for each of their "lead" particles
+        # Stitch together lists of coordinates
+        row_coords = np.concatenate([self.edge_indices[0], self.edge_indices[0]])
+        col_coords = np.concatenate([np.repeat(0, edge_forces.shape[0]),
+                                     np.repeat(1, edge_forces.shape[0])])
+        data = np.concatenate([edge_forces[:, 0], edge_forces[:, 1]])
+        forces_coo = coo_matrix((data, (row_coords, col_coords)), shape=(self.n_particles, self.n_dims))
+        # Mask forces on fixed particles
+        forces = forces_coo.todense()
+        forces[self.fixed_mask, :] = 0
+        return np.expand_dims(forces, axis=0)
+
     def derivative(self, q, p, dt=1):
         step_vel_decay = self.vel_decay ** dt
         orig_q_shape = q.shape
@@ -82,13 +113,9 @@ class SpringMeshSystem(System):
         # Compute action of forces on each particle
         forces = self.compute_forces(q=q)
         # Update positions
-        pos = np.zeros_like(q)
-        for i, particle in enumerate(self.particles):
-            if particle.is_fixed:
-                forces[:, i] = 0
-                pos[:, i] = 0
-            else:
-                pos[:, i] = (1/particle.mass) * p[:, i]
+        masses = np.expand_dims(self.masses, axis=(0, -1))
+        pos = (1 / masses) * p
+        pos[:, self.fixed_mask, :] = 0
         q_out = (step_vel_decay * pos).reshape(orig_q_shape)
         p_out = forces.reshape(orig_p_shape)
         return StatePair(q=q_out, p=p_out)
