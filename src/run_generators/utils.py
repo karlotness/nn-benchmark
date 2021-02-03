@@ -680,9 +680,9 @@ class SpringMeshDataset(Dataset):
             },
             "slurm_args": {
                 "gpu": False,
-                "time": "03:00:00",
+                "time": "04:30:00",
                 "cpus": 8,
-                "mem": 32,
+                "mem": 20,
             },
         }
         return template
@@ -1068,7 +1068,7 @@ class GN(TrainedNetwork):
             },
             "slurm_args": {
                 "gpu": self.gpu,
-                "time": "14:00:00",
+                "time": "6:00:00",
                 "cpus": 8 if self.gpu else 20,
                 "mem": self._get_mem_requirement(train_set=self.training_set),
             },
@@ -1150,7 +1150,7 @@ class MLP(TrainedNetwork):
             },
             "slurm_args": {
                 "gpu": self.gpu,
-                "time": "15:00:00",
+                "time": "6:00:00",
                 "cpus": 8 if self.gpu else 20,
                 "mem": self._get_mem_requirement(train_set=self.training_set),
             },
@@ -1309,7 +1309,7 @@ class NNKernel(TrainedNetwork):
             },
             "slurm_args": {
                 "gpu": self.gpu,
-                "time": "15:00:00",
+                "time": "6:00:00",
                 "cpus": 8 if self.gpu else 20,
                 "mem": self._get_mem_requirement(train_set=self.training_set),
             },
