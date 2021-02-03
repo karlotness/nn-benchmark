@@ -78,6 +78,19 @@ class SpringMeshSystem(System):
     def hamiltonian(self, q, p):
         return torch.zeros(q.shape[0], q.shape[1])
 
+    def _slow_compute_forces(self, q):
+        q = q.reshape((-1, self.n_particles, self.n_dims))
+        forces = np.zeros_like(q)
+        for edge in self.edges:
+            length = np.expand_dims(np.linalg.norm(q[:, edge.a] - q[:, edge.b], ord=2, axis=-1), axis=-1)
+            for a, b in [(edge.a, edge.b), (edge.b, edge.a)]:
+                diff = q[:, a] - q[:, b]
+                forces[:, a] += -1 * edge.spring_const * (length - edge.rest_length) / length * diff
+        for i, part in enumerate(self.particles):
+            if part.is_fixed:
+                forces[:, i] = 0
+        return forces
+
     def compute_forces(self, q):
         assert q.shape[0] == 1
         q = q.reshape((self.n_particles, self.n_dims))
@@ -113,7 +126,7 @@ class SpringMeshSystem(System):
 
     def _compute_next_step(self, q, q_dot, time_step_size, mat_unknown_factors, step_vel_decay=1.0):
         # Input states are (n_particle, n_dim)
-        forces_orig = self.compute_forces(q=q)[0]
+        forces_orig = self._slow_compute_forces(q=q)[0]
         forces = forces_orig.reshape((-1,))
         q = q.reshape((-1, ))
         q_dot = q_dot.reshape((-1, ))
@@ -158,7 +171,7 @@ class SpringMeshSystem(System):
         qs = [q0]
         q_dots = [init_vel]
         ps = [p0]
-        p_dots = [self.compute_forces(q=q0)[0]]
+        p_dots = [self._slow_compute_forces(q=q0)[0]]
         q = q0.copy()
         q_dot = p0.copy()
 
@@ -169,7 +182,7 @@ class SpringMeshSystem(System):
                                                                mat_unknown_factors=mat_unknown_factors,
                                                                step_vel_decay=step_vel_decay)
             if step_idx % subsample == 0:
-                p_dot = self.compute_forces(q=q)[0]
+                p_dot = self._slow_compute_forces(q=q)[0]
                 qs.append(q)
                 q_dots.append(q_dot)
                 ps.append(p)
