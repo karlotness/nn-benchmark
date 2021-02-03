@@ -5,7 +5,7 @@ from collections import namedtuple
 import logging
 import time
 import torch
-from scipy.sparse import coo_matrix
+from numba import jit
 
 
 Particle = namedtuple("Particle", ["mass", "is_fixed"])
@@ -18,6 +18,12 @@ ParticleTrajectoryResult = namedtuple("ParticleTrajectoryResult",
                                        "t_steps",
                                        "p_noiseless", "q_noiseless",
                                        "masses", "edge_indices", "fixed_mask"])
+
+@jit(nopython=True)
+def gather_forces(edge_indices, edge_forces, out):
+    for i in range(edge_indices.shape[1]):
+        a = edge_indices[0, i]
+        out[a] += edge_forces[i]
 
 
 class SpringMeshSystem(System):
@@ -83,11 +89,9 @@ class SpringMeshSystem(System):
         rest_lengths = self.rest_lengths
         edge_forces = np.expand_dims(-1 * spring_consts * (lengths - rest_lengths) / lengths, axis=-1) * diffs
         # Gather forces for each of their "lead" particles
-        # Stitch together lists of coordinates
-        data = np.concatenate([edge_forces[:, 0], edge_forces[:, 1]])
-        forces_coo = coo_matrix((data, (self.row_coords, self.col_coords)), shape=(self.n_particles, self.n_dims))
+        forces = np.zeros_like(edge_forces, shape=(self.n_particles, self.n_dims))
+        gather_forces(edge_indices=self.edge_indices, edge_forces=edge_forces, out=forces)
         # Mask forces on fixed particles
-        forces = forces_coo.todense()
         forces[self.fixed_mask, :] = 0
         return np.expand_dims(forces, axis=0)
 
