@@ -78,6 +78,10 @@ def train_knn(net, eval_args, base_dir, base_logger):
     # Load the training data
     logger = base_logger.getChild("knn_train")
     eval_type = eval_args["eval_type"]
+    if eval_type == "knn-predictor-oneshot":
+        logger.warning("Overriding loader args for KNN predictor")
+        eval_args["train_data"]["dataset"] = "trajectory"
+        eval_args["train_data"]["batch_size"] = 1
     train_dataset, train_loader = create_dataset(base_dir, eval_args["train_data"])
     # Train the KNN
     if eval_type == "knn-regressor-oneshot":
