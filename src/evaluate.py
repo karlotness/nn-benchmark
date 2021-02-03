@@ -81,7 +81,9 @@ def train_knn(net, eval_args, base_dir, base_logger):
     if eval_type == "knn-predictor-oneshot":
         logger.warning("Overriding loader args for KNN predictor")
         eval_args["train_data"]["dataset"] = "trajectory"
-        eval_args["train_data"]["batch_size"] = 1
+        eval_args["train_data"]["loader"]["type"] = "pytorch"
+        eval_args["train_data"]["loader"]["batch_size"] = 1
+
     train_dataset, train_loader = create_dataset(base_dir, eval_args["train_data"])
     # Train the KNN
     if eval_type == "knn-regressor-oneshot":
@@ -100,8 +102,12 @@ def train_knn(net, eval_args, base_dir, base_logger):
         data_x = []
         data_y = []
         for batch in train_loader:
-            data_x.append(np.concatenate([batch.p, batch.q], axis=-1))
-            data_y.append(np.concatenate([batch.p_noiseless, batch.q_noiseless], axis=-1))
+            assert batch.p.shape[0] == 1
+            assert batch.q.shape[0] == 1
+            assert batch.p_noiseless.shape[0] == 1
+            assert batch.q_noiseless.shape[0] == 1
+            data_x.append(np.concatenate([batch.p[0], batch.q[0]], axis=-1))
+            data_y.append(np.concatenate([batch.p_noiseless[0], batch.q_noiseless[0]], axis=-1))
         data_x = np.concatenate(data_x, axis=0)
         data_y = np.concatenate(data_y, axis=0)
         net.fit(data_x[:-1, ...], data_y[1:, ...])
