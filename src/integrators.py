@@ -1,11 +1,109 @@
 from collections import namedtuple
+import numpy as np
+import numba
+
+IntegrationResult = namedtuple("IntegrationResult", ["q", "p"])
+
+@numba.jit(nopython=True, fastmath=False)
+def euler(q0, p0, dt, func, out_q, out_p):
+    q = q0
+    p = p0
+    for i in range(out.shape[0]):
+        out_q[i] = q
+        out_p[i] = p
+        dq, dp = func(q, p)
+        q = q + dt * dq
+        p = p + dt * dp
+
+
+@numba.jit(nopython=True, fastmath=False)
+def leapfrog(q0, p0, dt, func, out_q, out_p):
+    q = q0
+    p = p0
+    dqdt, dpdt = func(q, p)
+    for i in range(out.shape[0]):
+        p_half = p + dpdt * (dt / 2)
+        out_q[i] = q
+        out_p[i] = p
+        dqdt, dpdt = func(q, p_half)
+        q_next = q + dqdt * dt
+        dqdt, dpdt = func(q_next, p_half)
+        p_next = p_half + dpdt * (dt / 2)
+        p = p_next
+        q = q_next
+
+
+@numba.jit(nopython=True, fastmath=False)
+def rk4(q0, p0, dt, func, out_q, out_p):
+    q = q0
+    p = p0
+    for i in range(out.shape[0]):
+        out_q[i] = q
+        out_p[i] = p
+        q_k1, p_k1 = func(q, p)
+        q_k2, p_k2 = func(q + 0.5*dt*q_k1, p + 0.5*dt*p_k1)
+        q_k3, p_k3 = func(q + 0.5*dt*q_k2, p + 0.5*dt*p_k2)
+        q_k4, p_k4 = func(q + dt*q_k3, p + dt*p_k3)
+        p_next = p + (1./6.) * dt * (p_k1 + 2 * p_k2 + 2 * p_k3 + p_k4)
+        q_next = q + (1./6.) * dt * (q_k1 + 2 * q_k2 + 2 * q_k3 + q_k4)
+        p = p_next
+        q = q_next
+
+
+def null_integrator(q0, p0, dt, func, out_q, out_p):
+    q = q0
+    p = p0
+    for i in range(out.shape[0]):
+        out_q[i] = q
+        out_p[i] = p
+        q, p = func(q, p)
+
+
+@numba.jit(nopython=True, fastmath=False)
+def backward_euler(q0, p0, dt, func, out_q, out_p, system):
+    pass
+
+
+INTEGRATORS = {
+    "euler": euler,
+    "leapfrog": leapfrog,
+    "rk4": rk4,
+    "null": null_integrator,
+    "back-euler": None,
+    "implicit-rk": None,
+}
+
+
+def numerically_integrate(integrator, q0, p0, num_steps, dt, deriv_func, system=None):
+    try:
+        # Find the integrator function
+        int_func = INTEGRATORS[integrator]
+        if (not isinstance(deriv_func, numba.core.dispatcher.Dispatcher)
+            and isinstance(int_func, numba.core.dispatcher.Dispatcher)):
+            # We weren't passed a JIT function, unwrap the integrator and call directly
+            int_func = int_func.py_func
+    except KeyError:
+        raise ValueError(f"Unknown integrator {integrator}")
+    # Allocate output array
+    out_shape = (num_steps, p0.shape[1])
+    out_q = np.empty_like(q0, shape=out_shape)
+    out_p = np.empty_like(p0, shape=out_shape)
+    # If this is an implicit integrator, set up the extra context
+    extra_args = {}
+    if integrator in {"back-euler", "implicit-rk"}:
+        # Set up extra context from the system
+        # In this case, we require `system` to be provided
+        pass
+    int_func(q0, p0, dt, deriv_func, out_q, out_p, **extra_args)
+    return IntegrationResult(q=out_q, p=out_p)
+
+
+from collections import namedtuple
 import torch
 from torch.autograd import grad
 import enum
 from scipy import integrate
 import numpy as np
-
-IntegrationResult = namedtuple("IntegrationResult", ["q", "p"])
 
 
 class IntegrationScheme(enum.IntEnum):
