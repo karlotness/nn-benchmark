@@ -60,41 +60,51 @@ def null_integrator(q0, p0, dt, func, out_q, out_p):
 
 
 @numba.jit(nopython=True, fastmath=False)
-def backward_euler(q0, p0, dt, func, out_q, out_p, system):
-    pass
+def backward_euler(x0, dt, func, out_x, deriv_mat):
+    x = x0
+    deriv_eye = np.eye(x.shape[-1], dtype=x0.dtype)
+    unknown_mat = np.expand_dims(deriv_eye - dt * deriv_mat, 0)
+    for i in range(out_x.shape[0]):
+        out_x[i] = x
+        x = np.linalg.solve(unknown_mat, x)
 
 
 INTEGRATORS = {
-    "euler": euler,
-    "leapfrog": leapfrog,
-    "rk4": rk4,
-    "null": null_integrator,
-    "back-euler": None,
-    "implicit-rk": None,
+    "euler": (euler, False),
+    "leapfrog": (leapfrog, False),
+    "rk4": (rk4, False),
+    "null": (null_integrator, False),
+    "back-euler": (backward_euler, True),
+    "implicit-rk": (None, True),
 }
 
 
 def numerically_integrate(integrator, q0, p0, num_steps, dt, deriv_func, system=None):
     try:
         # Find the integrator function
-        int_func = INTEGRATORS[integrator]
+        int_func, is_implicit = INTEGRATORS[integrator]
         if (not isinstance(deriv_func, numba.core.dispatcher.Dispatcher)
             and isinstance(int_func, numba.core.dispatcher.Dispatcher)):
             # We weren't passed a JIT function, unwrap the integrator and call directly
             int_func = int_func.py_func
     except KeyError:
         raise ValueError(f"Unknown integrator {integrator}")
-    # Allocate output array
-    out_shape = (num_steps, p0.shape[1])
-    out_q = np.empty_like(q0, shape=out_shape)
-    out_p = np.empty_like(p0, shape=out_shape)
-    # If this is an implicit integrator, set up the extra context
-    extra_args = {}
-    if integrator in {"back-euler", "implicit-rk"}:
-        # Set up extra context from the system
+    if is_implicit:
+        # This is an implicit integrator, set up the extra context
         # In this case, we require `system` to be provided
-        pass
-    int_func(q0, p0, dt, deriv_func, out_q, out_p, **extra_args)
+        x0 = system.implicit_matrix_package(q=q0, p=p0)
+        out_x = np.empty_like(q0, shape=out_shape)
+        deriv_mat = system.implicit_matrix(x0)
+        int_func(x0, dt, deriv_func, out_x, deriv_mat)
+        ret_split = system.implicit_matrix_unpackage(out_x)
+        out_q = ret_split.q
+        out_p = ret_split.p
+    else:
+        # Allocate output array
+        out_shape = (num_steps, p0.shape[1])
+        out_q = np.empty_like(q0, shape=out_shape)
+        out_p = np.empty_like(p0, shape=out_shape)
+        int_func(q0, p0, dt, deriv_func, out_q, out_p)
     return IntegrationResult(q=out_q, p=out_p)
 
 
