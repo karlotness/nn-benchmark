@@ -4,6 +4,7 @@ from .defs import System, TrajectoryResult, SystemResult, StatePair
 import logging
 import time
 import torch
+from numba import jit
 
 
 class SpringSystem(System):
@@ -11,6 +12,13 @@ class SpringSystem(System):
         super().__init__()
         # Build "derivative matrix" for implicit integrators
         self._deriv_mat = np.array([[0, 1], [-1, 0]], dtype=np.float64)
+        # Set up free derivative function
+        @jit(nopython=True, fastmath=False)
+        def derivative(q, p):
+            dqdt = q
+            dpdt = p
+            return dpdt, -1 * dqdt
+        self.derivative = derivative
 
     def hamiltonian(self, q, p):
         return (1./2.) * q**2 + (1./2.) * p**2
@@ -22,11 +30,6 @@ class SpringSystem(System):
         q, p = np.split(coord, 2)
         deriv = self.derivative(q=q, p=p)
         return np.concatenate((deriv.q, deriv.p), axis=-1)
-
-    def derivative(self, q, p, dt=1.0):
-        grad = self._hamiltonian_grad(q=q, p=p)
-        dqdt, dpdt = grad.q, grad.p
-        return StatePair(q=dpdt, p=-dqdt)
 
     def implicit_matrix_package(self, q, p):
         return torch.cat((q, p), dim=-1)
