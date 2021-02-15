@@ -8,7 +8,7 @@ IntegrationResult = namedtuple("IntegrationResult", ["q", "p"])
 def euler(q0, p0, dt, func, out_q, out_p):
     q = q0
     p = p0
-    for i in range(out.shape[0]):
+    for i in range(out_q.shape[0]):
         out_q[i] = q
         out_p[i] = p
         dq, dp = func(q, p)
@@ -21,7 +21,7 @@ def leapfrog(q0, p0, dt, func, out_q, out_p):
     q = q0
     p = p0
     dqdt, dpdt = func(q, p)
-    for i in range(out.shape[0]):
+    for i in range(out_q.shape[0]):
         p_half = p + dpdt * (dt / 2)
         out_q[i] = q
         out_p[i] = p
@@ -37,7 +37,7 @@ def leapfrog(q0, p0, dt, func, out_q, out_p):
 def rk4(q0, p0, dt, func, out_q, out_p):
     q = q0
     p = p0
-    for i in range(out.shape[0]):
+    for i in range(out_q.shape[0]):
         out_q[i] = q
         out_p[i] = p
         q_k1, p_k1 = func(q, p)
@@ -53,7 +53,7 @@ def rk4(q0, p0, dt, func, out_q, out_p):
 def null_integrator(q0, p0, dt, func, out_q, out_p):
     q = q0
     p = p0
-    for i in range(out.shape[0]):
+    for i in range(out_q.shape[0]):
         out_q[i] = q
         out_p[i] = p
         q, p = func(q, p)
