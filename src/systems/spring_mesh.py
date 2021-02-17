@@ -27,14 +27,13 @@ def gather_forces(edge_indices, edge_forces, out):
 
 
 class SpringMeshSystem(System):
-    def __init__(self, n_dims, particles, edges, vel_decay):
+    def __init__(self, n_dims, particles, edges):
         super().__init__()
         self.particles = particles
         self.edges = edges
         self.n_dims = n_dims
         assert self.n_dims == 2
         self.n_particles = len(particles)
-        self.vel_decay = vel_decay
         self.masses = np.array([p.mass for p in self.particles], dtype=np.float64)
         self.fixed_mask = np.array([p.is_fixed for p in self.particles], dtype=np.bool)
         # Gather other data
@@ -76,19 +75,24 @@ class SpringMeshSystem(System):
         self._mass_matrix = mass_matrix
         self._select_matrix = unfixed_mask_mat
         self._stiff_mat = stiff_mat
+        # Underdamped springs
+        self._viscosity_constant = 0.1
 
     def hamiltonian(self, q, p):
         return torch.zeros(q.shape[0], q.shape[1])
 
-    def compute_forces(self, q):
+    def compute_forces(self, q, q_dot):
         q = q.reshape((-1, self.n_particles, self.n_dims))
+        q_dot = q_dot.reshape((-1, self.n_particles, self.n_dims))
         # Compute length of each spring and "diff" directions of the forces
         diffs = q[:, self.edge_indices[0], :] - q[:, self.edge_indices[1], :]
+        diffs_vel = q_dot[:, self.edge_indices[0], :] - q_dot[:, self.edge_indices[1], :]
         lengths = np.linalg.norm(diffs, ord=2, axis=-1)
         # Compute forces
         spring_consts = self.spring_consts
         rest_lengths = self.rest_lengths
         edge_forces = np.expand_dims(-1 * spring_consts * (lengths - rest_lengths) / lengths, axis=-1) * diffs
+        edge_forces += -1 * self._viscosity_constant * diffs_vel
         # Gather forces for each of their "lead" particles
         forces = np.zeros_like(edge_forces, shape=(q.shape[0], self.n_particles, self.n_dims))
         gather_forces(edge_indices=self.edge_indices, edge_forces=edge_forces, out=forces)
@@ -98,30 +102,29 @@ class SpringMeshSystem(System):
         #return np.expand_dims(forces, axis=0)
 
     def derivative(self, q, p, dt=1):
-        step_vel_decay = self.vel_decay ** dt
         orig_q_shape = q.shape
         orig_p_shape = p.shape
         q = q.reshape((-1, self.n_particles, self.n_dims))
         p = p.reshape((-1, self.n_particles, self.n_dims))
         # Compute action of forces on each particle
-        forces = self.compute_forces(q=q)
+        forces = self.compute_forces(q=q, q_dot=p)
         # Update positions
         masses = np.expand_dims(self.masses, axis=(0, -1))
         pos = (1 / masses) * p
         pos[:, self.fixed_mask, :] = 0
-        q_out = (step_vel_decay * pos).reshape(orig_q_shape)
+        q_out = pos.reshape(orig_q_shape)
         p_out = forces.reshape(orig_p_shape)
         return StatePair(q=q_out, p=p_out)
 
-    def _compute_next_step(self, q, q_dot, time_step_size, mat_unknown_factors, step_vel_decay=1.0):
+    def _compute_next_step(self, q, q_dot, time_step_size, mat_unknown_factors):
         # Input states are (n_particle, n_dim)
-        forces_orig = self.compute_forces(q=q)[0]
+        forces_orig = self.compute_forces(q=q, q_dot=q_dot)[0]
         forces = forces_orig.reshape((-1,))
         q = q.reshape((-1, ))
         q_dot = q_dot.reshape((-1, ))
         known = self._select_matrix @ (self._mass_matrix @ q_dot) + (time_step_size * (self._select_matrix @ forces))
         # Two of the values to return
-        q_dot_hat_next = step_vel_decay * lu_solve(mat_unknown_factors, known)
+        q_dot_hat_next = lu_solve(mat_unknown_factors, known)
         q_next = q + time_step_size * (self._select_matrix.T @ q_dot_hat_next)
         # Reshape
         q_dot_next = (self._select_matrix.T @ q_dot_hat_next).reshape((self.n_particles, self.n_dims))
@@ -146,7 +149,6 @@ class SpringMeshSystem(System):
         num_steps = num_time_steps * subsample
         orig_time_step_size = time_step_size
         time_step_size = time_step_size / subsample
-        step_vel_decay = self.vel_decay ** time_step_size
 
         # Compute updates using explicit Euler
         # compute update matrices
@@ -160,7 +162,7 @@ class SpringMeshSystem(System):
         qs = [q0]
         q_dots = [init_vel]
         ps = [p0]
-        p_dots = [self.compute_forces(q=q0)[0]]
+        p_dots = [self.compute_forces(q=q0, q_dot=p0)[0]]
         q = q0.copy()
         q_dot = p0.copy()
 
@@ -168,10 +170,9 @@ class SpringMeshSystem(System):
             q_dot[i] /= part.mass
         for step_idx in range(1, num_steps):
             q, q_dot, p, _p_dot_next = self._compute_next_step(q=q, q_dot=q_dot, time_step_size=time_step_size,
-                                                               mat_unknown_factors=mat_unknown_factors,
-                                                               step_vel_decay=step_vel_decay)
+                                                               mat_unknown_factors=mat_unknown_factors)
             if step_idx % subsample == 0:
-                p_dot = self.compute_forces(q=q)[0]
+                p_dot = self.compute_forces(q=q, q_dot=p)[0]
                 qs.append(q)
                 q_dots.append(q_dot)
                 ps.append(p)
@@ -206,7 +207,7 @@ class SpringMeshSystem(System):
             fixed_mask=self.fixed_mask)
 
 
-def system_from_records(n_dims, particles, edges, vel_decay):
+def system_from_records(n_dims, particles, edges):
     parts = []
     edgs = []
     for pdef in particles:
@@ -221,8 +222,7 @@ def system_from_records(n_dims, particles, edges, vel_decay):
                  rest_length=edef["rest_length"]))
     return SpringMeshSystem(n_dims=n_dims,
                             particles=parts,
-                            edges=edgs,
-                            vel_decay=vel_decay)
+                            edges=edgs)
 
 
 def generate_data(system_args, base_logger=None):
@@ -233,7 +233,6 @@ def generate_data(system_args, base_logger=None):
 
     trajectory_metadata = []
     trajectories = {}
-    vel_decay = system_args.get("vel_decay", 1.0)
     trajectory_defs = system_args["trajectory_defs"]
     for i, traj_def in enumerate(trajectory_defs):
         traj_name = f"traj_{i:05}"
@@ -268,7 +267,7 @@ def generate_data(system_args, base_logger=None):
         n_dims = q0.shape[-1]
         n_particles = len(particle_defs)
         system = SpringMeshSystem(n_dims=n_dims, particles=particles,
-                                  edges=edges, vel_decay=vel_decay)
+                                  edges=edges)
 
         traj_gen_start = time.perf_counter()
         traj_result = system.generate_trajectory(q0=q0,
@@ -341,6 +340,5 @@ def generate_data(system_args, base_logger=None):
                             "system_type": "spring-mesh",
                             "particles": particle_records,
                             "edges": edge_records,
-                            "vel_decay": vel_decay,
                         },
                         trajectory_metadata=trajectory_metadata)
