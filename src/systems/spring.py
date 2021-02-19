@@ -37,16 +37,13 @@ class SpringSystem(System):
     def implicit_matrix(self, x):
         return torch.from_numpy(self._deriv_mat)
 
-    def generate_trajectory(self, q0, p0, t_span, time_step_size, subsample=1,
+    def generate_trajectory(self, q0, p0, num_time_steps, time_step_size, subsample=1,
                             noise_sigma=0.0):
-        t_min, t_max = t_span
-        assert t_min < t_max
-        base_num_steps = int(np.ceil((t_max - t_min) / time_step_size))
-        num_steps = base_num_steps * subsample
+        num_steps = num_time_steps * subsample
         orig_time_step_size = time_step_size
         time_step_size = time_step_size / subsample
 
-        t_eval = (np.arange(base_num_steps) * orig_time_step_size).astype(np.float64)
+        t_eval = (np.arange(num_time_steps) * orig_time_step_size).astype(np.float64)
 
         x0 = np.stack((q0, p0))
 
@@ -109,14 +106,13 @@ def generate_data(system_args, base_logger=None):
         num_time_steps = traj_def["num_time_steps"]
         time_step_size = traj_def["time_step_size"]
         noise_sigma = traj_def.get("noise_sigma", 0.0)
-        t_span = (0, num_time_steps * time_step_size)
         subsample = int(traj_def.get("subsample", 1))
 
         # Generate trajectory
         traj_gen_start = time.perf_counter()
         traj_result = system.generate_trajectory(p0=p0,
                                                  q0=q0,
-                                                 t_span=t_span,
+                                                 num_time_steps=num_time_steps,
                                                  time_step_size=time_step_size,
                                                  subsample=subsample,
                                                  noise_sigma=noise_sigma)

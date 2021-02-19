@@ -1,12 +1,14 @@
 import numpy as np
 import integrators
-from systems import spring_mesh, wave
+from systems import spring_mesh, wave, spring
 from run_generators import utils as run_utils
 import torch
 from collections import namedtuple
-import matplotlib.pyplot as plt
-import multiprocessing
 import itertools
+from absl import app, flags
+
+FLAGS = flags.FLAGS
+flags.DEFINE_boolean("verbose", False, "Whether to print verbose output of errors per timestep.")
 
 SystemInitialization = namedtuple("SystemInitialization", ["system", "q0", "p0", "end_time", "dt_array", "dim"])
 
@@ -70,33 +72,50 @@ def setup_wave(n_grid=125):
         dt_array=sm_dts,
         dim=dim)
 
-SYSTEMS = {
-    "wave": setup_wave,
-    "spring-mesh": setup_spring_mesh,
-}
+def setup_spring():
+    train_source = run_utils.SpringInitialConditionSource(radius_range=(0.2, 1))
+    init_cond = train_source.sample_initial_conditions(1)[0]["initial_condition"]
+
+    sm_sys = spring.SpringSystem()
+
+    sm_end = 2 * np.pi
+
+    sm_dts = 2.**-np.arange(2, 14)
+
+    dim = (1, )
+
+    return SystemInitialization(
+        system=sm_sys,
+        q0=np.array([init_cond["q"]]),
+        p0=np.array([init_cond["p"]]),
+        end_time=sm_end,
+        dt_array=sm_dts,
+        dim=dim)
 
 
-for k, v in SYSTEMS.items():
-    print(f"System: {k}")
-    v = v()
+def analyze_system(system_name, system):
+    print(f"System: {system_name}")
     trajs = []
-    for dt in v.dt_array:
-        steps = int(np.ceil(v.end_time / dt))
-        traj = v.system.generate_trajectory(q0=v.q0, p0=v.p0, num_time_steps=steps, time_step_size=dt, subsample=1)
-        trajs.append(traj)
+    for dt in system.dt_array:
+        steps = int(np.ceil(system.end_time / dt))
+        traj = system.system.generate_trajectory(q0=system.q0, p0=system.p0, num_time_steps=steps, time_step_size=dt, subsample=1)
+        trajs.append(traj.q.reshape((-1, *system.dim)))
 
     convergence = []
     smallest_error = None
     print("Ground Truth Data")
     for i in range(1, len(trajs)):
         subsample_factor = 2
-        error = np.linalg.norm(trajs[i].q[::subsample_factor, ...][:trajs[i-1].q.shape[0]] - trajs[i-1].q, axis=-1).mean()
-        print(f"{np.round(2*np.pi/trajs[i-1].q.shape[0], 5)} -> {np.round(2*np.pi/trajs[i].q.shape[0], 5)}\t{error}")
+        error = np.linalg.norm(trajs[i][::subsample_factor, ...][:trajs[i-1].shape[0]] - trajs[i-1], axis=-1).mean()
+        if FLAGS.verbose:
+            print(f"{system.dt_array[i-1]:.5f} -> {system.dt_array[i]:.5f}\t{error}")
         smallest_error = error
+    if not FLAGS.verbose:
+        print(f"{system.dt_array[-2]:.5f} -> {system.dt_array[-1]:.5f}\t{smallest_error}")
 
 
     SystemDerivative = namedtuple("SystemDerivative", ["dq_dt", "dp_dt"])
-    system = v.system
+    physical_system = system.system
     eval_dtype = torch.double
     device = torch.device("cpu")
     def system_derivative(p, q, dt=1.0):
@@ -105,30 +124,69 @@ for k, v in SYSTEMS.items():
                 dt = dt.item()
             p = p.detach().cpu().numpy()
             q = q.detach().cpu().numpy()
-            derivative = system.derivative(p=p, q=q, dt=dt)
+            derivative = physical_system.derivative(p=p, q=q, dt=dt)
             dp_dt = torch.from_numpy(derivative.p).to(device, dtype=eval_dtype)
             dq_dt = torch.from_numpy(derivative.q).to(device, dtype=eval_dtype)
             return SystemDerivative(dp_dt=dp_dt, dq_dt=dq_dt)
     time_deriv_func = system_derivative
     time_deriv_method = integrators.IntegrationScheme.DIRECT_OUTPUT
 
-    for integrator in [integrators.euler, integrators.rk4, integrators.leapfrog]:
-        print("integrator: ", integrator)
-        for i, dt in enumerate(v.dt_array):
-            steps = int(np.ceil(v.end_time / dt))
+    all_integrators = {
+        "euler": integrators.euler,
+        "rk4": integrators.rk4,
+        "leapfrog": integrators.leapfrog,
+        "backward_euler": lambda *args, **kwargs: integrators.backward_euler(*args, **kwargs, system=system.system),
+        "implicit_rk_gauss2": lambda *args, **kwargs: integrators.implicit_rk_gauss2(*args, **kwargs, system=system.system),
+    }
 
-            int_q0 = torch.from_numpy(v.q0.reshape((1, -1,)))
-            int_p0 = torch.from_numpy(v.p0.reshape((1, -1,)))
+    for integrator_name, integrator in all_integrators.items():
+        print(f"integrator: {integrator_name}")
+        method_failed = False
+        for i, dt in enumerate(system.dt_array):
+            steps = int(np.ceil(system.end_time / dt))
 
-            euler_traj = integrator(p_0=int_p0, q_0=int_q0, Func=system_derivative, T=steps, dt=dt, volatile=True, is_Hamilt=False)
-            euler_q = euler_traj.q.reshape((-1, *v.dim)).detach().cpu().numpy()
-            euler_p = euler_traj.p.reshape((-1, *v.dim)).detach().cpu().numpy()
+            int_q0 = torch.from_numpy(system.q0.reshape((1, -1,)))
+            int_p0 = torch.from_numpy(system.p0.reshape((1, -1,)))
 
-            factor = int(np.ceil(trajs[-1].q.shape[0] / euler_q.shape[0]))
-            error = np.linalg.norm(euler_q - trajs[-1].q[::factor, ...], axis=-1).mean()
+            try:
+                int_traj = integrator(p_0=int_p0, q_0=int_q0, Func=system_derivative, T=steps, dt=dt, volatile=True, is_Hamilt=False)
+            except AttributeError as e:
+                print("The implicit matrix is probably not implemented.")
+                print(e)
+                method_failed = True
+                break
 
-            print(f"{np.round(dt, 5)}\t{error}")
+            int_q = int_traj.q.reshape((-1, *system.dim)).detach().cpu().numpy()
+
+            factor = int(np.ceil(trajs[-1].shape[0] / int_q.shape[0]))
+            error = np.linalg.norm(int_q - trajs[-1][::factor, ...], axis=-1).mean()
+
+            if FLAGS.verbose:
+                print(f"{dt:.5f}\t{error}")
+
+            # Save for non verbose printing below
+            dt_curr = dt
+            error_curr = error
 
             if np.allclose(smallest_error, error, rtol=0.2) or (error < smallest_error):
                 break
 
+        if not FLAGS.verbose and not method_failed:
+            print(f"{dt_curr:.5f}\t{error_curr}")
+
+
+SYSTEMS = {
+    "spring": setup_spring,
+    "wave": setup_wave,
+    "spring-mesh": setup_spring_mesh,
+}
+
+
+def main(argv):
+    for k, v in SYSTEMS.items():
+        analyze_system(k, v())
+
+
+for k, v in SYSTEMS.items():
+    if __name__ == "__main__":
+        app.run(main)
