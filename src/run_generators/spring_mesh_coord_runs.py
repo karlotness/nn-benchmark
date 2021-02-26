@@ -19,6 +19,7 @@ NUM_REPEATS = 3
 SPRING_END_TIME = 2 * math.pi
 SPRING_DT = 0.1 / 100
 SPRING_STEPS = math.ceil(SPRING_END_TIME / SPRING_DT)
+VEL_DECAY = 0.9
 SPRING_SUBSAMPLE = 3
 EVAL_INTEGRATORS = ["leapfrog", "euler", "rk4"]
 
@@ -54,7 +55,8 @@ for num_traj in [25, 50, 100]:
                                 num_time_steps=SPRING_STEPS,
                                 time_step_size=SPRING_DT,
                                 subsampling=SPRING_SUBSAMPLE,
-                                noise_sigma=0.0))
+                                noise_sigma=0.0,
+                                vel_decay=VEL_DECAY))
 writable_objects.extend(train_sets)
 # Generate val set
 val_set = utils.SpringMeshDataset(experiment_general,
@@ -64,7 +66,8 @@ val_set = utils.SpringMeshDataset(experiment_general,
                                   num_time_steps=SPRING_STEPS,
                                   time_step_size=SPRING_DT,
                                   subsampling=SPRING_SUBSAMPLE,
-                                  noise_sigma=0.0)
+                                  noise_sigma=0.0,
+                                  vel_decay=VEL_DECAY)
 writable_objects.append(val_set)
 # Generate eval sets
 for source, num_traj, type_key, step_multiplier in [
@@ -81,7 +84,8 @@ for source, num_traj, type_key, step_multiplier in [
                                 num_time_steps=(step_multiplier * SPRING_STEPS),
                                 time_step_size=SPRING_DT,
                                 subsampling=SPRING_SUBSAMPLE,
-                                noise_sigma=0.0))
+                                noise_sigma=0.0,
+                                vel_decay=VEL_DECAY))
 writable_objects.extend(eval_sets)
 
 # Emit baseline integrator runs for each evaluation set

@@ -643,7 +643,7 @@ class SpringMeshDataset(Dataset):
     def __init__(self, experiment, initial_cond_source, num_traj,
                  set_type="train",
                  num_time_steps=500, time_step_size=0.1,
-                 subsampling=10, noise_sigma=0.0, vel_decay=1.0):
+                 subsampling=10, noise_sigma=0.0, vel_decay=0.0):
         super().__init__(experiment=experiment,
                          name_tail=f"n{num_traj}-t{num_time_steps}-n{noise_sigma}",
                          system="spring-mesh",

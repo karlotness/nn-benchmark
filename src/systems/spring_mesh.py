@@ -21,7 +21,7 @@ ParticleTrajectoryResult = namedtuple("ParticleTrajectoryResult",
 
 
 class SpringMeshSystem(System):
-    def __init__(self, n_dims, particles, edges):
+    def __init__(self, n_dims, particles, edges, vel_decay):
         super().__init__()
         self.particles = particles
         self.edges = edges
@@ -32,7 +32,7 @@ class SpringMeshSystem(System):
         self.masses.setflags(write=False)
         self.fixed_mask = np.array([p.is_fixed for p in self.particles], dtype=np.bool)
         self.fixed_mask.setflags(write=False)
-        self._viscosity_constant = 0.1
+        self.viscosity_constant = vel_decay
         # Gather other data
         self.edge_indices = np.array([(e.a, e.b) for e in self.edges] +
                                      [(e.b, e.a) for e in self.edges], dtype=np.int64).T
@@ -220,7 +220,7 @@ class SpringMeshSystem(System):
             fixed_mask=self.fixed_mask)
 
 
-def system_from_records(n_dims, particles, edges):
+def system_from_records(n_dims, particles, edges, vel_decay):
     parts = []
     edgs = []
     for pdef in particles:
@@ -235,7 +235,8 @@ def system_from_records(n_dims, particles, edges):
                  rest_length=edef["rest_length"]))
     return SpringMeshSystem(n_dims=n_dims,
                             particles=parts,
-                            edges=edgs)
+                            edges=edgs,
+                            vel_decay=vel_decay)
 
 
 def generate_data(system_args, base_logger=None):
@@ -246,6 +247,7 @@ def generate_data(system_args, base_logger=None):
 
     trajectory_metadata = []
     trajectories = {}
+    vel_decay = system_args.get("vel_decay", 0.0)
     trajectory_defs = system_args["trajectory_defs"]
     for i, traj_def in enumerate(trajectory_defs):
         traj_name = f"traj_{i:05}"
@@ -280,7 +282,7 @@ def generate_data(system_args, base_logger=None):
         n_dims = q0.shape[-1]
         n_particles = len(particle_defs)
         system = SpringMeshSystem(n_dims=n_dims, particles=particles,
-                                  edges=edges)
+                                  edges=edges, vel_decay=vel_decay)
 
         traj_gen_start = time.perf_counter()
         traj_result = system.generate_trajectory(q0=q0,
@@ -353,5 +355,6 @@ def generate_data(system_args, base_logger=None):
                             "system_type": "spring-mesh",
                             "particles": particle_records,
                             "edges": edge_records,
+                            "vel_decay": vel_decay,
                         },
                         trajectory_metadata=trajectory_metadata)

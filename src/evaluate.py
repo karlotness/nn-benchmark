@@ -340,7 +340,9 @@ def run_phase(base_dir, out_dir, phase_args):
             edges_dict = eval_dataset.system_metadata["edges"]
             edges = np.array([(e["a"], e["b"]) for e in edges_dict] +
                              [(e["b"], e["a"]) for e in edges_dict], dtype=np.int64).T
-            system = spring_mesh.system_from_records(n_dim, particles, edges_dict)
+            vel_decay = eval_dataset.system_metadata["vel_decay"]
+            system = spring_mesh.system_from_records(n_dim, particles, edges_dict,
+                                                     vel_decay=vel_decay)
         else:
             raise ValueError(f"Unknown system type {eval_dataset.system}")
 
