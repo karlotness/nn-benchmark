@@ -86,6 +86,7 @@ class SpringMeshSystem(System):
         rest_lengths = self.rest_lengths
         fixed_mask = self.fixed_mask
         masses = self.masses
+        masses_expanded = np.expand_dims(masses, axis=(0, -1))
         @jit(nopython=True, fastmath=False)
         def gather_forces(edge_forces, out):
             for i in range(edge_indices.shape[1]):
@@ -96,13 +97,11 @@ class SpringMeshSystem(System):
             q = q.reshape((-1, n_particles, n_dims))
             # Compute length of each spring and "diff" directions of the forces
             diffs = q[:, edge_indices[0], :] - q[:, edge_indices[1], :]
-            lengths = np.linalg.norm(diffs, ord=2, axis=-1)
+            lengths = np.sqrt((diffs ** 2).sum(axis=-1))
             # Compute forces
-            spring_consts = spring_consts
-            rest_lengths = rest_lengths
             edge_forces = np.expand_dims(-1 * spring_consts * (lengths - rest_lengths) / lengths, axis=-1) * diffs
             # Gather forces for each of their "lead" particles
-            forces = np.zeros_like(edge_forces, shape=(q.shape[0], n_particles, n_dims))
+            forces = np.zeros(shape=(q.shape[0], n_particles, n_dims), dtype=q.dtype)
             gather_forces(edge_forces=edge_forces, out=forces)
             # Mask forces on fixed particles
             forces[:, fixed_mask, :] = 0
@@ -120,8 +119,7 @@ class SpringMeshSystem(System):
             # Compute action of forces on each particle
             forces = compute_forces(q=q)
             # Update positions
-            masses = np.expand_dims(masses, axis=(0, -1))
-            pos = (1 / masses) * p
+            pos = (1 / masses_expanded) * p
             pos[:, fixed_mask, :] = 0
             q_out = (step_vel_decay * pos).reshape(orig_q_shape)
             p_out = forces.reshape(orig_p_shape)
