@@ -15,10 +15,6 @@ import joblib
 from collections import namedtuple
 
 
-METHOD_HNET = integrators.IntegrationScheme.HAMILTONIAN
-METHOD_DIRECT_DERIV = integrators.IntegrationScheme.DIRECT_OUTPUT
-
-
 def load_network(net_dir, base_dir, base_logger, model_file_name="model.pt"):
     logger = base_logger.getChild("load_network")
     if net_dir is None:
@@ -155,7 +151,6 @@ def run_phase(base_dir, out_dir, phase_args):
 
     if eval_type == "srnn":
         time_deriv_func = net
-        time_deriv_method = METHOD_HNET
         hamiltonian_func = net
     elif eval_type == "hnn":
         def model_hamiltonian(p, q, dt=1.0):
@@ -165,14 +160,12 @@ def run_phase(base_dir, out_dir, phase_args):
         def hnn_model_time_deriv(p, q):
             return net.time_derivative(p=p, q=q, create_graph=False)
         time_deriv_func = hnn_model_time_deriv
-        time_deriv_method = METHOD_DIRECT_DERIV
         hamiltonian_func = model_hamiltonian
     elif eval_type in {"mlp", "nn-kernel"}:
         def net_no_grad(p, q, dt=1.0):
             with torch.no_grad():
                 return net(q=q, p=p)
         time_deriv_func = net_no_grad
-        time_deriv_method = METHOD_DIRECT_DERIV
     elif eval_type == "cnn":
         CNNDerivative = namedtuple("CNNDerivative", ["dq_dt", "dp_dt"])
         def cnn_time_deriv(p, q, dt=1.0):
@@ -191,7 +184,6 @@ def run_phase(base_dir, out_dir, phase_args):
                     )
                 return res
         time_deriv_func = cnn_time_deriv
-        time_deriv_method = METHOD_DIRECT_DERIV
     elif eval_type in {"knn-regressor", "knn-regressor-oneshot"}:
         # Use the time_derivative
         KNNDerivative = namedtuple("KNNDerivative", ["dq_dt", "dp_dt"])
@@ -203,7 +195,6 @@ def run_phase(base_dir, out_dir, phase_args):
             dqdt = torch.from_numpy(dqdt).to(device, dtype=eval_dtype)
             return KNNDerivative(dq_dt=dqdt, dp_dt=dpdt)
         time_deriv_func = model_time_deriv
-        time_deriv_method = METHOD_DIRECT_DERIV
     elif eval_type in {"knn-predictor", "knn-predictor-oneshot"}:
         KNNPrediction = namedtuple("KNNPrediction", ["q", "p"])
         def model_next_step(p, q, dt=1.0):
@@ -214,7 +205,6 @@ def run_phase(base_dir, out_dir, phase_args):
             next_q = torch.from_numpy(next_q).to(device, dtype=eval_dtype)
             return KNNPrediction(q=next_q, p=next_p)
         time_deriv_func = model_next_step
-        time_deriv_method = METHOD_DIRECT_DERIV
         if integrator_type != "null":
             raise ValueError(f"KNN predictions to not work with integrator {integrator_type}")
     elif eval_type == "integrator-baseline":
@@ -230,7 +220,6 @@ def run_phase(base_dir, out_dir, phase_args):
             dq_dt = torch.from_numpy(derivative.q).to(device, dtype=eval_dtype)
             return SystemDerivative(dp_dt=dp_dt, dq_dt=dq_dt)
         time_deriv_func = system_derivative
-        time_deriv_method = METHOD_DIRECT_DERIV
     elif eval_type == "hogn":
         # Lazy import to avoid pytorch-geometric if possible
         from methods import hogn
@@ -266,7 +255,6 @@ def run_phase(base_dir, out_dir, phase_args):
                 return np.array(hamilts)
             return model_hamiltonian
 
-        time_deriv_method = METHOD_DIRECT_DERIV
     elif eval_type == "gn":
         # Lazy import to avoid pytorch-geometric if possible
         from methods import gn
@@ -307,7 +295,6 @@ def run_phase(base_dir, out_dir, phase_args):
                                         q=q_next.reshape(q_orig_shape).detach())
             return model_next_step
 
-        time_deriv_method = METHOD_DIRECT_DERIV
         if integrator_type != "null":
           raise ValueError(f"GN predictions do not work with integrator {integrator_type}")
     else:
@@ -379,17 +366,14 @@ def run_phase(base_dir, out_dir, phase_args):
         q0 = q[:, 0]
         integrate_start = time.perf_counter()
         int_res_raw = integrators.numerically_integrate(
-            integrator_type,
-            p_0=p0,
-            q_0=q0,
-            model=time_deriv_func,
-            method=time_deriv_method,
-            T=num_time_steps,
-            dt=time_step_size,
-            system=system,
-            volatile=True,
-            device=device,
-            coarsening_factor=1)
+            integrator=integrator_type,
+            q0=q0,
+            p0=p0,
+            num_steps=num_time_steps,
+            dt=dt,
+            deriv_func=time_deriv_func,
+            system=system)
+
         # Remove extraneous batch dimension
         integrate_elapsed = time.perf_counter() - integrate_start
         # Split the integration result
