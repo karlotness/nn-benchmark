@@ -20,6 +20,14 @@ ParticleTrajectoryResult = namedtuple("ParticleTrajectoryResult",
                                        "masses", "edge_indices", "fixed_mask"])
 
 
+@jit(nopython=True)
+def batch_outer(v, w):
+    res = np.empty((v.shape[0], v.shape[1], w.shape[1]), dtype=v.dtype)
+    for i in range(v.shape):
+        res[i] = np.outer(v[i], w[i])
+    return res
+
+
 class SpringMeshSystem(System):
     def __init__(self, n_dims, particles, edges, vel_decay):
         super().__init__()
@@ -130,6 +138,108 @@ class SpringMeshSystem(System):
             p_out = forces.reshape(orig_p_shape)
             return q_out, p_out
         self.derivative = derivative
+
+        # Configure functions for Newton iteration
+        jac_idx_arr = np.arange(n_particles * n_dims).reshape((n_particles, n_dims))
+        arr_size = n_particles * n_dims
+        eye_n_dims = np.tile(np.expand_dims(np.eye(n_dims), axis=0), (2*len(self.edges), 1, 1))
+        jac_b = np.zeros((arr_size, arr_size))
+        I = np.eye(n_dims * n_particles)
+        zeromat = np.zeros_like(I)
+        I_zero = np.block([I, zeromat])
+        zero_I = np.block([zeromat, I])
+        jac_idx_arr.setflags(write=False)
+        eye_n_dims.setflags(write=False)
+        jac_b.setflags(write=False)
+        I.setflags(write=False)
+        zeromat.setflags(write=False)
+        I_zero.setflags(write=False)
+        zero_I.setflags(write=False)
+        for edge in self.edges:
+            for a, b in [(edge.a, edge.b), (edge.b, edge.a)]:
+                jac_b[jac_idx_arr[a], jac_idx_arr[b]] += viscosity_constant
+                jac_b[jac_idx_arr[a], jac_idx_arr[a]] -= viscosity_constant
+
+        @jit(nopython=True)
+        def store_jac(term_ab, jac):
+            for i in range(term_ab.shape[0]):
+                # Store term
+                a = edge_indices[0, i]
+                b = edge_indices[1, i]
+                jac[jac_idx_arr[a][0]:jac_idx_arr[a][1]+1, jac_idx_arr[b][0]:jac_idx_arr[b][1]+1] = term_ab[i]
+
+        @jit(nopython=True)
+        def _force_grad(q, p):
+            q = q.reshape((n_particles, n_dims))
+            p = p.reshape((n_particles, n_dims))
+            jac = np.zeros((arr_size, arr_size))
+
+            diff = q[edge_indices[0], :] - q[edge_indices[1], :]
+            norm2 = np.sqrt((diff ** 2).sum(axis=-1))
+            lead_coeffs = np.expand_dims(np.expand_dims(spring_consts[0], axis=-1), axis=-1)
+
+            term1_scalar = np.expand_dims(np.expand_dims(norm2 - rest_lengths[0], axis=-1), axis=-1)
+            term1_deriv_vec = diff / np.expand_dims(norm2, axis=-1)
+            term2_vec = diff / np.expand_dims(norm2, axis=-1)
+            outer_prod = batch_outer(diff, diff)
+
+            term2_a = eye_n_dims / np.expand_dims(np.expand_dims(norm2, axis=-1), axis=-1)
+            term2_b = outer_prod/np.expand_dims(np.expand_dims(norm2**3, axis=-1), axis=-1)
+            term2_deriv_mat = term2_a - term2_b
+            term_ab = (lead_coeffs * (batch_outer(term1_deriv_vec, term2_vec)) +
+                       lead_coeffs * (term1_scalar * term2_deriv_mat))
+            # Store results from term_ab
+            store_jac(term_ab, jac)
+            res = np.concatenate((jac, jac_b), axis=-1)
+            res[np.repeat(fixed_mask, n_dims)] = 0
+            return res
+
+        @jit(nopython=True)
+        def _newton_func_val(q_prev, q_dot_prev, q_next, q_dot_next, dt):
+            forces = compute_forces(q_next, q_dot_next).reshape((-1, ))
+            q_val = q_next - q_prev - dt * q_dot_prev - dt**2 * M_inv * forces
+            q_dot_val = q_dot_next - q_dot_prev - dt * M_inv * forces
+            return np.concatenate((q_val, q_dot_val), axis=-1)
+
+        @jit(nopython=True)
+        def _newton_func_jac(q_prev, q_dot_prev, q_next, q_dot_next, dt):
+            minv_jf = np.diag(M_inv) @ _force_grad(q_next, q_dot_next)
+            q_rows = I_zero - dt**2 * minv_jf
+            q_dot_rows = zero_I - dt * minv_jf
+            return np.concatenate((q_rows, q_dot_rows), axis=0)
+
+        # Do the newton iterations
+        @jit(nopython=True)
+        def compute_next_step(q_prev, q_dot_prev, dt):
+            split_idx = n_dims * n_particles
+            q_prev = q_prev.reshape((-1, ))
+            q_dot_prev = q_dot_prev.reshape((-1, ))
+            q_next = q_prev.copy()
+            q_dot_next = q_dot_prev.copy()
+            val = _newton_func_val(q_prev, q_dot_prev, q_next, q_dot_next, dt)
+            num_iter = 0
+            while np.linalg.norm(val) > 1e-12:
+                val = _newton_func_val(q_prev, q_dot_prev, q_next, q_dot_next, dt)
+                jac = _newton_func_jac(q_prev, q_dot_prev, q_next, q_dot_next, dt)
+                jac_inv_prod = np.linalg.solve(jac, val)
+                q_incr = jac_inv_prod[:split_idx]
+                q_dot_incr = jac_inv_prod[split_idx:]
+                q_next = q_next - q_incr
+                q_dot_next = q_dot_next - q_dot_incr
+                num_iter += 1
+                if num_iter > 50:
+                    break
+            return q_next, q_dot_next
+
+        @jit(nopython=True)
+        def back_euler(q0, p0, dt, out_q, out_p):
+            q = q0.reshape((-1, ))
+            q_dot = M_inv * p0.reshape((-1, ))
+            for i in range(out_q.shape[0]):
+                out_q[i] = q
+                out_p[i] = masses_repeats * q_dot
+                q, q_dot = compute_next_step(q, q_dot, dt)
+        self.back_euler = back_euler
 
     def hamiltonian(self, q, p):
         return torch.zeros(q.shape[0], q.shape[1])
