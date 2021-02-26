@@ -70,26 +70,32 @@ def backward_euler(x0, dt, func, out_x, deriv_mat):
 
 
 INTEGRATORS = {
-    "euler": (euler, False),
-    "leapfrog": (leapfrog, False),
-    "rk4": (rk4, False),
-    "null": (null_integrator, False),
-    "back-euler": (backward_euler, True),
-    "implicit-rk": (None, True),
+    "euler": (euler, None),
+    "leapfrog": (leapfrog, None),
+    "rk4": (rk4, None),
+    "null": (null_integrator, None),
+    "back-euler": (backward_euler, "back_euler"),
+    "implicit-rk": (None, "implicit_rk"),
 }
 
 
 def numerically_integrate(integrator, q0, p0, num_steps, dt, deriv_func, system=None):
     try:
         # Find the integrator function
-        int_func, is_implicit = INTEGRATORS[integrator]
+        int_func, implicit_attr = INTEGRATORS[integrator]
         if (not isinstance(deriv_func, numba.core.dispatcher.Dispatcher)
             and isinstance(int_func, numba.core.dispatcher.Dispatcher)):
             # We weren't passed a JIT function, unwrap the integrator and call directly
             int_func = int_func.py_func
     except KeyError:
         raise ValueError(f"Unknown integrator {integrator}")
-    if is_implicit:
+    if implicit_attr and hasattr(system, implicit_attr):
+        # Call system's implicit integrator directly
+        out_shape = (num_steps, p0.shape[1])
+        out_q = np.empty_like(q0, shape=out_shape)
+        out_p = np.empty_like(p0, shape=out_shape)
+        getattr(system, implicit_attr)(q0, p0, dt, out_q, out_p)
+    elif implicit_attr:
         # This is an implicit integrator, set up the extra context
         # In this case, we require `system` to be provided
         x0 = system.implicit_matrix_package(q=q0, p=p0)
