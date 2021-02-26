@@ -81,25 +81,31 @@ class SpringMeshSystem(System):
         # Set up support functions for computing derivatives
         edge_indices = self.edge_indices
         n_particles = self.n_particles
+        viscosity_constant = self.viscosity_constant
         n_dims = self.n_dims
         spring_consts = self.spring_consts
         rest_lengths = self.rest_lengths
         fixed_mask = self.fixed_mask
         masses = self.masses
         masses_expanded = np.expand_dims(masses, axis=(0, -1))
+        masses_repeats = np.tile(np.expand_dims(masses, -1), (1, n_dims)).reshape((-1, ))
+        M_inv = np.reciprocal(masses_repeats)
         @jit(nopython=True, fastmath=False)
         def gather_forces(edge_forces, out):
             for i in range(edge_indices.shape[1]):
                 a = edge_indices[0, i]
                 out[:, a] += edge_forces[:, i]
         @jit(nopython=True, fastmath=False)
-        def compute_forces(q):
+        def compute_forces(q, q_dot):
             q = q.reshape((-1, n_particles, n_dims))
+            q_dot = q_dot.reshape((-1, n_particles, n_dims))
             # Compute length of each spring and "diff" directions of the forces
             diffs = q[:, edge_indices[0], :] - q[:, edge_indices[1], :]
+            diffs_vel = q_dot[:, edge_indices[0], :] - q_dot[:, edge_indices[1], :]
             lengths = np.sqrt((diffs ** 2).sum(axis=-1))
             # Compute forces
-            edge_forces = np.expand_dims(-1 * spring_consts * (lengths - rest_lengths) / lengths, axis=-1) * diffs
+            edge_forces = ((np.expand_dims(-1 * spring_consts * (lengths - rest_lengths) / lengths, axis=-1) * diffs)
+                           - viscosity_constant * diffs_vel)
             # Gather forces for each of their "lead" particles
             forces = np.zeros(shape=(q.shape[0], n_particles, n_dims), dtype=q.dtype)
             gather_forces(edge_forces=edge_forces, out=forces)
@@ -110,18 +116,17 @@ class SpringMeshSystem(System):
         # Set up free derivative function
         @jit(nopython=True, fastmath=False)
         def derivative(q, p):
-            dt = 1
-            step_vel_decay = vel_decay ** dt
             orig_q_shape = q.shape
             orig_p_shape = p.shape
             q = q.reshape((-1, n_particles, n_dims))
             p = p.reshape((-1, n_particles, n_dims))
+            q_dot = M_inv * p
             # Compute action of forces on each particle
-            forces = compute_forces(q=q)
+            forces = compute_forces(q=q, q_dot=q_dot)
             # Update positions
             pos = (1 / masses_expanded) * p
             pos[:, fixed_mask, :] = 0
-            q_out = (step_vel_decay * pos).reshape(orig_q_shape)
+            q_out = pos.reshape(orig_q_shape)
             p_out = forces.reshape(orig_p_shape)
             return q_out, p_out
         self.derivative = derivative
@@ -129,7 +134,7 @@ class SpringMeshSystem(System):
     def hamiltonian(self, q, p):
         return torch.zeros(q.shape[0], q.shape[1])
 
-    def _compute_next_step(self, q, q_dot, time_step_size, mat_unknown_factors, step_vel_decay=1.0):
+    def _compute_next_step(self, q, q_dot, time_step_size, mat_unknown_factors):
         # Input states are (n_particle, n_dim)
         forces_orig = self.compute_forces(q=q, q_dot=q_dot)[0]
         forces = forces_orig.reshape((-1,))
