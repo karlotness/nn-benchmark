@@ -4,7 +4,7 @@ import numba
 
 IntegrationResult = namedtuple("IntegrationResult", ["q", "p"])
 
-@numba.jit(nopython=True, fastmath=False)
+@numba.jit(nopython=True)
 def euler(q0, p0, dt, func, out_q, out_p):
     q = q0
     p = p0
@@ -16,7 +16,7 @@ def euler(q0, p0, dt, func, out_q, out_p):
         p = p + dt * dp
 
 
-@numba.jit(nopython=True, fastmath=False)
+@numba.jit(nopython=True)
 def leapfrog(q0, p0, dt, func, out_q, out_p):
     q = q0
     p = p0
@@ -33,7 +33,7 @@ def leapfrog(q0, p0, dt, func, out_q, out_p):
         q = q_next
 
 
-@numba.jit(nopython=True, fastmath=False)
+@numba.jit(nopython=True)
 def rk4(q0, p0, dt, func, out_q, out_p):
     q = q0
     p = p0
@@ -59,7 +59,7 @@ def null_integrator(q0, p0, dt, func, out_q, out_p):
         q, p = func(q, p)
 
 
-@numba.jit(nopython=True, fastmath=False)
+@numba.jit(nopython=True)
 def backward_euler(x0, dt, func, out_x, deriv_mat):
     x = x0
     deriv_eye = np.eye(x.shape[-1], dtype=x0.dtype)
