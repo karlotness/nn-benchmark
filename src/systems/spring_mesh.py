@@ -23,7 +23,7 @@ ParticleTrajectoryResult = namedtuple("ParticleTrajectoryResult",
 @jit(nopython=True)
 def batch_outer(v, w):
     res = np.empty((v.shape[0], v.shape[1], w.shape[1]), dtype=v.dtype)
-    for i in range(v.shape):
+    for i in range(v.shape[0]):
         res[i] = np.outer(v[i], w[i])
     return res
 
@@ -148,6 +148,10 @@ class SpringMeshSystem(System):
         zeromat = np.zeros_like(I)
         I_zero = np.block([I, zeromat])
         zero_I = np.block([zeromat, I])
+        for edge in self.edges:
+            for a, b in [(edge.a, edge.b), (edge.b, edge.a)]:
+                jac_b[jac_idx_arr[a], jac_idx_arr[b]] += viscosity_constant
+                jac_b[jac_idx_arr[a], jac_idx_arr[a]] -= viscosity_constant
         jac_idx_arr.setflags(write=False)
         eye_n_dims.setflags(write=False)
         jac_b.setflags(write=False)
@@ -155,10 +159,6 @@ class SpringMeshSystem(System):
         zeromat.setflags(write=False)
         I_zero.setflags(write=False)
         zero_I.setflags(write=False)
-        for edge in self.edges:
-            for a, b in [(edge.a, edge.b), (edge.b, edge.a)]:
-                jac_b[jac_idx_arr[a], jac_idx_arr[b]] += viscosity_constant
-                jac_b[jac_idx_arr[a], jac_idx_arr[a]] -= viscosity_constant
 
         @jit(nopython=True)
         def store_jac(term_ab, jac):

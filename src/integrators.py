@@ -91,7 +91,7 @@ def numerically_integrate(integrator, q0, p0, num_steps, dt, deriv_func, system=
         raise ValueError(f"Unknown integrator {integrator}")
     if implicit_attr and hasattr(system, implicit_attr):
         # Call system's implicit integrator directly
-        out_shape = (num_steps, p0.shape[1])
+        out_shape = (num_steps, p0.shape[0])
         out_q = np.empty_like(q0, shape=out_shape)
         out_p = np.empty_like(p0, shape=out_shape)
         getattr(system, implicit_attr)(q0, p0, dt, out_q, out_p)
@@ -99,6 +99,7 @@ def numerically_integrate(integrator, q0, p0, num_steps, dt, deriv_func, system=
         # This is an implicit integrator, set up the extra context
         # In this case, we require `system` to be provided
         x0 = system.implicit_matrix_package(q=q0, p=p0)
+        out_shape = (num_steps, x0.shape[-1])
         out_x = np.empty_like(q0, shape=out_shape)
         deriv_mat = system.implicit_matrix(x0)
         int_func(x0, dt, deriv_func, out_x, deriv_mat)
@@ -107,7 +108,7 @@ def numerically_integrate(integrator, q0, p0, num_steps, dt, deriv_func, system=
         out_p = ret_split.p
     else:
         # Allocate output array
-        out_shape = (num_steps, p0.shape[1])
+        out_shape = (num_steps, p0.shape[0])
         out_q = np.empty_like(q0, shape=out_shape)
         out_p = np.empty_like(p0, shape=out_shape)
         int_func(q0, p0, dt, deriv_func, out_q, out_p)
