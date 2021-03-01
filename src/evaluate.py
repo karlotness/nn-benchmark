@@ -153,22 +153,28 @@ def run_phase(base_dir, out_dir, phase_args):
         time_deriv_func = net
         hamiltonian_func = net
     elif eval_type == "hnn":
-        def model_hamiltonian(p, q, dt=1.0):
+        def model_hamiltonian(q, p, dt=1.0):
             hamilt = net(p=p, q=q)
             return hamilt[0] + hamilt[1]
 
-        def hnn_model_time_deriv(p, q):
+        def hnn_model_time_deriv(q, p):
             return net.time_derivative(p=p, q=q, create_graph=False)
         time_deriv_func = hnn_model_time_deriv
         hamiltonian_func = model_hamiltonian
     elif eval_type in {"mlp", "nn-kernel"}:
-        def net_no_grad(p, q, dt=1.0):
+        MLPDerivative = namedtuple("MLPDerivative", ["dq_dt", "dp_dt"])
+        def net_no_grad(q, p, dt=1.0):
             with torch.no_grad():
-                return net(q=q, p=p)
+                q = torch.from_numpy(q).to(device, dtype=eval_dtype)
+                p = torch.from_numpy(p).to(device, dtype=eval_dtype)
+                ret = net(q=q, p=p)
+                dq = ret.dq_dt.detach().cpu().numpy()
+                dp = ret.dp_dt.detach().cpu().numpy()
+                return MLPDerivative(dq_dt=dq, dp_dt=dp)
         time_deriv_func = net_no_grad
     elif eval_type == "cnn":
         CNNDerivative = namedtuple("CNNDerivative", ["dq_dt", "dp_dt"])
-        def cnn_time_deriv(p, q, dt=1.0):
+        def cnn_time_deriv(q, p, dt=1.0):
             with torch.no_grad():
                 unsqueezed = False
                 if len(p.shape) < 3:
@@ -187,37 +193,29 @@ def run_phase(base_dir, out_dir, phase_args):
     elif eval_type in {"knn-regressor", "knn-regressor-oneshot"}:
         # Use the time_derivative
         KNNDerivative = namedtuple("KNNDerivative", ["dq_dt", "dp_dt"])
-        def model_time_deriv(p, q, dt=1.0):
-            x = torch.cat([p, q], axis=-1).detach().cpu().numpy()
+        def model_time_deriv(q, p, dt=1.0):
+            x = np.concatenate([p, q], axis=-1)
             ret = net.predict(x)
             dpdt, dqdt = np.split(ret, 2, axis=-1)
-            dpdt = torch.from_numpy(dpdt).to(device, dtype=eval_dtype)
-            dqdt = torch.from_numpy(dqdt).to(device, dtype=eval_dtype)
             return KNNDerivative(dq_dt=dqdt, dp_dt=dpdt)
         time_deriv_func = model_time_deriv
     elif eval_type in {"knn-predictor", "knn-predictor-oneshot"}:
         KNNPrediction = namedtuple("KNNPrediction", ["q", "p"])
-        def model_next_step(p, q, dt=1.0):
-            x = torch.cat([p, q], axis=-1).detach().cpu().numpy()
+        def model_next_step(q, p, dt=1.0):
+            x = np.concatenate([p, q], axis=-1)
             ret = net.predict(x)
             next_p, next_q = np.split(ret, 2, axis=-1)
-            next_p = torch.from_numpy(next_p).to(device, dtype=eval_dtype)
-            next_q = torch.from_numpy(next_q).to(device, dtype=eval_dtype)
             return KNNPrediction(q=next_q, p=next_p)
         time_deriv_func = model_next_step
         if integrator_type != "null":
-            raise ValueError(f"KNN predictions to not work with integrator {integrator_type}")
+            raise ValueError(f"KNN predictions do not work with integrator {integrator_type}")
     elif eval_type == "integrator-baseline":
         # Use the time_derivative
         SystemDerivative = namedtuple("SystemDerivative", ["dq_dt", "dp_dt"])
-        def system_derivative(p, q, dt=1.0):
+        def system_derivative(q, p, dt=1.0):
             if torch.is_tensor(dt):
                 dt = dt.item()
-            p = p.detach().cpu().numpy()
-            q = q.detach().cpu().numpy()
-            derivative = system.derivative(p=p, q=q, dt=dt)
-            dp_dt = torch.from_numpy(derivative.p).to(device, dtype=eval_dtype)
-            dq_dt = torch.from_numpy(derivative.q).to(device, dtype=eval_dtype)
+            dq_dt, dp_dt = system.derivative(p=p, q=q)
             return SystemDerivative(dp_dt=dp_dt, dq_dt=dq_dt)
         time_deriv_func = system_derivative
     elif eval_type == "hogn":
@@ -229,7 +227,7 @@ def run_phase(base_dir, out_dir, phase_args):
         HognMockDataset = namedtuple("HognMockDataset", ["p", "q", "dp_dt", "dq_dt", "masses"])
 
         def hogn_time_deriv_func(masses):
-            def model_time_deriv(p, q, dt=1.0):
+            def model_time_deriv(q, p, dt=1.0):
                 mocked = HognMockDataset(p=p, q=q, masses=masses,
                                          dp_dt=None, dq_dt=None)
                 bundled = dataset_geometric.package_data(dataset=[mocked],
@@ -241,7 +239,7 @@ def run_phase(base_dir, out_dir, phase_args):
             return model_time_deriv
 
         def hogn_hamiltonian_func(masses):
-            def model_hamiltonian(p, q):
+            def model_hamiltonian(q, p):
                 hamilts = []
                 for i in range(p.shape[0]):
                     # Break out batches separately
@@ -263,9 +261,9 @@ def run_phase(base_dir, out_dir, phase_args):
         package_args = eval_args["package_args"]
         GnMockDataset = namedtuple("GnMockDataset", ["p", "q", "dp_dt", "dq_dt", "masses", "edge_index"])
 
-        GNPrediction = namedtuple("GNPrediction", ["p", "q"])
+        GNPrediction = namedtuple("GNPrediction", ["q", "p"])
         def gn_time_deriv_func(masses, edges, n_particles):
-            def model_next_step(p, q, dt=1.0):
+            def model_next_step(q, p, dt=1.0):
                 with torch.no_grad():
                     time_step_size = dt
                     p_orig_shape = p.shape
@@ -274,7 +272,7 @@ def run_phase(base_dir, out_dir, phase_args):
                     assert batch_size == 1
                     p = p.reshape((n_particles, -1))
                     q = q.reshape((n_particles, -1))
-                    mocked = GnMockDataset(p=p.detach().numpy(), q=q.detach().numpy(),
+                    mocked = GnMockDataset(p=p, q=q,
                         masses=masses, dp_dt=None, dq_dt=None, edge_index=edges)
                     bundled = dataset_geometric.package_data([mocked],
                         package_args=package_args, system=eval_dataset.system)[0]
@@ -284,15 +282,13 @@ def run_phase(base_dir, out_dir, phase_args):
                         torch.unsqueeze(bundled.edge_index, 0))
 
                     accel = gn.unpack_results(accel, eval_dataset.system).reshape(p.shape)
+                    accel = accel.detach().cpu().numpy()
 
                     p_next = p + time_step_size * accel
                     q_next = q + time_step_size * p_next
 
-                    p_next = p_next.to(device, dtype=eval_dtype)
-                    q_next = q_next.to(device, dtype=eval_dtype)
-
-                    return GNPrediction(p=p_next.reshape(p_orig_shape).detach(),
-                                        q=q_next.reshape(q_orig_shape).detach())
+                    return GNPrediction(p=p_next.reshape(p_orig_shape),
+                                        q=q_next.reshape(q_orig_shape))
             return model_next_step
 
         if integrator_type != "null":
@@ -367,10 +363,10 @@ def run_phase(base_dir, out_dir, phase_args):
         integrate_start = time.perf_counter()
         int_res_raw = integrators.numerically_integrate(
             integrator=integrator_type,
-            q0=q0,
-            p0=p0,
-            num_steps=num_time_steps,
-            dt=dt,
+            q0=q0.detach().cpu().numpy(),
+            p0=p0.detach().cpu().numpy(),
+            num_steps=int(num_time_steps.detach().cpu().item()),
+            dt=float(time_step_size.detach().cpu().item()),
             deriv_func=time_deriv_func,
             system=system)
 
@@ -381,17 +377,19 @@ def run_phase(base_dir, out_dir, phase_args):
         int_q = int_res_raw.q
 
         # Compute errors and other statistics
-        int_res = torch.cat([int_p, int_q], axis=-1)[0].detach().cpu().numpy()
+        int_res = np.concatenate([int_p, int_q], axis=-1)
         true = torch.cat([p_noiseless, q_noiseless], axis=-1)[0].detach().cpu().numpy()
         raw_l2 = raw_err(approx=int_res, true=true, norm=2)
         rel_l2 = rel_err(approx=int_res, true=true, norm=2)
         mse_err = mean_square_err(approx=int_res, true=true)
 
         mean_raw_l2 = np.mean(raw_l2)
+        mean_mse = np.mean(mse_err)
         logger.info(f"Mean raw l2: {mean_raw_l2}")
+        logger.info(f"Mean MSE: {mean_mse}")
 
-        int_p = int_res_raw.p[0].detach().cpu().numpy()
-        int_q = int_res_raw.q[0].detach().cpu().numpy()
+        int_p = int_res_raw.p
+        int_q = int_res_raw.q
 
         # Compute true hamiltonians
         additional_hamilt_args = {}
