@@ -126,9 +126,9 @@ class SpringMeshSystem(System):
         def derivative(q, p):
             orig_q_shape = q.shape
             orig_p_shape = p.shape
+            q_dot = M_inv * p
             q = q.reshape((-1, n_particles, n_dims))
             p = p.reshape((-1, n_particles, n_dims))
-            q_dot = M_inv * p
             # Compute action of forces on each particle
             forces = compute_forces(q=q, q_dot=q_dot)
             # Update positions
