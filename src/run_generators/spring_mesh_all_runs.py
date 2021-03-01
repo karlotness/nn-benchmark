@@ -13,14 +13,14 @@ base_dir = pathlib.Path(args.base_dir)
 mesh_size = 5
 
 EPOCHS = 400
-GN_EPOCHS = 25
-NUM_REPEATS = 3
+GN_EPOCHS = 75
+NUM_REPEATS = 1
 # Spring base parameters
 SPRING_END_TIME = 2 * math.pi
-SPRING_DT = 0.3 / 100
+SPRING_DT = 0.00049
 SPRING_STEPS = math.ceil(SPRING_END_TIME / SPRING_DT)
-VEL_DECAY = 0.9
-SPRING_SUBSAMPLE = 10
+VEL_DECAY = 0.1
+SPRING_SUBSAMPLE = 5
 EVAL_INTEGRATORS = ["leapfrog", "euler", "rk4"]
 
 writable_objects = []
@@ -38,7 +38,7 @@ eval_sets = []
 
 # Generate data sets
 # Generate train set
-for num_traj in [25, 50, 100]:
+for num_traj in [50]:
     train_sets.append(
         utils.SpringMeshDataset(experiment_general,
                                 train_source,
@@ -64,9 +64,9 @@ writable_objects.append(val_set)
 # Generate eval sets
 for source, num_traj, type_key, step_multiplier in [
         (eval_source, 15, "eval", 1),
-        (eval_source, 5, "eval-long", 3),
+        #(eval_source, 5, "eval-long", 3),
         (eval_outdist_source, 15, "eval-outdist", 1),
-        (eval_outdist_source, 5, "eval-outdist-long", 3),
+        #(eval_outdist_source, 5, "eval-outdist-long", 3),
         ]:
     eval_sets.append(
         utils.SpringMeshDataset(experiment_general,
@@ -82,15 +82,10 @@ writable_objects.extend(eval_sets)
 
 # Emit baseline integrator runs for each evaluation set
 for eval_set, integrator in itertools.product(eval_sets, EVAL_INTEGRATORS):
-    integration_run_float = utils.BaselineIntegrator(experiment=experiment_general,
-                                                     eval_set=eval_set,
-                                                     eval_dtype="float",
-                                                     integrator=integrator)
     integration_run_double = utils.BaselineIntegrator(experiment=experiment_general,
                                                       eval_set=eval_set,
                                                       eval_dtype="double",
                                                       integrator=integrator)
-    writable_objects.append(integration_run_float)
     writable_objects.append(integration_run_double)
 
 # Emit KNN baselines
