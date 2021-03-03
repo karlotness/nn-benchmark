@@ -4,6 +4,7 @@ from .defs import System, TrajectoryResult, SystemResult, StatePair
 import time
 import logging
 import torch
+from numba import jit
 
 
 def _build_update_matrices(n_grid, space_max, wave_speed, time_step):
@@ -44,6 +45,17 @@ class WaveSystem(System):
         self.wave_speed = wave_speed
         self.d_x = self.space_max / self.n_grid
         self.k = _get_k(n_grid=n_grid, space_max=space_max, wave_speed=wave_speed)
+        self.k.setflags(write=False)
+        k_t = self.k.T
+        # Set up free derivative function
+        @jit(nopython=True, fastmath=False)
+        def derivative(q, p):
+            coord = np.concatenate((q, p), axis=-1)
+            deriv_coord = coord @ k_t
+            dqdt = deriv_coord[..., :n_grid]
+            dpdt = deriv_coord[..., n_grid:]
+            return dqdt, dpdt
+        self.derivative = derivative
 
     def implicit_matrix_package(self, q, p):
         return torch.cat((q, p), dim=-1)
@@ -64,13 +76,6 @@ class WaveSystem(System):
         t3 = self.wave_speed**2 * (q - q_m1)**2 / denom
 
         return self.d_x * np.sum((t1 + t2 + t3), axis=-1)
-
-    def derivative(self, q, p, dt=1.0):
-        coord = np.concatenate((q, p), axis=-1)
-        deriv_coord = coord @ self.k.T
-        dqdt = deriv_coord[..., :self.n_grid]
-        dpdt = deriv_coord[..., self.n_grid:]
-        return StatePair(q=dqdt, p=dpdt)
 
     def generate_trajectory(self, q0, p0, num_time_steps, time_step_size,
                             subsample=1, noise_sigma=0.0):
