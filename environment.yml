@@ -7,6 +7,7 @@ dependencies:
   - python=3.8
   - scipy
   - pytorch=1.7.1
+  - cudatoolkit=11.0
   - nodejs
   - matplotlib
   - jupyterlab
@@ -20,7 +21,7 @@ dependencies:
   - git
   - pip
   - pip:
-    - '--find-links=https://pytorch-geometric.com/whl/torch-1.7.0+cpu.html'
+    - '--find-links=https://pytorch-geometric.com/whl/torch-1.7.0+cu110.html'
     - torch-scatter
     - torch-sparse
     - torch-cluster
