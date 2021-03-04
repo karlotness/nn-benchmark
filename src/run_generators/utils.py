@@ -9,6 +9,20 @@ import itertools
 from scipy import interpolate
 
 
+DT_FACTORS = {
+    "spring": {
+        "euler": 1,
+        "rk4": 6,
+        "leapfrog": 2,
+        "back-euler": 1,
+        "implicit-rk": 6,
+    }
+}
+
+def optimal_args(system, integrator, coarsening_factor):
+    return DT_FACTORS[system][integrator] + coarsening_factor
+
+
 def generate_packing_args(instance, system, dataset):
     if system == "spring":
         dim = dataset.input_size() // 2
@@ -643,7 +657,7 @@ class SpringMeshDataset(Dataset):
     def __init__(self, experiment, initial_cond_source, num_traj,
                  set_type="train",
                  num_time_steps=500, time_step_size=0.1,
-                 subsampling=10, noise_sigma=0.0, vel_decay=0.0):
+                 subsampling=10, noise_sigma=0.0, vel_decay=0.1):
         super().__init__(experiment=experiment,
                          name_tail=f"n{num_traj}-t{num_time_steps}-n{noise_sigma}",
                          system="spring-mesh",

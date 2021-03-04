@@ -25,7 +25,7 @@ def setup_spring_mesh(n=5):
     train_source = run_utils.SpringMeshInterpolatePerturb(mesh_generator=mesh_gen, coords=PERTURB_COORDS, magnitude_range=(0, 0.75))
     init_cond = train_source.sample_initial_conditions(1)[0]
 
-    sm_sys = spring_mesh.system_from_records(n_dims=2, particles=init_cond["particles"], edges=init_cond["springs"])
+    sm_sys = spring_mesh.system_from_records(n_dims=2, particles=init_cond["particles"], edges=init_cond["springs"], vel_decay=init_cond["vel_decay"])
 
     q0 = []
     particles = []
@@ -118,45 +118,38 @@ def analyze_system(system_name, system):
     physical_system = system.system
     eval_dtype = torch.double
     device = torch.device("cpu")
-    def system_derivative(p, q, dt=1.0):
-        with torch.no_grad():
-            if torch.is_tensor(dt):
-                dt = dt.item()
-            p = p.detach().cpu().numpy()
-            q = q.detach().cpu().numpy()
-            derivative = physical_system.derivative(p=p, q=q, dt=dt)
-            dp_dt = torch.from_numpy(derivative.p).to(device, dtype=eval_dtype)
-            dq_dt = torch.from_numpy(derivative.q).to(device, dtype=eval_dtype)
-            return SystemDerivative(dp_dt=dp_dt, dq_dt=dq_dt)
+    def system_derivative(p, q, dt):
+        derivative = physical_system.derivative(p=p, q=q)
+        dp_dt, dq_dt = derivative
+        return SystemDerivative(dp_dt=dp_dt, dq_dt=dq_dt)
     time_deriv_func = system_derivative
-    time_deriv_method = integrators.IntegrationScheme.DIRECT_OUTPUT
 
-    all_integrators = {
-        "euler": integrators.euler,
-        "rk4": integrators.rk4,
-        "leapfrog": integrators.leapfrog,
-        "backward_euler": lambda *args, **kwargs: integrators.backward_euler(*args, **kwargs, system=system.system),
-        "implicit_rk_gauss2": lambda *args, **kwargs: integrators.implicit_rk_gauss2(*args, **kwargs, system=system.system),
-    }
+    all_integrators = (
+        "euler",
+        "rk4",
+        "leapfrog",
+        "back-euler",
+        "implicit-rk",
+    )
 
-    for integrator_name, integrator in all_integrators.items():
+    for integrator_name in all_integrators:
         print(f"integrator: {integrator_name}")
         method_failed = False
         for i, dt in enumerate(system.dt_array):
             steps = int(np.ceil(system.end_time / dt))
 
-            int_q0 = torch.from_numpy(system.q0.reshape((1, -1,)))
-            int_p0 = torch.from_numpy(system.p0.reshape((1, -1,)))
+            int_q0 = system.q0.reshape((1, -1,))
+            int_p0 = system.p0.reshape((1, -1,))
 
             try:
-                int_traj = integrator(p_0=int_p0, q_0=int_q0, Func=system_derivative, T=steps, dt=dt, volatile=True, is_Hamilt=False)
-            except AttributeError as e:
+                int_traj = integrators.numerically_integrate(integrator=integrator_name, p0=int_p0, q0=int_q0, num_steps=steps, dt=dt, deriv_func=time_deriv_func, system=system.system)
+            except Exception as e:
                 print("The implicit matrix is probably not implemented.")
                 print(e)
                 method_failed = True
                 break
 
-            int_q = int_traj.q.reshape((-1, *system.dim)).detach().cpu().numpy()
+            int_q = int_traj.q.reshape((-1, *system.dim)) # .detach().cpu().numpy()
 
             factor = int(np.ceil(trajs[-1].shape[0] / int_q.shape[0]))
             error = np.linalg.norm(int_q - trajs[-1][::factor, ...], axis=-1).mean()

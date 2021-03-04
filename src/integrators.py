@@ -20,7 +20,7 @@ def euler(q0, p0, dt, func, out_q, out_p):
 def leapfrog(q0, p0, dt, func, out_q, out_p):
     q = q0
     p = p0
-    dqdt, dpdt = func(q, p)
+    dqdt, dpdt = func(q, p, dt)
     for i in range(out_q.shape[0]):
         p_half = p + dpdt * (dt / 2)
         out_q[i] = q

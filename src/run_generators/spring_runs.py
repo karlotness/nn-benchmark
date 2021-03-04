@@ -14,9 +14,9 @@ GN_EPOCHS = 25
 NUM_REPEATS = 3
 # Spring base parameters
 SPRING_END_TIME = 2 * math.pi
-SPRING_DT = 0.3 / 100
+SPRING_DT = 0.00024
 SPRING_STEPS = math.ceil(SPRING_END_TIME / SPRING_DT)
-SPRING_SUBSAMPLE = 10
+SPRING_SUBSAMPLE = 1
 EVAL_INTEGRATORS = ["leapfrog", "euler", "rk4"]
 
 experiment_general = utils.Experiment("spring-runs")
@@ -58,38 +58,44 @@ for source, num_traj, type_key, step_multiplier in [
         (eval_outdist_source, 30, "eval-outdist", 1),
         (eval_outdist_source, 5, "eval-outdist-long", 3),
         ]:
-    eval_sets.append(utils.SpringDataset(experiment=experiment_general,
-                                         initial_cond_source=source,
-                                         num_traj=num_traj,
-                                         set_type=type_key,
-                                         num_time_steps=(step_multiplier * SPRING_STEPS),
-                                         subsampling=SPRING_SUBSAMPLE,
-                                         time_step_size=SPRING_DT))
-writable_objects.extend(eval_sets)
+    eval_set = []
+    for coarse in range(0, 10):
+        spring_steps = SPRING_STEPS // (2**coarse)
+        eval_set.append(utils.SpringDataset(experiment=experiment_general,
+                                             initial_cond_source=source,
+                                             num_traj=num_traj,
+                                             set_type=type_key,
+                                             num_time_steps=(step_multiplier * spring_steps),
+                                             subsampling=SPRING_SUBSAMPLE * (2**coarse),
+                                             time_step_size=SPRING_DT * (2**coarse)))
+    eval_sets.append(eval_set)
+    writable_objects.extend(eval_set)
 
 # Emit baseline integrator runs for each evaluation set
 for eval_set, integrator in itertools.product(eval_sets, (EVAL_INTEGRATORS + ["back-euler", "implicit-rk"])):
-    integration_run_float = utils.BaselineIntegrator(experiment=experiment_general,
-                                                     eval_set=eval_set,
-                                                     eval_dtype="float",
-                                                     integrator=integrator)
-    integration_run_double = utils.BaselineIntegrator(experiment=experiment_general,
-                                                      eval_set=eval_set,
-                                                      eval_dtype="double",
-                                                      integrator=integrator)
-    writable_objects.append(integration_run_float)
-    writable_objects.append(integration_run_double)
+    for coarse in range(0, 3):
+        index = utils.optimal_args("spring", integrator, coarse)
+        integration_run_float = utils.BaselineIntegrator(experiment=experiment_general,
+                                                         eval_set=eval_set[coarse],
+                                                         eval_dtype="float",
+                                                         integrator=integrator)
+        integration_run_double = utils.BaselineIntegrator(experiment=experiment_general,
+                                                          eval_set=eval_set[coarse],
+                                                          eval_dtype="double",
+                                                          integrator=integrator)
+        writable_objects.append(integration_run_float)
+        writable_objects.append(integration_run_double)
 
 # Emit KNN baselines
 for train_set, eval_set in itertools.product(train_sets, eval_sets):
     knn_pred = utils.KNNPredictorOneshot(experiment_general,
                                          training_set=train_set,
-                                         eval_set=eval_set)
+                                         eval_set=eval_set[0])
     writable_objects.append(knn_pred)
     for integrator in EVAL_INTEGRATORS:
         knn_reg = utils.KNNRegressorOneshot(experiment_general,
                                             training_set=train_set,
-                                            eval_set=eval_set,
+                                            eval_set=eval_set[0],
                                             integrator=integrator)
         writable_objects.append(knn_reg)
 
@@ -105,7 +111,7 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
     for eval_set in eval_sets:
         gn_eval = utils.NetworkEvaluation(experiment=experiment_general,
                                           network=gn_train,
-                                          eval_set=eval_set,
+                                          eval_set=eval_set[0],
                                           integrator="null")
         writable_objects.append(gn_eval)
     # Other runs work across all integrators
@@ -132,10 +138,11 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
         general_int_nets.append(mlp_train)
     writable_objects.extend(general_int_nets)
     for trained_net, eval_set, integrator in itertools.product(general_int_nets, eval_sets, EVAL_INTEGRATORS):
+        index = utils.optimal_args("spring", integrator, 1)
         writable_objects.append(
             utils.NetworkEvaluation(experiment=experiment_general,
                                     network=trained_net,
-                                    eval_set=eval_set,
+                                    eval_set=eval_set[index],
                                     integrator=integrator))
 
 if __name__ == "__main__":
