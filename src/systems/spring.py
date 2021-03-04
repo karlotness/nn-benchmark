@@ -28,17 +28,17 @@ class SpringSystem(System):
 
     def _dynamics(self, time, coord):
         q, p = np.split(coord, 2)
-        deriv = self.derivative(q=q, p=p)
-        return np.concatenate((deriv.q, deriv.p), axis=-1)
+        dq, dp = self.derivative(q=q, p=p)
+        return np.concatenate((dp, dp), axis=-1)
 
     def implicit_matrix_package(self, q, p):
-        return torch.cat((q, p), dim=-1)
+        return np.concatenate((q, p), axis=-1)
 
     def implicit_matrix_unpackage(self, x):
         return StatePair(q=x[..., 0, np.newaxis], p=x[..., 1, np.newaxis])
 
     def implicit_matrix(self, x):
-        return torch.from_numpy(self._deriv_mat)
+        return self._deriv_mat.copy()
 
     def generate_trajectory(self, q0, p0, num_time_steps, time_step_size, subsample=1,
                             noise_sigma=0.0):

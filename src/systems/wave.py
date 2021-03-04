@@ -58,13 +58,13 @@ class WaveSystem(System):
         self.derivative = derivative
 
     def implicit_matrix_package(self, q, p):
-        return torch.cat((q, p), dim=-1)
+        return np.concatenate((q, p), axis=-1)
 
     def implicit_matrix_unpackage(self, x):
         return StatePair(q=x[..., :self.n_grid], p=x[..., self.n_grid:])
 
     def implicit_matrix(self, x):
-        return torch.from_numpy(self.k)
+        return self.k.copy()
 
     def hamiltonian(self, q, p):
         denom = 4 * self.d_x**2
@@ -100,7 +100,7 @@ class WaveSystem(System):
         q = steps[:, 0]
         p = steps[:, 1]
 
-        derivatives = self.derivative(q=q, p=p)
+        dqdt, dpdt = self.derivative(q=q, p=p)
 
         noise_p = noise_sigma * np.random.randn(*p.shape)
         noise_q = noise_sigma * np.random.randn(*q.shape)
@@ -108,8 +108,6 @@ class WaveSystem(System):
         p_noisy = p + noise_p
         q_noisy = q + noise_q
 
-        dqdt = derivatives.q
-        dpdt = derivatives.p
         t_steps = (np.arange(num_time_steps) * orig_time_step_size).astype(np.float64)
 
         return TrajectoryResult(q=q_noisy, p=p_noisy, dq_dt=dqdt, dp_dt=dpdt,
