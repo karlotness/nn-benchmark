@@ -14,9 +14,9 @@ GN_EPOCHS = 25
 NUM_REPEATS = 3
 # Spring base parameters
 SPRING_END_TIME = 2 * math.pi
-SPRING_DT = 0.00024
+SPRING_DT = 0.00781
 SPRING_STEPS = math.ceil(SPRING_END_TIME / SPRING_DT)
-SPRING_SUBSAMPLE = 1
+SPRING_SUBSAMPLE = 2**6
 EVAL_INTEGRATORS = ["leapfrog", "euler", "rk4"]
 
 experiment_general = utils.Experiment("spring-runs")
@@ -59,7 +59,7 @@ for source, num_traj, type_key, step_multiplier in [
         (eval_outdist_source, 5, "eval-outdist-long", 3),
         ]:
     eval_set = []
-    for coarse in range(0, 10):
+    for coarse in range(0, 3):
         spring_steps = SPRING_STEPS // (2**coarse)
         eval_set.append(utils.SpringDataset(experiment=experiment_general,
                                              initial_cond_source=source,
@@ -74,7 +74,6 @@ for source, num_traj, type_key, step_multiplier in [
 # Emit baseline integrator runs for each evaluation set
 for eval_set, integrator in itertools.product(eval_sets, (EVAL_INTEGRATORS + ["back-euler", "implicit-rk"])):
     for coarse in range(0, 3):
-        index = utils.optimal_args("spring", integrator, coarse)
         integration_run_float = utils.BaselineIntegrator(experiment=experiment_general,
                                                          eval_set=eval_set[coarse],
                                                          eval_dtype="float",
@@ -138,11 +137,10 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
         general_int_nets.append(mlp_train)
     writable_objects.extend(general_int_nets)
     for trained_net, eval_set, integrator in itertools.product(general_int_nets, eval_sets, EVAL_INTEGRATORS):
-        index = utils.optimal_args("spring", integrator, 1)
         writable_objects.append(
             utils.NetworkEvaluation(experiment=experiment_general,
                                     network=trained_net,
-                                    eval_set=eval_set[index],
+                                    eval_set=eval_set[0],
                                     integrator=integrator))
 
 if __name__ == "__main__":
