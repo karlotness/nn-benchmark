@@ -11,10 +11,17 @@ from scipy import interpolate
 
 DT_FACTORS = {
     "spring": {
-        "euler": 1,
+        "euler": 0,
+        "rk4": 0,
+        "leapfrog": 0,
+        "back-euler": 0,
+        "implicit-rk": 0,
+    },
+    "wave": {
+        "euler": 0,
         "rk4": 6,
-        "leapfrog": 2,
-        "back-euler": 1,
+        "leapfrog": 4,
+        "back-euler": 0,
         "implicit-rk": 6,
     }
 }

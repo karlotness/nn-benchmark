@@ -14,9 +14,9 @@ GN_EPOCHS = 25
 NUM_REPEATS = 3
 # Wave base parameters
 WAVE_END_TIME = 5
-WAVE_DT = 0.1 / 250
+WAVE_DT = 0.00049
 WAVE_STEPS = math.ceil(WAVE_END_TIME / WAVE_DT)
-WAVE_SUBSAMPLE = 1000 // 250
+WAVE_SUBSAMPLE = 2**2
 WAVE_N_GRID = 125
 EVAL_INTEGRATORS = ["leapfrog", "euler", "rk4"]
 
@@ -74,41 +74,47 @@ for source, num_traj, type_key, step_multiplier in [
         (eval_outdist_source, 6, "eval-outdist", 1),
         (eval_outdist_source, 3, "eval-outdist-long", 3),
         ]:
-    eval_sets.append(
-        utils.WaveDataset(experiment=experiment_general,
-                          initial_cond_source=source,
-                          num_traj=num_traj,
-                          set_type=type_key,
-                          n_grid=WAVE_N_GRID,
-                          num_time_steps=(step_multiplier * WAVE_STEPS),
-                          time_step_size=WAVE_DT,
-                          wave_speed=0.1,
-                          subsampling=WAVE_SUBSAMPLE))
-writable_objects.extend(eval_sets)
+    eval_set = []
+    for coarse in range(0, 10):
+        wave_steps = WAVE_STEPS // (2**coarse)
+        eval_set.append(
+            utils.WaveDataset(experiment=experiment_general,
+                              initial_cond_source=source,
+                              num_traj=num_traj,
+                              set_type=type_key,
+                              n_grid=WAVE_N_GRID,
+                              num_time_steps=(step_multiplier * wave_steps),
+                              time_step_size=WAVE_DT * (2**coarse),
+                              wave_speed=0.1,
+                              subsampling=WAVE_SUBSAMPLE * (2**coarse)))
+    eval_sets.append(eval_set)
+    writable_objects.extend(eval_set)
 
 # Emit baseline integrator runs for each evaluation set
 for eval_set, integrator in itertools.product(eval_sets, (EVAL_INTEGRATORS + ["back-euler", "implicit-rk"])):
-    integration_run_float = utils.BaselineIntegrator(experiment=experiment_general,
-                                                     eval_set=eval_set,
-                                                     eval_dtype="float",
-                                                     integrator=integrator)
-    integration_run_double = utils.BaselineIntegrator(experiment=experiment_general,
-                                                      eval_set=eval_set,
-                                                      eval_dtype="double",
-                                                      integrator=integrator)
-    writable_objects.append(integration_run_float)
-    writable_objects.append(integration_run_double)
+    for coarse in range(0, 3):
+        index = utils.optimal_args("wave", integrator, coarse)
+        integration_run_float = utils.BaselineIntegrator(experiment=experiment_general,
+                                                         eval_set=eval_set[index],
+                                                         eval_dtype="float",
+                                                         integrator=integrator)
+        integration_run_double = utils.BaselineIntegrator(experiment=experiment_general,
+                                                          eval_set=eval_set[index],
+                                                          eval_dtype="double",
+                                                          integrator=integrator)
+        writable_objects.append(integration_run_float)
+        writable_objects.append(integration_run_double)
 
 # Emit KNN baselines
 for train_set, eval_set in itertools.product(train_sets, eval_sets):
     knn_pred = utils.KNNPredictorOneshot(experiment_general,
                                          training_set=train_set,
-                                         eval_set=eval_set)
+                                         eval_set=eval_set[0])
     writable_objects.append(knn_pred)
     for integrator in EVAL_INTEGRATORS:
         knn_reg = utils.KNNRegressorOneshot(experiment_general,
                                             training_set=train_set,
-                                            eval_set=eval_set,
+                                            eval_set=eval_set[0],
                                             integrator=integrator)
         writable_objects.append(knn_reg)
 
@@ -124,7 +130,7 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
     for eval_set in eval_sets:
         gn_eval = utils.NetworkEvaluation(experiment=experiment_general,
                                           network=gn_train,
-                                          eval_set=eval_set,
+                                          eval_set=eval_set[0],
                                           integrator="null")
         writable_objects.append(gn_eval)
     # Other runs work across all integrators
@@ -151,10 +157,11 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
         general_int_nets.append(mlp_train)
     writable_objects.extend(general_int_nets)
     for trained_net, eval_set, integrator in itertools.product(general_int_nets, eval_sets, EVAL_INTEGRATORS):
+        index = utils.optimal_args("wave", integrator, 0)
         writable_objects.append(
             utils.NetworkEvaluation(experiment=experiment_general,
                                     network=trained_net,
-                                    eval_set=eval_set,
+                                    eval_set=eval_set[index],
                                     integrator=integrator))
 
 if __name__ == "__main__":
