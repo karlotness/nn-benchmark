@@ -1,10 +1,13 @@
 import numpy as np
 from scipy.linalg import circulant, lu_factor, lu_solve
-from .defs import System, TrajectoryResult, SystemResult, StatePair
+from .defs import System, TrajectoryResult, SystemResult, StatePair, SystemCache
 import time
 import logging
 import torch
 from numba import jit
+
+
+wave_cache = SystemCache()
 
 
 def _build_update_matrices(n_grid, space_max, wave_speed, time_step):
@@ -56,6 +59,9 @@ class WaveSystem(System):
             dpdt = deriv_coord[..., n_grid:]
             return dqdt, dpdt
         self.derivative = derivative
+
+    def _args_compatible(self, n_grid, space_max, wave_speed):
+        return (self.n_grid == n_grid and self.space_max == space_max and self.wave_speed == wave_speed)
 
     def implicit_matrix_package(self, q, p):
         return np.concatenate((q, p), axis=-1)
@@ -120,6 +126,20 @@ class WaveSystem(System):
         known = eqn_known @ prev_step
         new_step = lu_solve(eqn_unknown_factor, known)
         return new_step.reshape(orig_shape)
+
+
+def system_from_records(n_grid, space_max, wave_speed):
+    cached_sys = wave_cache.find(n_grid=n_grid,
+                                 space_max=space_max,
+                                 wave_speed=wave_speed)
+    if cached_sys is not None:
+        return cached_sys
+    else:
+        new_sys = WaveSystem(n_grid=n_grid,
+                             space_max=space_max,
+                             wave_speed=wave_speed)
+        wave_cache.insert(new_sys)
+        return new_sys
 
 
 class WaveStartGenerator:
@@ -194,8 +214,14 @@ def generate_data(system_args, base_logger=None):
         time_step_size = traj_def["time_step_size"]
         noise_sigma = traj_def.get("noise_sigma", 0.0)
         subsample = int(traj_def.get("subsample", 1))
-        system = WaveSystem(n_grid=n_grid, space_max=space_max,
-                            wave_speed=wave_speed)
+
+        system = wave_cache.find(n_grid=n_grid,
+                                 space_max=space_max,
+                                 wave_speed=wave_speed)
+        if system is None:
+            system = WaveSystem(n_grid=n_grid, space_max=space_max,
+                                wave_speed=wave_speed)
+            wave_cache.insert(system)
 
         traj_gen_start = time.perf_counter()
         traj_result = system.generate_trajectory(q0=init_cond.q,

@@ -1,10 +1,13 @@
 import numpy as np
 from scipy.linalg import lu_factor, lu_solve
-from .defs import System, TrajectoryResult, SystemResult, StatePair
+from .defs import System, TrajectoryResult, SystemResult, StatePair, SystemCache
 import logging
 import time
 import torch
 from numba import jit
+
+
+spring_cache = SystemCache()
 
 
 class SpringSystem(System):
@@ -30,6 +33,9 @@ class SpringSystem(System):
         q, p = np.split(coord, 2)
         dq, dp = self.derivative(q=q, p=p)
         return np.concatenate((dp, dp), axis=-1)
+
+    def _args_compatible(self):
+        return True
 
     def implicit_matrix_package(self, q, p):
         return np.concatenate((q, p), axis=-1)
@@ -83,13 +89,26 @@ class SpringSystem(System):
                                 p_noiseless=p[:, np.newaxis])
 
 
+def system_from_records():
+    cached_sys = spring_cache.find()
+    if cached_sys is not None:
+        return cached_sys
+    else:
+        new_sys = SpringSystem()
+        spring_cache.insert(new_sys)
+        return new_sys
+
+
 def generate_data(system_args, base_logger=None):
     if base_logger:
         logger = base_logger.getChild("spring")
     else:
         logger = logging.getLogger("spring")
 
-    system = SpringSystem()
+    system = spring_cache.find()
+    if system is None:
+        system = SpringSystem()
+        spring_cache.insert(system)
 
     trajectory_metadata = []
     trajectories = {}

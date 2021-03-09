@@ -315,14 +315,14 @@ def run_phase(base_dir, out_dir, phase_args):
         # Compute hamiltonians
         # Construct systems
         if eval_dataset.system == "spring":
-            system = spring.SpringSystem()
+            system = spring.system_from_records()
         elif eval_dataset.system == "wave":
             n_grid = eval_dataset.system_metadata["n_grid"]
             space_max = eval_dataset.system_metadata["space_max"]
             wave_speed = trajectory.trajectory_meta["wave_speed"][0].item()
-            system = wave.WaveSystem(n_grid=n_grid,
-                                     space_max=space_max,
-                                     wave_speed=wave_speed)
+            system = wave.system_from_records(n_grid=n_grid,
+                                              space_max=space_max,
+                                              wave_speed=wave_speed)
         elif eval_dataset.system == "particle":
             n_dim = eval_dataset.system_metadata["n_dim"]
             n_particles = eval_dataset.system_metadata["n_particles"]

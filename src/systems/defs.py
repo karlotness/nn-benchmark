@@ -1,4 +1,5 @@
-from collections import namedtuple
+from collections import namedtuple, deque
+import logging
 
 TrajectoryResult = namedtuple("TrajectoryResult", ["q", "p", "dq_dt", "dp_dt", "t_steps", "p_noiseless", "q_noiseless"])
 SystemResult = namedtuple("SystemResult",
@@ -22,3 +23,21 @@ class System:
         t_span determines # steps
         """
         raise NotImplementedError("Subclass this")
+
+
+class SystemCache:
+    def __init__(self, size=5):
+        self._deque = deque(maxlen=size)
+        self._logger = logging.getLogger("syscache")
+
+    def find(self, *args, **kwargs):
+        for system in self._deque:
+            if system._args_compatible(*args, **kwargs):
+                self._logger.info("Found compatible cached system")
+                return system
+        self._logger.info("No cached system found")
+        return None
+
+    def insert(self, system):
+        self._logger.info("System added to cache")
+        self._deque.append(system)

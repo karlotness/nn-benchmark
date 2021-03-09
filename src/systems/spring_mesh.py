@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.linalg import lu_factor, lu_solve
-from .defs import System, TrajectoryResult, SystemResult, StatePair
+from .defs import System, TrajectoryResult, SystemResult, StatePair, SystemCache
 from collections import namedtuple
 import logging
 import time
@@ -18,6 +18,9 @@ ParticleTrajectoryResult = namedtuple("ParticleTrajectoryResult",
                                        "t_steps",
                                        "p_noiseless", "q_noiseless",
                                        "masses", "edge_indices", "fixed_mask"])
+
+
+spring_mesh_cache = SystemCache()
 
 
 @jit(nopython=True)
@@ -241,6 +244,12 @@ class SpringMeshSystem(System):
                 q, q_dot = compute_next_step(q, q_dot, dt)
         self.back_euler = back_euler
 
+    def _args_compatible(self, n_dims, particles, edges, vel_decay):
+        return (self.n_dims == n_dims and
+                self.particles == particles and
+                set(self.edges) == set(edges) and
+                self.viscosity_constant == vel_decay)
+
     def hamiltonian(self, q, p):
         return torch.zeros(q.shape[0], q.shape[1])
 
@@ -348,10 +357,19 @@ def system_from_records(n_dims, particles, edges, vel_decay):
                  b=edef["b"],
                  spring_const=edef["spring_const"],
                  rest_length=edef["rest_length"]))
-    return SpringMeshSystem(n_dims=n_dims,
-                            particles=parts,
-                            edges=edgs,
-                            vel_decay=vel_decay)
+    cached_sys = spring_mesh_cache.find(n_dims=n_dims,
+                                        particles=parts,
+                                        edges=edgs,
+                                        vel_decay=vel_decay)
+    if cached_sys is not None:
+        return cached_sys
+    else:
+        new_sys = SpringMeshSystem(n_dims=n_dims,
+                                   particles=parts,
+                                   edges=edgs,
+                                   vel_decay=vel_decay)
+        spring_mesh_cache.insert(new_sys)
+        return new_sys
 
 
 def generate_data(system_args, base_logger=None):
@@ -396,8 +414,13 @@ def generate_data(system_args, base_logger=None):
 
         n_dims = q0.shape[-1]
         n_particles = len(particle_defs)
-        system = SpringMeshSystem(n_dims=n_dims, particles=particles,
-                                  edges=edges, vel_decay=vel_decay)
+
+        system = spring_mesh_cache.find(n_dims=n_dims, particles=particles,
+                                        edges=edges, vel_decay=vel_decay)
+        if system is None:
+            system = SpringMeshSystem(n_dims=n_dims, particles=particles,
+                                      edges=edges, vel_decay=vel_decay)
+            spring_mesh_cache.insert(system)
 
         traj_gen_start = time.perf_counter()
         traj_result = system.generate_trajectory(q0=q0,
