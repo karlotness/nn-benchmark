@@ -38,7 +38,7 @@ eval_sets = []
 
 # Generate data sets
 # Generate train set
-for num_traj in [50]:
+for num_traj in [25, 50, 100]:
     train_sets.append(
         utils.SpringMeshDataset(experiment_general,
                                 train_source,
@@ -64,9 +64,9 @@ writable_objects.append(val_set)
 # Generate eval sets
 for source, num_traj, type_key, step_multiplier in [
         (eval_source, 15, "eval", 1),
-        #(eval_source, 5, "eval-long", 3),
+        (eval_source, 5, "eval-long", 3),
         (eval_outdist_source, 15, "eval-outdist", 1),
-        #(eval_outdist_source, 5, "eval-outdist-long", 3),
+        (eval_outdist_source, 5, "eval-outdist-long", 3),
         ]:
     eval_set = []
     for coarse in range(0, 7):
