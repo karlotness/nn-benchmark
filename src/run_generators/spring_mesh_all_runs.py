@@ -14,7 +14,7 @@ mesh_size = 5
 
 EPOCHS = 400
 GN_EPOCHS = 75
-NUM_REPEATS = 1
+NUM_REPEATS = 3
 # Spring base parameters
 SPRING_END_TIME = 2 * math.pi
 SPRING_DT = 0.00781
@@ -27,10 +27,10 @@ writable_objects = []
 
 experiment_general = utils.Experiment(f"springmesh-{mesh_size}-perturball-runs")
 mesh_gen = utils.SpringMeshGridGenerator(grid_shape=(mesh_size, mesh_size), fix_particles="top")
-train_source = utils.SpringMeshAllPerturb(mesh_generator=mesh_gen, magnitude_range=(0, 0.75))
-val_source = utils.SpringMeshAllPerturb(mesh_generator=mesh_gen, magnitude_range=(0, 0.75))
-eval_source = utils.SpringMeshAllPerturb(mesh_generator=mesh_gen, magnitude_range=(0, 0.75))
-eval_outdist_source = utils.SpringMeshAllPerturb(mesh_generator=mesh_gen, magnitude_range=(0.75, 0.9))
+train_source = utils.SpringMeshAllPerturb(mesh_generator=mesh_gen, magnitude_range=(0, 0.35))
+val_source = utils.SpringMeshAllPerturb(mesh_generator=mesh_gen, magnitude_range=(0, 0.35))
+eval_source = utils.SpringMeshAllPerturb(mesh_generator=mesh_gen, magnitude_range=(0, 0.35))
+eval_outdist_source = utils.SpringMeshAllPerturb(mesh_generator=mesh_gen, magnitude_range=(0.35, 0.45))
 
 train_sets = []
 val_set = None
@@ -85,7 +85,7 @@ for source, num_traj, type_key, step_multiplier in [
     writable_objects.extend(eval_set)
 
 # Emit baseline integrator runs for each evaluation set
-for eval_set, integrator in itertools.product(eval_sets, EVAL_INTEGRATORS):
+for eval_set, integrator in itertools.product(eval_sets, EVAL_INTEGRATORS + ["back-euler", "implicit-rk"]):
     for coarse in range(0, 3):
         index = utils.optimal_args("spring", integrator, coarse)
         integration_run_double = utils.BaselineIntegrator(experiment=experiment_general,
