@@ -69,7 +69,7 @@ for source, num_traj, type_key, step_multiplier in [
         #(eval_outdist_source, 5, "eval-outdist-long", 3),
         ]:
     eval_set = []
-    for coarse in range(0, 4):
+    for coarse in range(0, 7):
         spring_steps = SPRING_STEPS // (2**coarse)
         eval_set.append(
             utils.SpringMeshDataset(experiment_general,
@@ -86,10 +86,9 @@ for source, num_traj, type_key, step_multiplier in [
 
 # Emit baseline integrator runs for each evaluation set
 for eval_set, integrator in itertools.product(eval_sets, EVAL_INTEGRATORS + ["back-euler", "implicit-rk"]):
-    for coarse in range(0, 3):
-        index = utils.optimal_args("spring", integrator, coarse)
+    for coarse in range(0, 7):
         integration_run_double = utils.BaselineIntegrator(experiment=experiment_general,
-                                                          eval_set=eval_set[index],
+                                                          eval_set=eval_set[coarse],
                                                           eval_dtype="double",
                                                           integrator=integrator)
         writable_objects.append(integration_run_double)
@@ -140,11 +139,10 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
         general_int_nets.append(mlp_train)
     writable_objects.extend(general_int_nets)
     for trained_net, eval_set, integrator in itertools.product(general_int_nets, eval_sets, EVAL_INTEGRATORS):
-        index = utils.optimal_args("spring", integrator, 0)
         writable_objects.append(
             utils.NetworkEvaluation(experiment=experiment_general,
                                     network=trained_net,
-                                    eval_set=eval_set[index],
+                                    eval_set=eval_set[0],
                                     integrator=integrator))
 
 if __name__ == "__main__":

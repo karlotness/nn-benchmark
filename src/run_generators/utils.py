@@ -9,27 +9,6 @@ import itertools
 from scipy import interpolate
 
 
-DT_FACTORS = {
-    "spring": {
-        "euler": 0,
-        "rk4": 0,
-        "leapfrog": 0,
-        "back-euler": 0,
-        "implicit-rk": 0,
-    },
-    "wave": {
-        "euler": 0,
-        "rk4": 6,
-        "leapfrog": 4,
-        "back-euler": 0,
-        "implicit-rk": 6,
-    }
-}
-
-def optimal_args(system, integrator, coarsening_factor):
-    return DT_FACTORS[system][integrator] + coarsening_factor
-
-
 def generate_packing_args(instance, system, dataset):
     if system == "spring":
         dim = dataset.input_size() // 2

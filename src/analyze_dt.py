@@ -6,6 +6,7 @@ import torch
 from collections import namedtuple
 import itertools
 from absl import app, flags
+import matplotlib.pyplot as plt
 
 FLAGS = flags.FLAGS
 flags.DEFINE_boolean("verbose", False, "Whether to print verbose output of errors per timestep.")
@@ -13,19 +14,11 @@ flags.DEFINE_boolean("verbose", False, "Whether to print verbose output of error
 SystemInitialization = namedtuple("SystemInitialization", ["system", "q0", "p0", "end_time", "dt_array", "dim"])
 
 def setup_spring_mesh(n=5):
-    PERTURB_COORDS = [
-        (0, 0),
-        (4, 0),
-        (0, 3),
-        (4, 3),
-        (2, 2),
-    ]
-
     mesh_gen = run_utils.SpringMeshGridGenerator(grid_shape=(n, n), fix_particles="top")
-    train_source = run_utils.SpringMeshInterpolatePerturb(mesh_generator=mesh_gen, coords=PERTURB_COORDS, magnitude_range=(0, 0.75))
+    train_source = run_utils.SpringMeshAllPerturb(mesh_generator=mesh_gen, magnitude_range=(0.35, 0.45))
     init_cond = train_source.sample_initial_conditions(1)[0]
 
-    sm_sys = spring_mesh.system_from_records(n_dims=2, particles=init_cond["particles"], edges=init_cond["springs"], vel_decay=init_cond["vel_decay"])
+    sm_sys = spring_mesh.system_from_records(n_dims=2, particles=init_cond["particles"], edges=init_cond["springs"], vel_decay=0.1)
 
     q0 = []
     particles = []
@@ -37,7 +30,7 @@ def setup_spring_mesh(n=5):
 
     sm_end = 2 * np.pi
 
-    sm_dts = 2.**-np.arange(2, 14)
+    sm_dts = 2.**-np.arange(2, 16)
 
     dim = (n**2, 2, )
 
@@ -60,7 +53,7 @@ def setup_wave(n_grid=125):
 
     sm_end = 5
 
-    sm_dts = 2.**-np.arange(2, 14)
+    sm_dts = 2.**-np.arange(2, 16)
 
     dim = (n_grid, )
 
@@ -80,7 +73,7 @@ def setup_spring():
 
     sm_end = 2 * np.pi
 
-    sm_dts = 2.**-np.arange(2, 14)
+    sm_dts = 2.**-np.arange(2, 16)
 
     dim = (1, )
 
@@ -118,9 +111,9 @@ def analyze_system(system_name, system):
     physical_system = system.system
     eval_dtype = torch.double
     device = torch.device("cpu")
-    def system_derivative(p, q, dt):
+    def system_derivative(q, p, dt):
         derivative = physical_system.derivative(p=p, q=q)
-        dp_dt, dq_dt = derivative
+        dq_dt, dp_dt = derivative
         return SystemDerivative(dp_dt=dp_dt, dq_dt=dq_dt)
     time_deriv_func = system_derivative
 
@@ -149,7 +142,7 @@ def analyze_system(system_name, system):
                 method_failed = True
                 break
 
-            int_q = int_traj.q.reshape((-1, *system.dim)) # .detach().cpu().numpy()
+            int_q = int_traj.q.reshape((-1, *system.dim))
 
             factor = int(np.ceil(trajs[-1].shape[0] / int_q.shape[0]))
             error = np.linalg.norm(int_q - trajs[-1][::factor, ...], axis=-1).mean()
@@ -161,6 +154,11 @@ def analyze_system(system_name, system):
             dt_curr = dt
             error_curr = error
 
+            # plt.figure()
+            # plt.plot(int_q)
+            # plt.plot(trajs[-1][::factor, ...])
+            # plt.show()
+
             if np.allclose(smallest_error, error, rtol=0.2) or (error < smallest_error):
                 break
 
@@ -169,8 +167,8 @@ def analyze_system(system_name, system):
 
 
 SYSTEMS = {
-    "spring": setup_spring,
-    "wave": setup_wave,
+    # "spring": setup_spring,
+    # "wave": setup_wave,
     "spring-mesh": setup_spring_mesh,
 }
 
