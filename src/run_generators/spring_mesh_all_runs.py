@@ -12,8 +12,8 @@ args = parser.parse_args()
 base_dir = pathlib.Path(args.base_dir)
 mesh_size = 5
 
-EPOCHS = 400
-GN_EPOCHS = 75
+EPOCHS = 400 * 2
+GN_EPOCHS = 75 * 2
 NUM_REPEATS = 3
 # Spring base parameters
 SPRING_END_TIME = 2 * math.pi
