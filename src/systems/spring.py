@@ -70,9 +70,7 @@ class SpringSystem(System):
         steps = np.stack(steps)
         q = steps[:, 0]
         p = steps[:, 1]
-        dydt = [self._dynamics(None, steps[i]) for i in range(steps.shape[0])]
-        dydt = np.stack(dydt).T
-        dqdt, dpdt = np.split(dydt, 2)
+        dqdt, dpdt = self.derivative(q=q, p=p)
 
         noise_p = noise_sigma * np.random.randn(*p.shape)
         noise_q = noise_sigma * np.random.randn(*q.shape)
@@ -82,8 +80,8 @@ class SpringSystem(System):
 
         return TrajectoryResult(q=q_noisy[:, np.newaxis],
                                 p=p_noisy[:, np.newaxis],
-                                dq_dt=dqdt[0, :, np.newaxis],
-                                dp_dt=dpdt[0, :, np.newaxis],
+                                dq_dt=dqdt[:, np.newaxis],
+                                dp_dt=dpdt[:, np.newaxis],
                                 t_steps=t_eval,
                                 q_noiseless=q[:, np.newaxis],
                                 p_noiseless=p[:, np.newaxis])
