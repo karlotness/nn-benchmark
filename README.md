@@ -45,6 +45,8 @@ To check the status of the runs:
 ```
 python manage_runs.py scan <path/to/experiment_directory>
 ```
+The scan utility can also delete failed runs. Check the `--help`
+option for more information.
 
 When you are ready to launch a phase of the experiment
 ```
