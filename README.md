@@ -3,6 +3,11 @@
 This is the code implementing the systems considered in the paper as
 well as to run the experiments whose results are reported.
 
+**Note:** The code we include here is preliminary. We plan to do
+additional cleanup, and to produce a more polished code repository and
+additional information for users, as well as maintaining this as we
+extend the benchmark.
+
 ## Dependencies
 
 We use Anaconda to manage the dependencies for this project. The
@@ -17,7 +22,7 @@ Singularity container containing the Anaconda environment.
 ## Running
 
 The flow of experiment runs is divided into three phases: data
-generation (`data_gen`), training (`train`), and evaluation(`eval`).
+generation (`data_gen`), training (`train`), and evaluation (`eval`).
 Descriptions of tasks in each of these phases are written to JSON
 files, and run script runs the code with appropriate arguments, either
 locally or by submitting jobs to a SLURM queue.
