@@ -1,112 +1,60 @@
-# NN_physics
-NN for learning physics simulations
+# An Extensible Benchmark Suite for Learning to Simulate Physical Systems
 
-# Physics
-### Pendulum
+This is the code implementing the systems considered in the paper as
+well as to run the experiments whose results are reported.
 
-### Nbody Simulation
-Gravitational N-body
-Spring System
+## Dependencies
 
-# Baselines
-## Naive Application of Neural Net Models
-models.py file has baseline models:
+We use Anaconda to manage the dependencies for this project. The
+`environment.yml` file lists what is required. Use `conda` to
+[create the environment][envcreate]
 
-1. MLP: with 4 hidden layers, each with 512 neurouns. softplus activation function.
+This will create an `nn-benchmark` environment which can be activated.
 
-2. RNNs:
-Elman Network(1 layer)
-LSTM(1 layer)
+Alternatively, the `nn-benchmark.def` file can be used to create a
+Singularity container containing the Anaconda environment.
 
-All networks have approximately 1 million parameters.
+## Running
 
-MLP approximates the function f: f(x_0, t) -> f(x_t)
+The flow of experiment runs is divided into three phases: data
+generation (`data_gen`), training (`train`), and evaluation(`eval`).
+Descriptions of tasks in each of these phases are written to JSON
+files, and run script runs the code with appropriate arguments, either
+locally or by submitting jobs to a SLURM queue.
 
-RNNs approximate f: f(x_n) -> f(x_{n+1})
-## Numerical Methods
-### First-order methods:
-Explicit, Implicit, Symplectic Euler
-### Higher-order non-symplectic methods:
-RK4
-### Symplectic methods:
-Symplectic Euler
-Leapfrog, Verlet, 
-and other higher-order symplectic integrator
+### Run Descriptions
 
-## Datasets
-10,000 trajectories; each with 10 sample points. 10% for validation 90% for training.
-MLPs are fed with data with irregular time stamps since t is an input to the network
-RNNs are fed with data with constant dt
+Each experiment is stored in its own directory. Creating the JSON
+files is handled by separate "run generator" scripts. Scripts which
+produce the experiments reported in the paper are in the
+`run_generators/` folder. These can be run directly, and take a single
+argument: a path to the folder where they will write their output.
+Once the experiment directory has been populated by the JSON task
+descriptions, the launcher script can be used to run each phase.
 
-Initial conditions of the simulated trajectories for a physics system are sampled randomly in the phase space and within a predifiend range in energy (E1, E2); 
-so that hopefully the network learns how to simulate a Hamiltonian system, NOT just work on some initial condition(a trained ML model should know how to work on all situation the model is intended for. See https://arxiv.org/pdf/2006.02619.pdf for more discussion)
+### Launcher
 
+Running the tasks themselves requires the Anaconda environment to be
+available. Either, it should be already activated before running
+`manage_runs.py`, *or* the Singularity container should be available.
+The launcher searches for the `nn-benchmark.sif` file in a path
+specified by the `SCRATCH` environment variable. If found, the
+Singularity container will be used.
 
-### Simple datasets:
-1) Spring System with rest-length = 0
+To check the status of the runs:
+```
+python manage_runs.py scan <path/to/experiment_directory>
+```
 
-2) Gravitational N-body with circular motions.
+When you are ready to launch a phase of the experiment
+```
+python manage_runs.py launch <path/to/experiment_directory> data_gen
+python manage_runs.py launch <path/to/experiment_directory> train
+python manage_runs.py launch <path/to/experiment_directory> eval
+```
+after launching one phase, wait for all its jobs to complete before
+launching the next.
 
-## Training
-Adam optimizer w/ the reduceOnPlateau scheduler. Initial learning rate = 5e-3, factor = 0.9, patience 100.
+Consult `manage_runs.py --help` more information on available options.
 
-## Variables
-1. Inference Time: Compare NN-based models with numerical integrators
-
-2. Dataset Size: Data needed for the model to learn successfully.
-
-## Deep Learning Models with Physics Constraints
-# Models that work on few-body systems:
-### 1. Newton vs the machine: solving the chaotic three-body problem using deep neural networks
-
-https://arxiv.org/pdf/1910.07291.pdf
-
-A brute force solution-using relu network with 10 hidden layers with 128 hidden nodes. 
-
-
-### 2.SympNets: Intrinsic structure-preserving symplectic networks for identifying Hamiltonian systems
-
-https://arxiv.org/pdf/2001.03750.pdf
-
-Code Available: No; but basically the same as what I have been doing.
-
-Experiments: Gravitational 3-body, Pendulum, Double Pendulum
-
-### 3. Symplectic Recurrent Neural Networks
-
-https://arxiv.org/abs/1909.13334
-
-Code Available: Yes
-
-Experiments: Spring Mass Chain (1D), Bouncing Ball with Gravity(2D)
-
-
-
-
-
-# Models that scale:
-## Mostly Graph NN based.
-
-### 1. Neural Relational Inference for Interacting Systems 
-(Interaction Network basically; but with the ability to classify the type of interaction)
-
-https://arxiv.org/pdf/1802.04687.pdf
-
-Code Available: Yes
-
-Experiments: Spring Mass(2D), Charged Particle(2D), Kuramoto(1D)
-
-### 2. Deep Potential Molecular Dynamics: a scalable model with the accuracy of quantum mechanics
-
-https://arxiv.org/pdf/1707.09571.pdf
-
-Code Available:No. But worth reprocducing
-
-### 3. Pushing the limit of molecular dynamics with ab initio accuracy to 100 million atoms with machine learning
-
-https://arxiv.org/abs/2005.00223
-
-Deep Potential continued: showing that this does scale...
-
-
-
+[envcreate]: https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-from-an-environment-yml-file
