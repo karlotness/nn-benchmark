@@ -75,7 +75,6 @@ INTEGRATORS = {
     "rk4": (rk4, None),
     "null": (null_integrator, None),
     "back-euler": (backward_euler, "back_euler"),
-    "implicit-rk": (None, "implicit_rk"),
 }
 
 
