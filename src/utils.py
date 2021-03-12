@@ -68,10 +68,8 @@ def get_loaded_modules(base_logger=None):
         raw_name = match.group("modname")
         # Split components of module name
         if "/" in raw_name:
-            # These are the Prince-format modules
             components = raw_name.split("/")
         else:
-            # Modules as found on CIMS machines
             components = raw_name.split("-")
         # Extract components
         name = components[0]
