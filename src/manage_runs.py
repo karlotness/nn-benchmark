@@ -223,11 +223,17 @@ def do_slurm_launch(run_descr, root_directory):
     slurm_cpus = int(slurm_args["cpus"])
     slurm_mem = int(slurm_args["mem"])
     gpu_arg = ["--gres=gpu:1"] if slurm_gpu else []
-    scratch_dir = pathlib.Path(os.environ.get("SCRATCH"))
-    container_path = (scratch_dir / "nn-benchmark.sif").resolve()
+    scratch_path = os.environ.get("SCRATCH")
+    run_cmd = f"python3 main.py '{run_descr}' '{root_directory}'"
+    if scratch_path is not None:
+        scratch_dir = pathlib.Path(scratch_path)
+        container_path = (scratch_dir / "nn-benchmark.sif")
+        if container_path.is_file():
+            container_path = container_path.resolve()
+            run_cmd = f"singularity run --nv '{container_path}' python3 main.py '{run_descr}' '{root_directory}'"
     try:
         subprocess.run(["sbatch",
-                        "--wrap", f"singularity run --nv '{container_path}' python3 main.py '{run_descr}' '{root_directory}'",
+                        "--wrap", run_cmd,
                         "--job-name", f"{shortname}",
                         "--time", f"{slurm_time}",
                         "--cpus-per-task", f"{slurm_cpus}",
