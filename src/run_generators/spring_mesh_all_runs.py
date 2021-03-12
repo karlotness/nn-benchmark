@@ -85,7 +85,7 @@ for source, num_traj, type_key, step_multiplier in [
     writable_objects.extend(eval_set)
 
 # Emit baseline integrator runs for each evaluation set
-for eval_set, integrator in itertools.product(eval_sets, EVAL_INTEGRATORS + ["back-euler", "implicit-rk"]):
+for eval_set, integrator in itertools.product(eval_sets, EVAL_INTEGRATORS + ["back-euler"]):
     for coarse in range(0, 7):
         integration_run_double = utils.BaselineIntegrator(experiment=experiment_general,
                                                           eval_set=eval_set[coarse],
