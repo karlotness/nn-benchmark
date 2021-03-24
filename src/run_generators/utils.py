@@ -426,6 +426,23 @@ class SpringMeshManualPerturb(InitialConditionSource):
         }
 
 
+class TaylorGreenInitialConditionSource(InitialConditionSource):
+    def __init__(self,
+                 viscosity_range=(0.5, 1.5),
+                 density_range=(1.0, 1.0)):
+        super().__init__()
+        self.viscosity_range = viscosity_range
+
+    def _generate_initial_condition(self):
+        viscosity = np.random.uniform(*self.viscosity_range)
+        density = np.random.uniform(*self.density_range)
+        state = {
+            "viscosity": viscosity,
+            "density": density,
+        }
+        return state
+
+
 class WritableDescription:
     def __init__(self, experiment, phase, name):
         self.experiment = experiment
@@ -689,6 +706,57 @@ class SpringMeshDataset(Dataset):
 
     def input_size(self):
         return 2 * self.n_dim * self.n_particles
+
+
+class TaylorGreenDataset(Dataset):
+    def __init__(self, experiment, initial_cond_source, num_traj,
+                 set_type="train", n_grid=250,
+                 num_time_steps=200, time_step_size=0.1):
+        noise_sigma = 0.0
+        super().__init__(experiment=experiment,
+                         name_tail=f"n{num_traj}-t{num_time_steps}-n{noise_sigma}",
+                         system="taylor-green",
+                         set_type=set_type)
+        self.n_grid = n_grid
+        self.num_traj = num_traj
+        self.initial_cond_source = initial_cond_source
+        self.num_time_steps = num_time_steps
+        self.time_step_size = time_step_size
+        self.initial_conditions = self.initial_cond_source.sample_initial_conditions(self.num_traj)
+        assert isinstance(self.initial_cond_source, TaylorGreenInitialConditionSource)
+
+    def description(self):
+        trajectories = []
+        for icond in self.initial_conditions:
+            traj = {
+                "viscosity": 1.0,
+                "space_scale": 2,
+                "density": 1.0,
+                "num_time_steps": self.num_time_steps,
+                "time_step_size": self.time_step_size,
+            }
+            traj.update(icond)
+            trajectories.append(traj)
+        # Generate template
+        template = {
+            "phase_args": {
+                "system": "taylor-green",
+                "system_args": {
+                    "n_grid": self.n_grid,
+                    "trajectory_defs": trajectories,
+                }
+            },
+            "slurm_args": {
+                "gpu": False,
+                "time": "05:00:00",
+                "cpus": 16,
+                "mem": 64,
+            },
+        }
+        return template
+
+    def input_size(self):
+        return 2 * (self.n_grid ** 2)
 
 
 class ExistingDataset:
