@@ -58,7 +58,7 @@ class TaylorGreenSystem(System):
     def hamiltonian(self, q, p):
         return torch.zeros(q.shape[0], dtype=q.dtype)
 
-    def _args_compatible(self, space_scale, viscosity, density):
+    def _args_compatible(self, n_grid, space_scale, viscosity, density):
         return (self.n_grid == n_grid and
                 self.space_scale == space_scale and
                 self.viscosity == viscosity and
@@ -113,7 +113,7 @@ def generate_data(system_args, base_logger=None):
                                        space_scale=space_scale,
                                        viscosity=viscosity,
                                        density=density)
-            taylor_green_cache.insert(new_sys)
+            taylor_green_cache.insert(system)
 
         traj_gen_start = time.perf_counter()
         traj_result = system.generate_trajectory(num_time_steps=num_time_steps,

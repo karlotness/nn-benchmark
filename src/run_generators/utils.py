@@ -432,6 +432,7 @@ class TaylorGreenInitialConditionSource(InitialConditionSource):
                  density_range=(1.0, 1.0)):
         super().__init__()
         self.viscosity_range = viscosity_range
+        self.density_range = density_range
 
     def _generate_initial_condition(self):
         viscosity = np.random.uniform(*self.viscosity_range)
