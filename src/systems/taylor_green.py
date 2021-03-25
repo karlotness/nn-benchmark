@@ -51,9 +51,9 @@ class TaylorGreenSystem(System):
         vels = self.vel(t)
         press = self.pressure(t)
         d_vel, d_press = self.derivative(vels, press, t)
-        return TrajectoryResult(q=vels, p=press, dq_dt=d_vel, dp_dt=d_press,
+        return TrajectoryResult(q=press, p=vels, dq_dt=d_press, dp_dt=d_vel,
                                 t_steps=t,
-                                q_noiseless=vels, p_noiseless=press)
+                                q_noiseless=press, p_noiseless=vels)
 
     def hamiltonian(self, q, p):
         return torch.zeros(q.shape[0], dtype=q.dtype)
