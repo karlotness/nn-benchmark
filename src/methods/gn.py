@@ -10,9 +10,9 @@ from collections import namedtuple
 TimeDerivative = namedtuple("TimeDerivative", ["dq_dt", "dp_dt"])
 
 
-def package_batch(system, p, q, dp_dt, dq_dt, masses, edge_index, boundary_vertices):
-    vertices = torch.unsqueeze(torch.linspace(0, 1, p.shape[1]), 0).repeat(p.shape[0], p.shape[1])
-    x = torch.from_numpy(np.concatenate((vertices, q), axis=-1))
+def package_batch(system, p, q, dp_dt, dq_dt, masses, edge_index, boundary_vertices, vertices=None):
+    if vertices is None:
+        vertices = torch.unsqueeze(torch.linspace(0, 1, p.shape[1]), 0).repeat(p.shape[0], p.shape[1])
 
     if system == "spring":
         p = np.pad(p, ((1, 1), (1, 0)), "constant", constant_values=0)
@@ -24,8 +24,12 @@ def package_batch(system, p, q, dp_dt, dq_dt, masses, edge_index, boundary_verti
         p = np.pad(p, ((0, 0), (1, 0)), "constant", constant_values=0)
         if dp_dt is not None:
           dp_dt = np.pad(dp_dt, ((0, 0), (1, 0)), "constant", constant_values=0)
+        x = torch.from_numpy(np.concatenate((vertices, q), axis=-1))
     elif system == "spring-mesh":
         x = torch.from_numpy(q)
+    elif system == "taylor-green":
+        x = vertices
+        dp_dt = np.concatenate((dp_dt, q), axis=-1)
     else:
         raise ValueError(f"Invalid system {system}")
 
@@ -53,6 +57,8 @@ def unpack_results(result, system):
     elif system == "wave":
         return result[:, :, 1]
     elif system == "spring-mesh":
+        return result
+    elif system == "taylor-green":
         return result
     else:
       raise ValueError(f"Invalid system {system}")
@@ -168,18 +174,24 @@ class GN(torch.nn.Module):
                  layer_norm=False):
         super().__init__()
 
+        if isinstance(v_features, list):
+            v_features_in, v_features_out = v_features
+        else:
+            v_features_in = v_features
+            v_features_out = v_features
+
         self.mesh_coords = mesh_coords
         self.static_nodes = torch.nn.functional.one_hot(static_nodes,
                                                         2).float()
         self.constant_vertex_features = constant_vertex_features
 
-        self.vertex_encode_mlp = Seq(Lin(v_features, hidden), ReLU(), Lin(hidden, hidden))
+        self.vertex_encode_mlp = Seq(Lin(v_features_in, hidden), ReLU(), Lin(hidden, hidden))
         self.edge_encode_mlp = Seq(Lin(e_features, hidden), ReLU(), Lin(hidden, hidden))
         self.process = CustomMetaLayer(
             EdgeModel(hidden, layer_norm),
             NodeModel(hidden, layer_norm),
             None)
-        self.decode = Seq(Lin(hidden, hidden), ReLU(), Lin(hidden, v_features - self.static_nodes.shape[-1]))
+        self.decode = Seq(Lin(hidden, hidden), ReLU(), Lin(hidden, v_features_out - self.static_nodes.shape[-1]))
         if layer_norm:
             self.layer_norm = torch.nn.LayerNorm(hidden)
         else:

@@ -50,6 +50,19 @@ def generate_packing_args(instance, system, dataset):
         instance.e_features = 6
         instance.mesh_coords = [list(map(float, p["position"])) for p in dataset.initial_cond_source.particle_properties()]
         instance.static_nodes = [1 if p["is_fixed"] else 0 for p in dataset.initial_cond_source.particle_properties()]
+    elif system == "taylor-green":
+        dim = dataset.input_size() // 2
+        instance.particle_process_type = "identity"
+        instance.adjacency_args = {
+            "type": "native",
+            "boundary_conditions": "periodic",
+            "boundary_vertices": None,
+            "dimension": dim,
+            }
+        instance.v_features = [4, 5]
+        instance.e_features = 6
+        instance.mesh_coords = [list(map(float, p)) for p in dataset.initial_cond_source.vertices]
+        instance.static_nodes = [1 for p in dataset.initial_cond_source.vertices]
     else:
         raise ValueError(f"Invalid system {system}")
 
@@ -426,13 +439,49 @@ class SpringMeshManualPerturb(InitialConditionSource):
         }
 
 
+class TaylorGreenGridGenerator:
+    def __init__(self, grid_shape):
+        self.grid_shape = grid_shape
+        self.n_dims = len(grid_shape)
+        self.n_dim = self.n_dims
+        self.n_vertices = 1
+        for s in grid_shape:
+            self.n_vertices *= s
+        self._vertices = None
+        self._edges = None
+
+    def generate_mesh(self):
+        if self._vertices is None:
+            vertices = []
+            edges = []
+            ranges = [range(s) for s in self.grid_shape]
+            # Generate vertices
+            for coords in itertools.product(*ranges):
+                vertices.append(list(coords))
+            # Add edges
+            for (a, part_a), (b, part_b) in itertools.combinations(enumerate(vertices), 2):
+                # Determine if we want an edge
+                length = math.sqrt(sum((pa - pb) ** 2 for pa, pb in zip(part_a, part_b)))
+                periodic_boundary_x = (part_a[1] == part_b[1] and np.allclose(abs(part_a[0] - part_b[0]), self.grid_shape[0]))
+                periodic_boundary_y = (part_a[0] == part_b[0] and np.allclose(abs(part_a[1] - part_b[1]), self.grid_shape[1]))
+                if not (np.allclose(length, 1) or periodic_boundary_x or periodic_boundary_y):
+                    continue
+                # Add the edge
+                edges.append([a, b])
+            self._vertices = vertices
+            self._edges = edges
+        return copy.deepcopy(self._vertices), copy.deepcopy(self._edges)
+
+
 class TaylorGreenInitialConditionSource(InitialConditionSource):
     def __init__(self,
+                 mesh_generator,
                  viscosity_range=(0.5, 1.5),
                  density_range=(1.0, 1.0)):
         super().__init__()
         self.viscosity_range = viscosity_range
         self.density_range = density_range
+        self.vertices, self.edges = mesh_generator.generate_mesh()
 
     def _generate_initial_condition(self):
         viscosity = np.random.uniform(*self.viscosity_range)
@@ -440,6 +489,8 @@ class TaylorGreenInitialConditionSource(InitialConditionSource):
         state = {
             "viscosity": viscosity,
             "density": density,
+            "vertices": self.vertices,
+            "edges": self.edges,
         }
         return state
 

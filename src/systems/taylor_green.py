@@ -10,15 +10,28 @@ from numba import jit
 
 taylor_green_cache = SystemCache()
 
+MeshTrajectoryResult = namedtuple("MeshTrajectoryResult",
+                                      ["q", "p",
+                                       "dq_dt", "dp_dt",
+                                       "t_steps",
+                                       "p_noiseless", "q_noiseless",
+                                       "masses", "edge_indices", "vertices"])
 
 class TaylorGreenSystem(System):
-    def __init__(self, n_grid, space_scale=2, viscosity=1, density=1):
+    def __init__(self, n_grid, vertices, edges, space_scale=2, viscosity=1, density=1):
         super().__init__()
         self.n_grid = n_grid
         self.space_scale = 2
         self.viscosity = viscosity
         self.density = density
         space_steps = np.linspace(0, self.space_scale * np.pi, self.n_grid)
+
+        self.edges = edges
+        self.edge_indices = np.array([(e[0], e[1]) for e in edges] +
+                                     [(e[1], e[0]) for e in edges], dtype=np.int64).T
+        self.edge_indices.setflags(write=False)
+        self.vertices = np.array(vertices)
+
         self.x, self.y = np.meshgrid(space_steps, space_steps)
 
     def derivative(self, q, p, t):
@@ -53,9 +66,12 @@ class TaylorGreenSystem(System):
         d_vel, d_press = self.derivative(vels, press, t)
         d_vel = d_vel.reshape((num_time_steps, self.n_grid ** 2, 2))
         d_press = d_press.reshape((num_time_steps, self.n_grid ** 2, 1))
-        return TrajectoryResult(q=press, p=vels, dq_dt=d_press, dp_dt=d_vel,
-                                t_steps=t,
-                                q_noiseless=press, p_noiseless=vels)
+        return MeshTrajectoryResult(q=press, p=vels, dq_dt=d_press, dp_dt=d_vel,
+                                    t_steps=t,
+                                    q_noiseless=press, p_noiseless=vels,
+                                    edge_indices=self.edge_indices,
+                                    vertices=self.vertices,
+                                    masses=np.ones_like(self.vertices))
 
     def hamiltonian(self, q, p):
         return torch.zeros(q.shape[0], dtype=q.dtype)
@@ -66,15 +82,19 @@ class TaylorGreenSystem(System):
                 self.viscosity == viscosity and
                 self.density == density)
 
-def system_from_records(n_grid, space_scale, viscosity, density):
+def system_from_records(n_grid, space_scale, viscosity, density, vertices, edges):
     cached_sys = taylor_green_cache.find(n_grid=n_grid,
                                          space_scale=space_scale,
                                          viscosity=viscosity,
-                                         density=density)
+                                         density=density,
+                                         vertices=vertices,
+                                         edges=edges)
     if cached_sys is not None:
         return cached_sys
     else:
         new_sys = TaylorGreenSystem(n_grid=n_grid,
+                                    vertices=vertices,
+                                    edges=edges,
                                     space_scale=space_scale,
                                     viscosity=viscosity,
                                     density=density)
@@ -105,13 +125,19 @@ def generate_data(system_args, base_logger=None):
         num_time_steps = traj_def["num_time_steps"]
         time_step_size = traj_def["time_step_size"]
         noise_sigma = 0.0
+        vertices = traj_def["vertices"]
+        edges = traj_def["edges"]
 
         system = taylor_green_cache.find(n_grid=n_grid,
+                                         vertices=vertices,
+                                         edges=edges,
                                          space_scale=space_scale,
                                          viscosity=viscosity,
                                          density=density)
         if system is None:
             system = TaylorGreenSystem(n_grid=n_grid,
+                                       vertices=vertices,
+                                       edges=edges,
                                        space_scale=space_scale,
                                        viscosity=viscosity,
                                        density=density)
@@ -132,6 +158,8 @@ def generate_data(system_args, base_logger=None):
             f"{traj_name}_t": traj_result.t_steps,
             f"{traj_name}_p_noiseless": traj_result.p_noiseless,
             f"{traj_name}_q_noiseless": traj_result.q_noiseless,
+            f"{traj_name}_edge_indices": traj_result.edge_indices,
+            f"{traj_name}_vertices": traj_result.vertices,
         })
 
         # Store per-trajectory metadata
@@ -151,6 +179,8 @@ def generate_data(system_args, base_logger=None):
                  "t": f"{traj_name}_t",
                  "p_noiseless": f"{traj_name}_p_noiseless",
                  "q_noiseless": f"{traj_name}_q_noiseless",
+                 "edge_indices": f"{traj_name}_edge_indices",
+                 "vertices": f"{traj_name}_vertices",
              },
              "timing": {
                  "traj_gen_time": traj_gen_elapsed

@@ -110,10 +110,11 @@ def package_data(data_set, package_args, system):
         if edge_index is None:
             # Pull directly from batch
             edge_index = torch.tensor(batch.edge_index).long()
+        vertices = torch.tensor(batch.vertices).long() if system == "taylor-green" else None
         packaged = package_func(p=proc_part.p, q=proc_part.q,
                                 dp_dt=proc_part.dp_dt, dq_dt=proc_part.dq_dt,
                                 masses=proc_part.masses, edge_index=edge_index,
-                                boundary_vertices=boundary_vertices)
+                                boundary_vertices=boundary_vertices, vertices=vertices)
         data_elems.append(packaged)
 
     return data_elems
