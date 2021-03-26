@@ -21,7 +21,7 @@ class NullEvalDecorator:
     def __init__(self):
         pass
 
-    def decorate_initial_cond(q0, p0):
+    def decorate_initial_cond(self, q0, p0):
         return q0, p0
 
     def decorate_deriv_func(self, func):
@@ -35,7 +35,7 @@ class TaylorGreenEvalDecorator:
     def __init__(self):
         self.pressure_steps = []
 
-    def decorate_initial_cond(q0, p0):
+    def decorate_initial_cond(self, q0, p0):
         press = q0
         vels = p0
         self.pressure_steps.append(press)
