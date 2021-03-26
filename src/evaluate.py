@@ -43,10 +43,10 @@ class TaylorGreenEvalDecorator:
         return nq0, np0
 
     def decorate_deriv_func(self, func):
-        def tg_wrapped(q, p, dt=1.0):
+        def tg_wrapped(q, p, dt=1.0, t=0):
             press = self.pressure_steps[-1]
             vel = np.concatenate([q, p], axis=-1)
-            dq, dp = func(press, vel, dt=dt)
+            dq, dp = func(press, vel, dt=dt, t=t)
             x = torch.cat([dq, dp], dim=-1)
             n = x.shape[-1]//3
             new_press = x[..., :n]
@@ -269,6 +269,14 @@ def run_phase(base_dir, out_dir, phase_args):
             dq_dt, dp_dt = system.derivative(p=p, q=q)
             return SystemDerivative(dp_dt=dp_dt, dq_dt=dq_dt)
         time_deriv_func = system_derivative
+        if isinstance(system, taylor_green.TaylorGreenSystem):
+            # Special case for TG derivatives
+            def tg_system_derivative(q, p, dt=1.0, t=0):
+                if torch.is_tensor(dt):
+                    dt = dt.item()
+                dq_dt, dp_dt = system.derivative(p=p, q=q, t=t)
+                return SystemDerivative(dp_dt=dp_dt, dq_dt=dq_dt)
+            time_deriv_func = tg_system_derivative
     elif eval_type == "hogn":
         # Lazy import to avoid pytorch-geometric if possible
         from methods import hogn
