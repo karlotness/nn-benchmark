@@ -15,6 +15,53 @@ import joblib
 from collections import namedtuple
 
 
+DecoratedIntegrationResult = namedtuple("DecoratedIntegrationResult", ["q", "p"])
+
+class NullEvalDecorator:
+    def __init__(self):
+        pass
+
+    def decorate_initial_cond(q0, p0):
+        return q0, p0
+
+    def decorate_deriv_func(self, func):
+        return func
+
+    def process_results(self, int_res):
+        return int_res
+
+
+class TaylorGreenEvalDecorator:
+    def __init__(self):
+        self.pressure_steps = []
+
+    def decorate_initial_cond(q0, p0):
+        press = q0
+        vels = p0
+        self.pressure_steps.append(press)
+        nq0, np0 = np.split(vels, 2, axis=-1)
+        return nq0, np0
+
+    def decorate_deriv_func(self, func):
+        def tg_wrapped(q, p, dt=1.0):
+            press = self.pressure_steps[-1]
+            vel = np.concatenate([q, p], axis=-1)
+            dq, dp = func(press, vel, dt=dt)
+            x = torch.cat([dq, dp], dim=-1)
+            n = x.shape[-1]//3
+            new_press = x[..., :n]
+            nq0, np0 = np.split(x[n:], 2, axis=-1)
+            self.pressure_steps.append(new_press)
+            return nq0, np0
+
+        return tg_wrapped
+
+    def process_results(self, int_res):
+        new_p = np.concatenate([int_res.q, int_res.p], axis=-1)
+        new_q = np.array(self.pressure_steps)
+        return DecoratedIntegrationResult(q=new_q, p=new_p)
+
+
 def load_network(net_dir, base_dir, base_logger, model_file_name="model.pt"):
     logger = base_logger.getChild("load_network")
     if net_dir is None:
@@ -144,6 +191,10 @@ def run_phase(base_dir, out_dir, phase_args):
 
     # Load the evaluation data
     eval_dataset, eval_loader = create_dataset(base_dir, phase_args["eval_data"])
+
+    make_eval_decorator = NullEvalDecorator
+    if eval_dataset.system == "taylor-green" and eval_type != "gn":
+        make_eval_decorator = TaylorGreenEvalDecorator
 
     # Integrate each trajectory, compute stats and store
     logger.info("Starting evaluation")
@@ -360,6 +411,9 @@ def run_phase(base_dir, out_dir, phase_args):
 
         p0 = p[:, 0]
         q0 = q[:, 0]
+        eval_decorator = make_eval_decorator()
+        q0, p0 = eval_decorator.decorate_initial_cond(q0, p0)
+        wrapped_time_deriv_func = eval_decorator.decorate_deriv_func(time_deriv_func)
         integrate_start = time.perf_counter()
         int_res_raw = integrators.numerically_integrate(
             integrator=integrator_type,
@@ -367,8 +421,9 @@ def run_phase(base_dir, out_dir, phase_args):
             p0=p0.detach().cpu().numpy(),
             num_steps=int(num_time_steps.detach().cpu().item()),
             dt=float(time_step_size.detach().cpu().item()),
-            deriv_func=time_deriv_func,
+            deriv_func=wrapped_time_deriv_func,
             system=system)
+        int_res_raw = eval_decorator.process_results(int_res_raw)
 
         # Remove extraneous batch dimension
         integrate_elapsed = time.perf_counter() - integrate_start
