@@ -9,6 +9,8 @@ from numba import jit
 
 taylor_green_cache = SystemCache()
 
+Edge = namedtuple("Edge", ["a", "b"])
+
 MeshTrajectoryResult = namedtuple("MeshTrajectoryResult",
                                       ["q", "p",
                                        "dq_dt", "dp_dt",
@@ -26,10 +28,10 @@ class TaylorGreenSystem(System):
         space_steps = np.linspace(0, self.space_scale * np.pi, self.n_grid)
 
         self.edges = edges
-        self.edge_indices = np.array([(e[0], e[1]) for e in edges] +
-                                     [(e[1], e[0]) for e in edges], dtype=np.int64).T
+        self.edge_indices = np.array([(e.a, e.b) for e in edges] +
+                                     [(e.b, e.a) for e in edges], dtype=np.int64).T
         self.edge_indices.setflags(write=False)
-        self.vertices = np.array(vertices)
+        self.vertices = vertices
 
         self.x, self.y = np.meshgrid(space_steps, space_steps)
 
@@ -75,13 +77,15 @@ class TaylorGreenSystem(System):
     def hamiltonian(self, q, p):
         return np.zeros(q.shape[0], dtype=q.dtype)
 
-    def _args_compatible(self, n_grid, space_scale, viscosity, density):
+    def _args_compatible(self, n_grid, vertices, edges, space_scale, viscosity, density):
         return (self.n_grid == n_grid and
+                set(self.edges) == set(edges) and
                 self.space_scale == space_scale and
                 self.viscosity == viscosity and
                 self.density == density)
 
 def system_from_records(n_grid, space_scale, viscosity, density, vertices, edges):
+    edges = [Edge(a=e["a"], b=e["b"]) for e in edges]
     cached_sys = taylor_green_cache.find(n_grid=n_grid,
                                          space_scale=space_scale,
                                          viscosity=viscosity,
@@ -125,7 +129,9 @@ def generate_data(system_args, base_logger=None):
         time_step_size = traj_def["time_step_size"]
         noise_sigma = 0.0
         vertices = traj_def["vertices"]
-        edges = traj_def["edges"]
+        edges_dict = traj_def["edges"]
+        edges = [Edge(a=e["a"], b=e["b"]) for e in edges_dict]
+
 
         system = taylor_green_cache.find(n_grid=n_grid,
                                          vertices=vertices,
@@ -190,5 +196,10 @@ def generate_data(system_args, base_logger=None):
     return SystemResult(trajectories=trajectories,
                         metadata={
                             "n_grid": n_grid,
+                            "space_scale": space_scale,
+                            "viscosity": viscosity,
+                            "density": density,
+                            "vertices": vertices,
+                            "edges": edges,
                         },
                         trajectory_metadata=trajectory_metadata)

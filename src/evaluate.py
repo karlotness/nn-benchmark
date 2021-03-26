@@ -10,7 +10,7 @@ from train import create_dataset as train_create_dataset
 import methods
 import dataset
 import integrators
-from systems import spring, wave, particle, spring_mesh
+from systems import spring, wave, particle, spring_mesh, taylor_green
 import joblib
 from collections import namedtuple
 
@@ -310,10 +310,10 @@ def run_phase(base_dir, out_dir, phase_args):
         import dataset_geometric
 
         package_args = eval_args["package_args"]
-        GnMockDataset = namedtuple("GnMockDataset", ["p", "q", "dp_dt", "dq_dt", "masses", "edge_index"])
+        GnMockDataset = namedtuple("GnMockDataset", ["p", "q", "dp_dt", "dq_dt", "masses", "edge_index", "vertices"])
 
         GNPrediction = namedtuple("GNPrediction", ["q", "p"])
-        def gn_time_deriv_func(masses, edges, n_particles):
+        def gn_time_deriv_func(masses, edges, n_particles, vertices):
             def model_next_step(q, p, dt=1.0):
                 with torch.no_grad():
                     time_step_size = dt
@@ -324,19 +324,26 @@ def run_phase(base_dir, out_dir, phase_args):
                     p = p.reshape((n_particles, -1))
                     q = q.reshape((n_particles, -1))
                     mocked = GnMockDataset(p=p, q=q,
-                        masses=masses, dp_dt=None, dq_dt=None, edge_index=edges)
+                        masses=masses, dp_dt=None, dq_dt=None, edge_index=edges, vertices=vertices)
                     bundled = dataset_geometric.package_data([mocked],
                         package_args=package_args, system=eval_dataset.system)[0]
 
                     accel = net(torch.unsqueeze(bundled.pos, 0),
                         torch.unsqueeze(bundled.x, 0),
                         torch.unsqueeze(bundled.edge_index, 0))
+                    accel = gn.unpack_results(accel, eval_dataset.system)
 
-                    accel = gn.unpack_results(accel, eval_dataset.system).reshape(p.shape)
-                    accel = accel.detach().cpu().numpy()
+                    # Prediction for Taylor Green
+                    if eval_dataset.system == "taylor-green":
+                        accel = accel.squeeze().detach().cpu().numpy()
 
-                    p_next = p + time_step_size * accel
-                    q_next = q + time_step_size * p_next
+                        p_next = p + time_step_size * accel[..., :2]
+                        q_next = accel[..., -1]
+                    else:
+                        accel = accel.reshape(p.shape).detach().cpu().numpy()
+
+                        p_next = p + time_step_size * accel
+                        q_next = q + time_step_size * p_next
 
                     return GNPrediction(p=p_next.reshape(p_orig_shape),
                                         q=q_next.reshape(q_orig_shape))
@@ -362,6 +369,7 @@ def run_phase(base_dir, out_dir, phase_args):
         num_time_steps = trajectory.trajectory_meta["num_time_steps"][0]
         time_step_size = trajectory.trajectory_meta["time_step_size"][0]
         edges = None
+        vertices = None
 
         # Compute hamiltonians
         # Construct systems
@@ -390,6 +398,16 @@ def run_phase(base_dir, out_dir, phase_args):
             vel_decay = eval_dataset.system_metadata["vel_decay"]
             system = spring_mesh.system_from_records(n_dim, particles, edges_dict,
                                                      vel_decay=vel_decay)
+        elif eval_dataset.system == "taylor-green":
+            n_grid = eval_dataset.system_metadata["n_grid"]
+            space_scale = eval_dataset.system_metadata["space_scale"]
+            viscosity = eval_dataset.system_metadata["viscosity"]
+            density = eval_dataset.system_metadata["density"]
+            vertices = eval_dataset.system_metadata["vertices"]
+            edges_dict = eval_dataset.system_metadata["edges"]
+            edges = np.array([(e["a"], e["b"]) for e in edges_dict] +
+                             [(e["b"], e["a"]) for e in edges_dict], dtype=np.int64).T
+            system = taylor_green.system_from_records(n_grid=n_grid, space_scale=space_scale, viscosity=viscosity, density=density, vertices=vertices, edges=edges_dict)
         else:
             raise ValueError(f"Unknown system type {eval_dataset.system}")
 
@@ -401,7 +419,7 @@ def run_phase(base_dir, out_dir, phase_args):
             n_particles = net.static_nodes.shape[0]
             if eval_dataset.system == "spring":
                 n_particles = 1
-            time_deriv_func = gn_time_deriv_func(masses=masses, edges=edges, n_particles=n_particles)
+            time_deriv_func = gn_time_deriv_func(masses=masses, edges=edges, n_particles=n_particles, vertices=vertices)
             num_traj = p.shape[0]
             traj_steps = p.shape[1]
             p = p.reshape((num_traj, traj_steps, -1))

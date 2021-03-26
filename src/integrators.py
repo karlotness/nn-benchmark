@@ -107,8 +107,9 @@ def numerically_integrate(integrator, q0, p0, num_steps, dt, deriv_func, system=
         out_p = ret_split.p
     else:
         # Allocate output array
-        out_shape = (num_steps, p0.shape[-1])
-        out_q = np.empty_like(q0, shape=out_shape)
-        out_p = np.empty_like(p0, shape=out_shape)
+        out_shape_q = (num_steps, q0.shape[-1])
+        out_shape_p = (num_steps, p0.shape[-1])
+        out_q = np.empty_like(q0, shape=out_shape_q)
+        out_p = np.empty_like(p0, shape=out_shape_p)
         int_func(q0, p0, dt, deriv_func, out_q, out_p)
     return IntegrationResult(q=out_q, p=out_p)

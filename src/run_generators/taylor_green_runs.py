@@ -17,11 +17,13 @@ experiment = utils.Experiment("experiment")
 
 source = utils.TaylorGreenInitialConditionSource(utils.TaylorGreenGridGenerator((N_GRID, N_GRID)))
 
-dataset = utils.TaylorGreenDataset(experiment, source, 1, n_grid=N_GRID)
+dataset = utils.TaylorGreenDataset(experiment, source, 10, n_grid=N_GRID)
 
-gn_train = utils.GN(experiment=experiment, training_set=dataset, validation_set=dataset, epochs=10, batch_size=10)
+gn_train = utils.GN(experiment=experiment, training_set=dataset, validation_set=dataset, epochs=10, batch_size=20)
 
-writable_objects.extend([dataset, gn_train])
+gn_eval = utils.NetworkEvaluation(experiment=experiment, network=gn_train, eval_set=dataset, integrator="null")
+
+writable_objects.extend([dataset, gn_train, gn_eval])
 
 
 if __name__ == "__main__":

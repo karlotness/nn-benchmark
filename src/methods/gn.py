@@ -29,7 +29,8 @@ def package_batch(system, p, q, dp_dt, dq_dt, masses, edge_index, boundary_verti
         x = torch.from_numpy(q)
     elif system == "taylor-green":
         x = vertices
-        dp_dt = np.concatenate((dp_dt, q), axis=-1)
+        if dp_dt is not None:
+            dp_dt = np.concatenate((dp_dt, q), axis=-1)
     else:
         raise ValueError(f"Invalid system {system}")
 
@@ -217,7 +218,7 @@ class GN(torch.nn.Module):
 
         row, col = torch.split(edge_index, [1, 1], dim=1)
         edge_vectors = index(world_coords, col) - index(world_coords, row)
-        edge_vectors_norm = torch.norm(edge_vectors, dim=-1, keepdim=True)
+        edge_vectors_norm = torch.norm(edge_vectors.float(), dim=-1, keepdim=True)
         edge_attr = torch.cat([edge_vectors, edge_vectors_norm], dim=-1)
         if self.mesh_coords is not None:
             mesh_coords_batch = torch.unsqueeze(self.mesh_coords, 0).repeat(world_coords.shape[0], 1, 1)

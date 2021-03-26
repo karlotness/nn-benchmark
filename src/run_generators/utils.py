@@ -467,7 +467,11 @@ class TaylorGreenGridGenerator:
                 if not (np.allclose(length, 1) or periodic_boundary_x or periodic_boundary_y):
                     continue
                 # Add the edge
-                edges.append([a, b])
+                edge_def = {
+                    "a": a,
+                    "b": b,
+                }
+                edges.append(edge_def)
             self._vertices = vertices
             self._edges = edges
         return copy.deepcopy(self._vertices), copy.deepcopy(self._edges)
