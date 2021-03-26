@@ -48,9 +48,11 @@ class TaylorGreenSystem(System):
 
     def generate_trajectory(self, num_time_steps, time_step_size):
         t = np.arange(num_time_steps) * time_step_size
-        vels = self.vel(t)
-        press = self.pressure(t)
+        vels = self.vel(t).reshape((num_time_steps, self.n_grid ** 2, 2))
+        press = self.pressure(t).reshape((num_time_steps, self.n_grid ** 2, 1))
         d_vel, d_press = self.derivative(vels, press, t)
+        d_vel = d_vel.reshape((num_time_steps, self.n_grid ** 2, 2))
+        d_press = d_press.reshape((num_time_steps, self.n_grid ** 2, 1))
         return TrajectoryResult(q=press, p=vels, dq_dt=d_press, dp_dt=d_vel,
                                 t_steps=t,
                                 q_noiseless=press, p_noiseless=vels)
