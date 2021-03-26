@@ -1627,6 +1627,7 @@ class KNNRegressorOneshot(KNNOneshotEvaluation):
                          eval_set=eval_set,
                          eval_dtype=eval_dtype,
                          integrator=integrator,
+                         dataset_type=("taylor-green" if training_set.system == "taylor-green" else "snapshot"),
                          knn_type="regressor")
 
 
