@@ -4,7 +4,6 @@ from .defs import System, TrajectoryResult, SystemResult, StatePair, SystemCache
 from collections import namedtuple
 import logging
 import time
-import torch
 from numba import jit
 
 
@@ -74,7 +73,7 @@ class TaylorGreenSystem(System):
                                     masses=np.ones_like(self.vertices))
 
     def hamiltonian(self, q, p):
-        return torch.zeros(q.shape[0], dtype=q.dtype)
+        return np.zeros(q.shape[0], dtype=q.dtype)
 
     def _args_compatible(self, n_grid, space_scale, viscosity, density):
         return (self.n_grid == n_grid and

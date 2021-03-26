@@ -4,7 +4,6 @@ from .defs import System, TrajectoryResult, SystemResult, StatePair, SystemCache
 from collections import namedtuple
 import logging
 import time
-import torch
 from numba import jit
 
 
@@ -251,7 +250,7 @@ class SpringMeshSystem(System):
                 self.viscosity_constant == vel_decay)
 
     def hamiltonian(self, q, p):
-        return torch.zeros(q.shape[0], q.shape[1])
+        return np.zeros(q.shape[0], q.shape[1])
 
     def _compute_next_step(self, q, q_dot, time_step_size, mat_unknown_factors):
         # Input states are (n_particle, n_dim)
