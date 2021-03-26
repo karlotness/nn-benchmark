@@ -8,26 +8,31 @@ IntegrationResult = namedtuple("IntegrationResult", ["q", "p"])
 def euler(q0, p0, dt, func, out_q, out_p):
     q = q0
     p = p0
+    t = 0
     for i in range(out_q.shape[0]):
         out_q[i] = q
         out_p[i] = p
-        dq, dp = func(q, p, dt)
+        dq, dp = func(q, p, dt, t)
         q = q + dt * dq
         p = p + dt * dp
+        t += dt
 
 
 @numba.jit(nopython=True)
 def leapfrog(q0, p0, dt, func, out_q, out_p):
     q = q0
     p = p0
-    dqdt, dpdt = func(q, p, dt)
+    t = 0
+    dqdt, dpdt = func(q, p, dt, t)
     for i in range(out_q.shape[0]):
         p_half = p + dpdt * (dt / 2)
         out_q[i] = q
         out_p[i] = p
-        dqdt, dpdt = func(q, p_half, dt)
+        t += 0.5 * dt
+        dqdt, dpdt = func(q, p_half, dt, t)
         q_next = q + dqdt * dt
-        dqdt, dpdt = func(q_next, p_half, dt)
+        t += 0.5 * dt
+        dqdt, dpdt = func(q_next, p_half, dt, t)
         p_next = p_half + dpdt * (dt / 2)
         p = p_next
         q = q_next
@@ -37,15 +42,17 @@ def leapfrog(q0, p0, dt, func, out_q, out_p):
 def rk4(q0, p0, dt, func, out_q, out_p):
     q = q0
     p = p0
+    t = 0
     for i in range(out_q.shape[0]):
         out_q[i] = q
         out_p[i] = p
-        q_k1, p_k1 = func(q, p, dt)
-        q_k2, p_k2 = func(q + 0.5*dt*q_k1, p + 0.5*dt*p_k1, dt)
-        q_k3, p_k3 = func(q + 0.5*dt*q_k2, p + 0.5*dt*p_k2, dt)
-        q_k4, p_k4 = func(q + dt*q_k3, p + dt*p_k3, dt)
+        q_k1, p_k1 = func(q, p, dt, t)
+        q_k2, p_k2 = func(q + 0.5*dt*q_k1, p + 0.5*dt*p_k1, dt, t)
+        q_k3, p_k3 = func(q + 0.5*dt*q_k2, p + 0.5*dt*p_k2, dt, t)
+        q_k4, p_k4 = func(q + dt*q_k3, p + dt*p_k3, dt, t)
         p_next = p + (1./6.) * dt * (p_k1 + 2 * p_k2 + 2 * p_k3 + p_k4)
         q_next = q + (1./6.) * dt * (q_k1 + 2 * q_k2 + 2 * q_k3 + q_k4)
+        t += dt
         p = p_next
         q = q_next
 
@@ -53,10 +60,12 @@ def rk4(q0, p0, dt, func, out_q, out_p):
 def null_integrator(q0, p0, dt, func, out_q, out_p):
     q = q0
     p = p0
+    t = 0
     for i in range(out_q.shape[0]):
         out_q[i] = q
         out_p[i] = p
-        q, p = func(q, p, dt)
+        q, p = func(q, p, dt, t)
+        t += dt
 
 
 @numba.jit(nopython=True)
