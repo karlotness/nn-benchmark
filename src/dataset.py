@@ -77,6 +77,79 @@ class TrajectoryDataset(data.Dataset):
     def __len__(self):
         return len(self._trajectory_meta)
 
+
+TaylorGreenSnapshot = namedtuple("TaylorGreenSnapshot", ["name", "p", "q", "dp_dt", "dq_dt",
+                                                         "t", "trajectory_meta",
+                                                         "p_noiseless", "q_noiseless",
+                                                         "masses", "edge_index"])
+
+
+class TaylorGreenSnapshotDataset(data.Dataset):
+    def __init__(self, traj_dataset):
+        super().__init__()
+        self._traj_dataset = traj_dataset
+
+        self.system = self._traj_dataset.system
+        self.system_metadata = self._traj_dataset.system_metadata
+
+        # NOTE: q=press, p=vels
+        # NOTE: dq_dt=NEXT_PRESSURE_SNAPSHOT, dp_dt= VELOCITY DERIVATIVE
+        name = []
+        p = []
+        q = []
+        dp_dt = []
+        dq_dt = []
+        t = []
+        traj_meta = []
+        p_noiseless = []
+        q_noiseless = []
+        masses = []
+        edge_indices = []
+
+        for traj_i in range(len(self._traj_dataset)):
+            traj = self._traj_dataset[traj_i]
+            # Stack the components
+            traj_num_steps = traj.p.shape[0] - 1
+            name.extend([traj.name] * traj_num_steps)
+            p.append(traj.p[:-1])
+            q.append(traj.q[:-1])
+            dp_dt.append(traj.dp_dt[:-1])
+            dq_dt.append(traj.q[1:])
+            t.append(traj.t[:-1])
+            traj_meta.extend([traj.trajectory_meta] * traj_num_steps)
+            p_noiseless.append(traj.p_noiseless[:-1])
+            q_noiseless.append(traj.q_noiseless[:-1])
+            masses.extend([traj.masses] * traj_num_steps)
+            edge_indices.extend([traj.edge_index] * traj_num_steps)
+
+        # Load each trajectory and join the components
+        self._name = name
+        self._p = np.concatenate(p)
+        self._q = np.concatenate(q)
+        self._dp_dt = np.concatenate(dp_dt)
+        self._dq_dt = np.concatenate(dq_dt)
+        self._t = np.concatenate(t)
+        self._traj_meta = traj_meta
+        self._p_noiseless = np.concatenate(p_noiseless)
+        self._q_noiseless = np.concatenate(q_noiseless)
+        self._masses = masses
+        self._edge_indices = edge_indices
+
+    def __getitem__(self, idx):
+        return TaylorGreenSnapshot(name=self._name[idx],
+                                   trajectory_meta=self._traj_meta[idx],
+                                   p=self._p[idx], q=self._q[idx],
+                                   dp_dt=self._dp_dt[idx], dq_dt=self._dq_dt[idx],
+                                   t=self._t[idx],
+                                   p_noiseless=self._p_noiseless[idx],
+                                   q_noiseless=self._q_noiseless[idx],
+                                   masses=self._masses[idx],
+                                   edge_index=self._edge_indices[idx])
+
+    def __len__(self):
+        return len(self._traj_meta)
+
+
 Snapshot = namedtuple("Snapshot", ["name", "p", "q", "dp_dt", "dq_dt",
                                    "t", "trajectory_meta",
                                    "p_noiseless", "q_noiseless",

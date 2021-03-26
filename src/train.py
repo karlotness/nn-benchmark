@@ -162,6 +162,8 @@ def create_dataset(base_dir, data_args):
             data_set = base_data_set
         elif dataset_type == "snapshot":
             data_set = dataset.SnapshotDataset(traj_dataset=base_data_set)
+        elif dataset_type == "taylor-green":
+            data_set = dataset.TaylorGreenSnapshotDataset(traj_dataset=base_data_set)
         elif dataset_type == "rollout-chunk":
             rollout_length = int(data_args["dataset_args"]["rollout_length"])
             data_set = dataset.RolloutChunkDataset(traj_dataset=base_data_set,
