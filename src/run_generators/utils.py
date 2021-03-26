@@ -757,7 +757,7 @@ class TaylorGreenDataset(Dataset):
         return template
 
     def input_size(self):
-        return 2 * (self.n_grid ** 2)
+        return 3 * (self.n_grid ** 2)
 
 
 class ExistingDataset:
@@ -1208,7 +1208,7 @@ class MLP(TrainedNetwork):
                 },
                 "train_data": {
                     "data_dir": self.training_set.path,
-                    "dataset": "snapshot",
+                    "dataset": ("taylor-green" if self.training_set.system == "taylor-green" else "snapshot"),
                     "linearize": True,
                     "dataset_args": {},
                     "loader": {
@@ -1367,7 +1367,7 @@ class NNKernel(TrainedNetwork):
                 },
                 "train_data": {
                     "data_dir": self.training_set.path,
-                    "dataset": "snapshot",
+                    "dataset": ("taylor-green" if self.training_set.system == "taylor-green" else "snapshot"),
                     "linearize": True,
                     "dataset_args": {},
                     "loader": {
