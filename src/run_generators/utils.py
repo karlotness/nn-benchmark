@@ -1701,6 +1701,7 @@ class BaselineIntegrator(Evaluation):
                 "eval_net": None,
                 "eval_data": {
                     "data_dir": self.eval_set.path,
+                    "linearize": (self.eval_set.system == "taylor-green"),
                 },
                 "eval": {
                     "eval_type": "integrator-baseline",
