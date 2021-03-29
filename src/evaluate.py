@@ -282,8 +282,11 @@ def run_phase(base_dir, out_dir, phase_args):
         if eval_dataset.system == "taylor-green":
             # Special case for TG derivatives
             def tg_system_derivative(q, p, dt=1.0, t=0):
-                dq_dt, dp_dt = system.derivative(p=p, q=q, t=t)
-                return SystemDerivative(dp_dt=dp_dt, dq_dt=dq_dt)
+                # q is pressure
+                # p is velocity
+                d_vel, d_press = system.derivative(p=p, q=q, t=t)
+                new_press = system.pressure(t=t)
+                return SystemDerivative(dq_dt=new_press, dp_dt=d_vel)
             time_deriv_func = tg_system_derivative
     elif eval_type == "hogn":
         # Lazy import to avoid pytorch-geometric if possible

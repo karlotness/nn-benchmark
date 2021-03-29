@@ -55,7 +55,10 @@ class TaylorGreenSystem(System):
         return np.stack((u, v), axis=-1)
 
     def pressure(self, t):
-        n_steps = t.shape[0]
+        if isinstance(t, np.ndarray):
+            n_steps = t.shape[0]
+        else:
+            n_steps = 1
         f_t = np.exp(-2 * self.viscosity * t).reshape((n_steps, 1, 1))
         press = (-self.density / 4) * (np.cos(2 * self.x) + np.cos(2 * self.y)) * (f_t ** 2)
         return press
