@@ -442,6 +442,8 @@ class SpringMeshManualPerturb(InitialConditionSource):
 class TaylorGreenGridGenerator:
     def __init__(self, grid_shape):
         self.grid_shape = grid_shape
+        self.n_grid = self.grid_shape[0]
+        assert all(v == self.grid_shape[0] for v in self.grid_shape)
         self.n_dims = len(grid_shape)
         self.n_dim = self.n_dims
         self.n_vertices = 1
@@ -486,6 +488,7 @@ class TaylorGreenInitialConditionSource(InitialConditionSource):
         self.viscosity_range = viscosity_range
         self.density_range = density_range
         self.vertices, self.edges = mesh_generator.generate_mesh()
+        self.mesh_generator = mesh_generator
 
     def _generate_initial_condition(self):
         viscosity = np.random.uniform(*self.viscosity_range)
@@ -780,6 +783,7 @@ class TaylorGreenDataset(Dataset):
         self.time_step_size = time_step_size
         self.initial_conditions = self.initial_cond_source.sample_initial_conditions(self.num_traj)
         assert isinstance(self.initial_cond_source, TaylorGreenInitialConditionSource)
+        assert self.n_grid == self.initial_cond_source.mesh_generator.n_grid
 
     def description(self):
         trajectories = []
@@ -1701,6 +1705,7 @@ class BaselineIntegrator(Evaluation):
                 "eval_net": None,
                 "eval_data": {
                     "data_dir": self.eval_set.path,
+                    "linearize": (self.eval_set.system == "taylor-green"),
                 },
                 "eval": {
                     "eval_type": "integrator-baseline",

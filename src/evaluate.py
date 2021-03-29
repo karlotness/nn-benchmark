@@ -18,7 +18,7 @@ from collections import namedtuple
 DecoratedIntegrationResult = namedtuple("DecoratedIntegrationResult", ["q", "p"])
 
 class NullEvalDecorator:
-    def __init__(self):
+    def __init__(self, integrator):
         pass
 
     def decorate_initial_cond(self, q0, p0):
@@ -32,8 +32,14 @@ class NullEvalDecorator:
 
 
 class TaylorGreenEvalDecorator:
-    def __init__(self):
+    def __init__(self, integrator):
         self.pressure_steps = []
+        if integrator == "rk4":
+            self.stride = 4
+        elif integrator == "leapfrog":
+            self.stride = 2
+        else:
+            self.stride = 1
 
     def decorate_initial_cond(self, q0, p0):
         press = q0
@@ -43,14 +49,16 @@ class TaylorGreenEvalDecorator:
         return nq0, np0
 
     def decorate_deriv_func(self, func):
-        def tg_wrapped(q, p, dt=1.0):
+        def tg_wrapped(q, p, dt=1.0, t=0):
             press = self.pressure_steps[-1]
             vel = np.concatenate([q, p], axis=-1)
-            dq, dp = func(press, vel, dt=dt)
-            x = torch.cat([dq, dp], dim=-1)
+            dq, dp = func(press, vel, dt=dt, t=t)
+            dq = dq.reshape((1, -1))
+            dp = dp.reshape((1, -1))
+            x = np.concatenate([dq, dp], axis=-1)
             n = x.shape[-1]//3
             new_press = x[..., :n]
-            nq0, np0 = np.split(x[n:], 2, axis=-1)
+            nq0, np0 = np.split(x[..., n:], 2, axis=-1)
             self.pressure_steps.append(new_press)
             return nq0, np0
 
@@ -58,7 +66,9 @@ class TaylorGreenEvalDecorator:
 
     def process_results(self, int_res):
         new_p = np.concatenate([int_res.q, int_res.p], axis=-1)
-        new_q = np.array(self.pressure_steps)
+        press_stride = self.stride
+        press_steps = self.pressure_steps[::press_stride][:-1]
+        new_q = np.vstack(press_steps)
         return DecoratedIntegrationResult(q=new_q, p=new_p)
 
 
@@ -208,13 +218,13 @@ def run_phase(base_dir, out_dir, phase_args):
             hamilt = net(p=p, q=q)
             return hamilt[0] + hamilt[1]
 
-        def hnn_model_time_deriv(q, p):
+        def hnn_model_time_deriv(q, p, dt=1.0, t=0):
             return net.time_derivative(p=p, q=q, create_graph=False)
         time_deriv_func = hnn_model_time_deriv
         hamiltonian_func = model_hamiltonian
     elif eval_type in {"mlp", "nn-kernel"}:
         MLPDerivative = namedtuple("MLPDerivative", ["dq_dt", "dp_dt"])
-        def net_no_grad(q, p, dt=1.0):
+        def net_no_grad(q, p, dt=1.0, t=0):
             with torch.no_grad():
                 q = torch.from_numpy(q).to(device, dtype=eval_dtype)
                 p = torch.from_numpy(p).to(device, dtype=eval_dtype)
@@ -225,7 +235,7 @@ def run_phase(base_dir, out_dir, phase_args):
         time_deriv_func = net_no_grad
     elif eval_type == "cnn":
         CNNDerivative = namedtuple("CNNDerivative", ["dq_dt", "dp_dt"])
-        def cnn_time_deriv(q, p, dt=1.0):
+        def cnn_time_deriv(q, p, dt=1.0, t=0):
             with torch.no_grad():
                 unsqueezed = False
                 if len(p.shape) < 3:
@@ -244,7 +254,7 @@ def run_phase(base_dir, out_dir, phase_args):
     elif eval_type in {"knn-regressor", "knn-regressor-oneshot"}:
         # Use the time_derivative
         KNNDerivative = namedtuple("KNNDerivative", ["dq_dt", "dp_dt"])
-        def model_time_deriv(q, p, dt=1.0):
+        def model_time_deriv(q, p, dt=1.0, t=0):
             x = np.concatenate([p, q], axis=-1)
             ret = net.predict(x)
             dpdt, dqdt = np.split(ret, 2, axis=-1)
@@ -252,7 +262,7 @@ def run_phase(base_dir, out_dir, phase_args):
         time_deriv_func = model_time_deriv
     elif eval_type in {"knn-predictor", "knn-predictor-oneshot"}:
         KNNPrediction = namedtuple("KNNPrediction", ["q", "p"])
-        def model_next_step(q, p, dt=1.0):
+        def model_next_step(q, p, dt=1.0, t=0):
             x = np.concatenate([p, q], axis=-1)
             ret = net.predict(x)
             next_p, next_q = np.split(ret, 2, axis=-1)
@@ -263,12 +273,21 @@ def run_phase(base_dir, out_dir, phase_args):
     elif eval_type == "integrator-baseline":
         # Use the time_derivative
         SystemDerivative = namedtuple("SystemDerivative", ["dq_dt", "dp_dt"])
-        def system_derivative(q, p, dt=1.0):
+        def system_derivative(q, p, dt=1.0, t=0):
             if torch.is_tensor(dt):
                 dt = dt.item()
             dq_dt, dp_dt = system.derivative(p=p, q=q)
             return SystemDerivative(dp_dt=dp_dt, dq_dt=dq_dt)
         time_deriv_func = system_derivative
+        if eval_dataset.system == "taylor-green":
+            # Special case for TG derivatives
+            def tg_system_derivative(q, p, dt=1.0, t=0):
+                # q is pressure
+                # p is velocity
+                d_vel, d_press = system.derivative(p=p, q=q, t=t)
+                new_press = system.pressure(t=t)
+                return SystemDerivative(dq_dt=new_press, dp_dt=d_vel)
+            time_deriv_func = tg_system_derivative
     elif eval_type == "hogn":
         # Lazy import to avoid pytorch-geometric if possible
         from methods import hogn
@@ -278,7 +297,7 @@ def run_phase(base_dir, out_dir, phase_args):
         HognMockDataset = namedtuple("HognMockDataset", ["p", "q", "dp_dt", "dq_dt", "masses"])
 
         def hogn_time_deriv_func(masses):
-            def model_time_deriv(q, p, dt=1.0):
+            def model_time_deriv(q, p, dt=1.0, t=0):
                 mocked = HognMockDataset(p=p, q=q, masses=masses,
                                          dp_dt=None, dq_dt=None)
                 bundled = dataset_geometric.package_data(dataset=[mocked],
@@ -314,7 +333,7 @@ def run_phase(base_dir, out_dir, phase_args):
 
         GNPrediction = namedtuple("GNPrediction", ["q", "p"])
         def gn_time_deriv_func(masses, edges, n_particles, vertices):
-            def model_next_step(q, p, dt=1.0):
+            def model_next_step(q, p, dt=1.0, t=0):
                 with torch.no_grad():
                     time_step_size = dt
                     p_orig_shape = p.shape
@@ -400,9 +419,9 @@ def run_phase(base_dir, out_dir, phase_args):
                                                      vel_decay=vel_decay)
         elif eval_dataset.system == "taylor-green":
             n_grid = eval_dataset.system_metadata["n_grid"]
-            space_scale = eval_dataset.system_metadata["space_scale"]
-            viscosity = eval_dataset.system_metadata["viscosity"]
-            density = eval_dataset.system_metadata["density"]
+            space_scale = trajectory.trajectory_meta["space_scale"][0].item()
+            viscosity = trajectory.trajectory_meta["viscosity"][0].item()
+            density = trajectory.trajectory_meta["density"][0].item()
             vertices = eval_dataset.system_metadata["vertices"]
             edges_dict = eval_dataset.system_metadata["edges"]
             edges = np.array([(e["a"], e["b"]) for e in edges_dict] +
@@ -427,16 +446,16 @@ def run_phase(base_dir, out_dir, phase_args):
             p_noiseless = p_noiseless.reshape((num_traj, traj_steps, -1))
             q_noiseless = q_noiseless.reshape((num_traj, traj_steps, -1))
 
-        p0 = p[:, 0]
-        q0 = q[:, 0]
-        eval_decorator = make_eval_decorator()
+        p0 = p[:, 0].detach().cpu().numpy()
+        q0 = q[:, 0].detach().cpu().numpy()
+        eval_decorator = make_eval_decorator(integrator=integrator_type)
         q0, p0 = eval_decorator.decorate_initial_cond(q0, p0)
         wrapped_time_deriv_func = eval_decorator.decorate_deriv_func(time_deriv_func)
         integrate_start = time.perf_counter()
         int_res_raw = integrators.numerically_integrate(
             integrator=integrator_type,
-            q0=q0.detach().cpu().numpy(),
-            p0=p0.detach().cpu().numpy(),
+            q0=q0,
+            p0=p0,
             num_steps=int(num_time_steps.detach().cpu().item()),
             dt=float(time_step_size.detach().cpu().item()),
             deriv_func=wrapped_time_deriv_func,
