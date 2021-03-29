@@ -200,6 +200,6 @@ def generate_data(system_args, base_logger=None):
                             "viscosity": viscosity,
                             "density": density,
                             "vertices": vertices,
-                            "edges": edges,
+                            "edges": edges_dict,
                         },
                         trajectory_metadata=trajectory_metadata)
