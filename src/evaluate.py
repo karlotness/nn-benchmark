@@ -408,9 +408,9 @@ def run_phase(base_dir, out_dir, phase_args):
                                                      vel_decay=vel_decay)
         elif eval_dataset.system == "taylor-green":
             n_grid = eval_dataset.system_metadata["n_grid"]
-            space_scale = eval_dataset.system_metadata["space_scale"]
-            viscosity = eval_dataset.system_metadata["viscosity"]
-            density = eval_dataset.system_metadata["density"]
+            space_scale = trajectory.trajectory_meta["space_scale"][0].item()
+            viscosity = trajectory.trajectory_meta["viscosity"][0].item()
+            density = trajectory.trajectory_meta["density"][0].item()
             vertices = eval_dataset.system_metadata["vertices"]
             edges_dict = eval_dataset.system_metadata["edges"]
             edges = np.array([(e["a"], e["b"]) for e in edges_dict] +
