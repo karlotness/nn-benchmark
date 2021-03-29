@@ -18,7 +18,7 @@ from collections import namedtuple
 DecoratedIntegrationResult = namedtuple("DecoratedIntegrationResult", ["q", "p"])
 
 class NullEvalDecorator:
-    def __init__(self):
+    def __init__(self, integrator):
         pass
 
     def decorate_initial_cond(self, q0, p0):
@@ -32,8 +32,14 @@ class NullEvalDecorator:
 
 
 class TaylorGreenEvalDecorator:
-    def __init__(self):
+    def __init__(self, integrator):
         self.pressure_steps = []
+        if integrator == "rk4":
+            self.stride = 4
+        elif integrator == "leapfrog":
+            self.stride = 2
+        else:
+            self.stride = 1
 
     def decorate_initial_cond(self, q0, p0):
         press = q0
@@ -47,10 +53,12 @@ class TaylorGreenEvalDecorator:
             press = self.pressure_steps[-1]
             vel = np.concatenate([q, p], axis=-1)
             dq, dp = func(press, vel, dt=dt, t=t)
-            x = torch.cat([dq, dp], dim=-1)
+            dq = dq.reshape((1, -1))
+            dp = dp.reshape((1, -1))
+            x = np.concatenate([dq, dp], axis=-1)
             n = x.shape[-1]//3
             new_press = x[..., :n]
-            nq0, np0 = np.split(x[n:], 2, axis=-1)
+            nq0, np0 = np.split(x[..., n:], 2, axis=-1)
             self.pressure_steps.append(new_press)
             return nq0, np0
 
@@ -58,7 +66,9 @@ class TaylorGreenEvalDecorator:
 
     def process_results(self, int_res):
         new_p = np.concatenate([int_res.q, int_res.p], axis=-1)
-        new_q = np.array(self.pressure_steps)
+        press_stride = self.stride
+        press_steps = self.pressure_steps[::press_stride][:-1]
+        new_q = np.vstack(press_steps)
         return DecoratedIntegrationResult(q=new_q, p=new_p)
 
 
@@ -269,11 +279,9 @@ def run_phase(base_dir, out_dir, phase_args):
             dq_dt, dp_dt = system.derivative(p=p, q=q)
             return SystemDerivative(dp_dt=dp_dt, dq_dt=dq_dt)
         time_deriv_func = system_derivative
-        if isinstance(system, taylor_green.TaylorGreenSystem):
+        if eval_dataset.system == "taylor-green":
             # Special case for TG derivatives
             def tg_system_derivative(q, p, dt=1.0, t=0):
-                if torch.is_tensor(dt):
-                    dt = dt.item()
                 dq_dt, dp_dt = system.derivative(p=p, q=q, t=t)
                 return SystemDerivative(dp_dt=dp_dt, dq_dt=dq_dt)
             time_deriv_func = tg_system_derivative
@@ -435,16 +443,16 @@ def run_phase(base_dir, out_dir, phase_args):
             p_noiseless = p_noiseless.reshape((num_traj, traj_steps, -1))
             q_noiseless = q_noiseless.reshape((num_traj, traj_steps, -1))
 
-        p0 = p[:, 0]
-        q0 = q[:, 0]
-        eval_decorator = make_eval_decorator()
+        p0 = p[:, 0].detach().cpu().numpy()
+        q0 = q[:, 0].detach().cpu().numpy()
+        eval_decorator = make_eval_decorator(integrator=integrator_type)
         q0, p0 = eval_decorator.decorate_initial_cond(q0, p0)
         wrapped_time_deriv_func = eval_decorator.decorate_deriv_func(time_deriv_func)
         integrate_start = time.perf_counter()
         int_res_raw = integrators.numerically_integrate(
             integrator=integrator_type,
-            q0=q0.detach().cpu().numpy(),
-            p0=p0.detach().cpu().numpy(),
+            q0=q0,
+            p0=p0,
             num_steps=int(num_time_steps.detach().cpu().item()),
             dt=float(time_step_size.detach().cpu().item()),
             deriv_func=wrapped_time_deriv_func,
