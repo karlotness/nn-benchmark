@@ -36,7 +36,7 @@ class TaylorGreenSystem(System):
         self.x, self.y = np.meshgrid(space_steps, space_steps)
 
     def derivative(self, q, p, t):
-        n_steps = t.shape[0]
+        n_steps = q.shape[0]
         df_t = -2 * self.viscosity * np.exp(-2 * self.viscosity * t).reshape((n_steps, 1, 1))
         # Velocity derivative
         u = np.cos(self.x) * np.sin(self.y) * df_t
