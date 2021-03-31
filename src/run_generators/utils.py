@@ -1218,9 +1218,9 @@ class MLP(TrainedNetwork):
                  hidden_dim=2048, depth=2, train_dtype="float",
                  scheduler="none", scheduler_step="epoch", end_lr=None,
                  batch_size=750, epochs=1000, validation_set=None,
-                 noise_type="none", noise_variance=0):
+                 noise_type="none", noise_variance=0, predict_type="deriv"):
         super().__init__(experiment=experiment,
-                         method="mlp",
+                         method="-".join(["mlp", predict_type]),
                          name_tail=f"{training_set.name}-d{depth}-h{hidden_dim}")
         self.training_set = training_set
         self.gpu = gpu
@@ -1236,13 +1236,15 @@ class MLP(TrainedNetwork):
         self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
         self.noise_type = noise_type
         self.noise_variance = noise_variance
+        self.predict_type = predict_type
         generate_scheduler_args(self, end_lr)
+        assert predict_type in {"deriv", "step"}
 
     def description(self):
         template = {
             "phase_args": {
                 "network": {
-                    "arch": "mlp",
+                    "arch": "-".join(["mlp", self.predict_type]),
                     "arch_args": {
                         "input_dim": self.training_set.input_size(),
                         "hidden_dim": self.hidden_dim,
@@ -1259,7 +1261,7 @@ class MLP(TrainedNetwork):
                     "max_epochs": self.epochs,
                     "try_gpu": self.gpu,
                     "train_dtype": self.train_dtype,
-                    "train_type": "mlp",
+                    "train_type": "-".join(["mlp", self.predict_type]),
                     "train_type_args": {},
                     "scheduler": self.scheduler,
                     "scheduler_step": self.scheduler_step,
@@ -1268,6 +1270,7 @@ class MLP(TrainedNetwork):
                 "train_data": {
                     "data_dir": self.training_set.path,
                     "dataset": ("taylor-green" if self.training_set.system == "taylor-green" else "snapshot"),
+                    "predict_type": self.predict_type,
                     "linearize": True,
                     "dataset_args": {},
                     "loader": {
@@ -1299,7 +1302,7 @@ class CNN(TrainedNetwork):
                  train_dtype="float",
                  scheduler="none", scheduler_step="epoch", scheduler_args={},
                  batch_size=750, epochs=1000, validation_set=None,
-                 noise_type="none", noise_variance=0):
+                 noise_type="none", noise_variance=0, predict_type="deriv"):
         base_num_chans = getattr(training_set, "n_particles", 2)
         chan_records = [
             {
@@ -1310,7 +1313,7 @@ class CNN(TrainedNetwork):
             for ic, oc, ks in chans_inout_kenel]
         name_key = ";".join([f"{cr['kernel_size']}:{cr['in_chans']}:{cr['out_chans']}" for cr in chan_records])
         super().__init__(experiment=experiment,
-                         method="cnn",
+                         method="-".join(["cnn", predict_type]),
                          name_tail=f"{training_set.name}-a{name_key}")
         self.training_set = training_set
         self.gpu = gpu
@@ -1326,12 +1329,14 @@ class CNN(TrainedNetwork):
         self.noise_type = noise_type
         self.noise_variance = noise_variance
         self.layer_defs = chan_records
+        self.predict_type = predict_type
+        assert predict_type in {"deriv", "step"}
 
     def description(self):
         template = {
             "phase_args": {
                 "network": {
-                    "arch": "cnn",
+                    "arch": "-".join(["cnn", self.predict_type]),
                     "arch_args": {
                         "nonlinearity": "relu",
                         "layer_defs": self.layer_defs,
@@ -1345,7 +1350,7 @@ class CNN(TrainedNetwork):
                     "max_epochs": self.epochs,
                     "try_gpu": self.gpu,
                     "train_dtype": self.train_dtype,
-                    "train_type": "cnn",
+                    "train_type": "-".join(["cnn", self.predict_type]),
                     "train_type_args": {},
                     "scheduler": self.scheduler,
                     "scheduler_step": self.scheduler_step,
@@ -1354,6 +1359,7 @@ class CNN(TrainedNetwork):
                 "train_data": {
                     "data_dir": self.training_set.path,
                     "dataset": "snapshot",
+                    "predict_type": self.predict_type,
                     "linearize": False,
                     "dataset_args": {},
                     "loader": {

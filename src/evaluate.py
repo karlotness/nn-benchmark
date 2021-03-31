@@ -222,7 +222,7 @@ def run_phase(base_dir, out_dir, phase_args):
             return net.time_derivative(p=p, q=q, create_graph=False)
         time_deriv_func = hnn_model_time_deriv
         hamiltonian_func = model_hamiltonian
-    elif eval_type in {"mlp", "nn-kernel"}:
+    elif eval_type in {"mlp-deriv", "nn-kernel"}:
         MLPDerivative = namedtuple("MLPDerivative", ["dq_dt", "dp_dt"])
         def net_no_grad(q, p, dt=1.0, t=0):
             with torch.no_grad():
@@ -233,7 +233,20 @@ def run_phase(base_dir, out_dir, phase_args):
                 dp = ret.dp_dt.detach().cpu().numpy()
                 return MLPDerivative(dq_dt=dq, dp_dt=dp)
         time_deriv_func = net_no_grad
-    elif eval_type == "cnn":
+    elif eval_type in {"mlp-step"}:
+        MLPPrediction = namedtuple("MLPPrediction", ["q", "p"])
+        def model_next_step(q, p, dt=1.0, t=0):
+            with torch.no_grad():
+                q = torch.from_numpy(q).to(device, dtype=eval_dtype)
+                p = torch.from_numpy(p).to(device, dtype=eval_dtype)
+                ret = net(q=q, p=p)
+                next_q = ret.q.detach().cpu().numpy()
+                next_p = ret.p.detach().cpu().numpy()
+                return MLPPrediction(q=next_q, p=next_p)
+        time_deriv_func = model_next_step
+        if integrator_type != "null":
+            raise ValueError(f"mlp-step predictions do not work with integrator {integrator_type}")
+    elif eval_type == "cnn-deriv":
         CNNDerivative = namedtuple("CNNDerivative", ["dq_dt", "dp_dt"])
         def cnn_time_deriv(q, p, dt=1.0, t=0):
             with torch.no_grad():
@@ -251,6 +264,26 @@ def run_phase(base_dir, out_dir, phase_args):
                     )
                 return res
         time_deriv_func = cnn_time_deriv
+    elif eval_type == "cnn-step":
+        CNNPrediction = namedtuple("CNNPrediction", ["q", "p"])
+        def model_next_step(q, p, dt=1.0, t=0):
+            with torch.no_grad():
+                unsqueezed = False
+                if len(p.shape) < 3:
+                    # Unsqueeze all tensors
+                    p = p.unsqueeze(1)
+                    q = q.unsqueeze(1)
+                    unsqueezed = True
+                res = net(p=p, q=q)
+                if unsqueezed:
+                    res = CNNPrediction(
+                        q=res.q[:, 0],
+                        p=res.p[:, 0],
+                    )
+                return res
+        time_deriv_func = model_next_step
+        if integrator_type != "null":
+            raise ValueError(f"cnn-step predictions do not work with integrator {integrator_type}")
     elif eval_type in {"knn-regressor", "knn-regressor-oneshot"}:
         # Use the time_derivative
         KNNDerivative = namedtuple("KNNDerivative", ["dq_dt", "dp_dt"])

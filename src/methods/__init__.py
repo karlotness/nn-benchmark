@@ -8,10 +8,14 @@ def build_network(net_args):
         return hnn.build_network(arch_args)
     elif arch == "srnn":
         return srnn.build_network(arch_args)
-    elif arch == "mlp":
-        return mlp.build_network(arch_args)
-    elif arch == "cnn":
-        return cnn.build_network(arch_args)
+    elif arch == "mlp-deriv":
+        return mlp.build_network(arch_args, predict_type="deriv")
+    elif arch == "mlp-step":
+        return mlp.build_network(arch_args, predict_type="step")
+    elif arch == "cnn-deriv":
+        return cnn.build_network(arch_args, predict_type="deriv")
+    elif arch == "cnn-step":
+        return cnn.build_network(arch_args, predict_type="step")
     elif arch in {"knn-regressor", "knn-predictor",
                   "knn-regressor-oneshot", "knn-predictor-oneshot"}:
         return neighbors.KNeighborsRegressor(n_neighbors=1)

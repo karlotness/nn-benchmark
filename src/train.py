@@ -170,6 +170,17 @@ def create_dataset(base_dir, data_args):
                                                    rollout_length=rollout_length)
         else:
             raise ValueError(f"Invalid dataset type {dataset_type}")
+
+
+        if "predict_type" in data_args:
+            predict_type = data_args["predict_type"]
+            if predict_type == "step" and dataset_type in {"snapshot", "taylor-green"}:
+                data_set = dataset.StepSnapshotDataset(data_set)
+            elif predict_type == "deriv":
+                pass
+            else:
+                raise ValueError(f"Invalid predict type {predict_type}")
+
         loader_args = data_args["loader"]
         loader_type = loader_args.get("type", "pytorch")
         pin_memory = loader_args.get("pin_memory", False)
@@ -284,40 +295,74 @@ def train_srnn(net, batch, loss_fn, train_type_args, tensor_converter):
                            total_loss_denom_incr=shape_product(p.shape))
 
 
-def train_mlp(net, batch, loss_fn, train_type_args, tensor_converter):
+def train_mlp(net, batch, loss_fn, train_type_args, tensor_converter, predict_type="deriv"):
     # Extract values from batch
     p = tensor_converter(batch.p)
     q = tensor_converter(batch.q)
-    dp_dt = tensor_converter(batch.dp_dt)
-    dq_dt = tensor_converter(batch.dq_dt)
+    pred = net(p=p, q=q)
+
     # Perform training
     # Assume snapshot dataset (shape [batch_size, n_grid])
-    deriv_pred = net(p=p, q=q)
-    dx_dt = torch.cat([dq_dt, dp_dt], dim=-1)
-    dx_dt_pred = torch.cat([deriv_pred.dq_dt, deriv_pred.dp_dt], dim=-1)
-    loss = loss_fn(dx_dt_pred, dx_dt)
+    if predict_type == "deriv":
+        dp_dt = tensor_converter(batch.dp_dt)
+        dq_dt = tensor_converter(batch.dq_dt)
+        true = torch.cat([dq_dt, dp_dt], dim=-1)
+        pred = torch.cat([pred.dq_dt, pred.dp_dt], dim=-1)
+    elif predict_type == "step":
+        p_step = tensor_converter(batch.p_step)
+        q_step = tensor_converter(batch.q_step)
+        true = torch.cat([q_step, p_step], dim=-1)
+        pred = torch.cat([pred.q, pred.p], dim=-1)
+    else:
+        raise ValueError(f"Invalid predict type {predict_type}")
+
+    loss = loss_fn(pred, true)
     return TrainLossResult(loss=loss,
                            total_loss_denom_incr=shape_product(p.shape))
 
 
-def train_cnn(net, batch, loss_fn, train_type_args, tensor_converter):
+def train_cnn(net, batch, loss_fn, train_type_args, tensor_converter, predict_type="deriv"):
     # Extract values from batch
     p = tensor_converter(batch.p)
     q = tensor_converter(batch.q)
-    dp_dt = tensor_converter(batch.dp_dt)
-    dq_dt = tensor_converter(batch.dq_dt)
+
+    unsqueeze = False
     if len(p.shape) < 3:
         # Unsqueeze all tensors
         p = p.unsqueeze(1)
         q = q.unsqueeze(1)
-        dp_dt = dp_dt.unsqueeze(1)
-        dq_dt = dq_dt.unsqueeze(1)
+        unsqueeze = True
+
     # Perform training
     # Assume snapshot dataset (shape [batch_size, n_grid])
-    deriv_pred = net(p=p, q=q)
-    dx_dt = torch.cat([dp_dt, dq_dt], dim=-1)
-    dx_dt_pred = torch.cat([deriv_pred.dp_dt, deriv_pred.dq_dt], dim=-1)
-    loss = loss_fn(dx_dt_pred, dx_dt)
+    pred = net(p=p, q=q)
+
+    if predict_type == "deriv":
+        dp_dt = tensor_converter(batch.dp_dt)
+        dq_dt = tensor_converter(batch.dq_dt)
+
+        if unsqueeze:
+            # Unsqueeze all tensors
+            dp_dt = dp_dt.unsqueeze(1)
+            dq_dt = dq_dt.unsqueeze(1)
+
+        true = torch.cat([dq_dt, dp_dt], dim=-1)
+        pred = torch.cat([pred.dq_dt, pred.dp_dt], dim=-1)
+    elif predict_type == "step":
+        p_step = tensor_converter(batch.p_step)
+        q_step = tensor_converter(batch.q_step)
+
+        if unsqueeze:
+            # Unsqueeze all tensors
+            p_step = p_step.unsqueeze(1)
+            q_step = q_step.unsqueeze(1)
+
+        true = torch.cat([q_step, p_step], dim=-1)
+        pred = torch.cat([pred.q, pred.p], dim=-1)
+    else:
+        raise ValueError(f"Invalid predict type {predict_type}")
+
+    loss = loss_fn(pred, true)
     return TrainLossResult(loss=loss,
                            total_loss_denom_incr=shape_product(p.shape))
 
@@ -354,9 +399,11 @@ def train_gn(net, batch, loss_fn, train_type_args, tensor_converter):
 TRAIN_FUNCTIONS = {
     "hnn": train_hnn,
     "srnn": train_srnn,
-    "mlp": train_mlp,
+    "mlp-deriv": lambda *args, **kwargs: train_mlp(*args, **kwargs, predict_type="deriv"),
+    "mlp-step": lambda *args, **kwargs: train_mlp(*args, **kwargs, predict_type="step"),
     "nn-kernel": train_mlp,
-    "cnn": train_cnn,
+    "cnn-deriv": lambda *args, **kwargs: train_cnn(*args, **kwargs, predict_type="deriv"),
+    "cnn-step": lambda *args, **kwargs: train_cnn(*args, **kwargs, predict_type="step"),
     "hogn": train_hogn,
     "gn": train_gn,
 }

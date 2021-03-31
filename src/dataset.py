@@ -229,6 +229,39 @@ class SnapshotDataset(data.Dataset):
         return len(self._traj_meta)
 
 
+
+StepSnapshot = namedtuple("StepSnapshot", ["name", "p", "q", "p_step", "q_step",
+                                           "t", "trajectory_meta",
+                                           "p_noiseless", "q_noiseless",
+                                           "masses", "edge_index", "vertices"])
+
+class StepSnapshotDataset(data.Dataset):
+
+    def __init__(self, snapshot_dataset):
+        self.snapshot_dataset = snapshot_dataset
+
+    def __getitem__(self, idx):
+        batch = self.snapshot_dataset[idx]
+        next_batch = self.snapshot_dataset[idx + 1]
+        return StepSnapshot(
+            name = batch.name,
+            p = batch.p,
+            q = batch.q,
+            p_step = next_batch.p_noiseless,
+            q_step = next_batch.q_noiseless,
+            p_noiseless = batch.p_noiseless,
+            q_noiseless = batch.q_noiseless,
+            trajectory_meta = batch.trajectory_meta,
+            t = batch.t,
+            vertices = batch.vertices,
+            edge_index = batch.edge_index,
+            masses = batch.masses,
+        )
+
+    def __len__(self):
+        return len(self.snapshot_dataset) - 1
+
+
 Rollout = namedtuple("Rollout", ["name", "p", "q", "dp_dt", "dq_dt",
                                  "t", "trajectory_meta",
                                  "p_noiseless", "q_noiseless",

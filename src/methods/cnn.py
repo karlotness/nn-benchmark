@@ -5,12 +5,13 @@ from .defs import NONLINEARITIES
 
 
 TimeDerivative = namedtuple("TimeDerivative", ["dq_dt", "dp_dt"])
+StepPrediction = namedtuple("StepPrediction", ["q", "p"])
 LayerDef = namedtuple("LayerDef", ["kernel_size", "in_chans", "out_chans"])
 
 
 class CNN(torch.nn.Module):
     def __init__(self, layer_defs,
-                 nonlinearity=torch.nn.ReLU):
+                 nonlinearity=torch.nn.ReLU, predict_type="deriv"):
         super().__init__()
         layers = []
         assert layer_defs[0].in_chans == layer_defs[-1].out_chans
@@ -27,6 +28,7 @@ class CNN(torch.nn.Module):
         # Remove final nonlinearity
         layers = layers[:-1]
         self.ops = torch.nn.Sequential(*layers)
+        self.predict_type = predict_type
 
     def forward(self, q, p):
         # Concatenate input
@@ -35,11 +37,20 @@ class CNN(torch.nn.Module):
         x = torch.cat((q, p), dim=-2)
         split_size = q.shape[-2]
         y = self.ops(x)
-        dq, dp = torch.split(y, [split_size, split_size], dim=-2)
-        return TimeDerivative(dq_dt=dq, dp_dt=dp)
+
+        if self.predict_type == "deriv":
+            dq, dp = torch.split(y, [split_size, split_size], dim=-2)
+            result = TimeDerivative(dq_dt=dq, dp_dt=dp)
+        elif self.predict_type == "step":
+            q, p = torch.split(y, [split_size, split_size], dim=-2)
+            result = StepPrediction(q=q, p=p)
+        else:
+            raise ValueError(f"Invalid predict type {self.predict_type}")
+
+        return result
 
 
-def build_network(arch_args):
+def build_network(arch_args, predict_type):
     nonlinearity = NONLINEARITIES[arch_args.get("nonlinearity", "relu")]
     layer_defs = []
     for record in arch_args["layer_defs"]:
@@ -50,5 +61,6 @@ def build_network(arch_args):
         )
         layer_defs.append(layer_def)
     cnn = CNN(layer_defs=layer_defs,
-              nonlinearity=nonlinearity)
+              nonlinearity=nonlinearity,
+              predict_type=predict_type)
     return cnn

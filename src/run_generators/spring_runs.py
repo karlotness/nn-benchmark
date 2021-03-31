@@ -119,11 +119,25 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
                                nonlinearity="relu")
     general_int_nets.append(nn_kernel)
     for width, depth in [(200, 3), (2048, 2)]:
-        mlp_train = utils.MLP(experiment=experiment_general,
-                              training_set=train_set,
-                              hidden_dim=width, depth=depth,
-                              validation_set=val_set, epochs=EPOCHS)
-        general_int_nets.append(mlp_train)
+        mlp_deiv_train = utils.MLP(experiment=experiment_general,
+                                   training_set=train_set,
+                                   hidden_dim=width, depth=depth,
+                                   validation_set=val_set, epochs=EPOCHS)
+                                   predict_type="deriv")
+        general_int_nets.append(mlp_deriv_train)
+        mlp_step_train = utils.MLP(experiment=experiment_general,
+                                   training_set=train_set,
+                                   hidden_dim=width, depth=depth,
+                                   validation_set=val_set, epochs=EPOCHS,
+                                   predict_type="step")
+        writable_objects.append(mlp_step_train)
+        for eval_set in eval_sets:
+            mlp_step_eval = utils.NetworkEvaluation(experiment=experiment_general,
+                                              network=mlp_step_train,
+                                              eval_set=eval_set[0],
+                                              integrator="null")
+        writable_objects.append(mlp_step_eval)
+
     writable_objects.extend(general_int_nets)
     for trained_net, eval_set, integrator in itertools.product(general_int_nets, eval_sets, EVAL_INTEGRATORS):
         writable_objects.append(
