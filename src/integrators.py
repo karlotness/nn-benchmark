@@ -78,12 +78,34 @@ def backward_euler(x0, dt, func, out_x, deriv_mat):
         x = np.linalg.solve(unknown_mat, x)
 
 
+@numba.jit(nopython=True)
+def bdf_2(x0, dt, func, out_x, deriv_mat):
+    x = x0
+    deriv_eye = np.eye(x.shape[-1], dtype=x0.dtype)
+
+    # Perform one step of backward euler to get second point.
+    # Since backward euler is second order in one step error,
+    # this should not change the order of the whole method.
+    unknown_mat = np.expand_dims(deriv_eye - dt * deriv_mat, 0)
+    x_prev = x.copy()
+    out_x[0] = x
+    x = np.linalg.solve(unknown_mat, x)
+
+    unknown_mat = np.expand_dims(deriv_eye - (2/3) * dt * deriv_mat, 0)
+    for i in range(1, out_x.shape[0]):
+        out_x[i] = x
+        tmp = x.copy()
+        x = np.linalg.solve(unknown_mat, - (1/3) * x_prev + (4/3) * x)
+        x_prev = tmp
+
+
 INTEGRATORS = {
     "euler": (euler, None),
     "leapfrog": (leapfrog, None),
     "rk4": (rk4, None),
     "null": (null_integrator, None),
     "back-euler": (backward_euler, "back_euler"),
+    "bdf-2": (bdf_2, "bdf_2"),
 }
 
 
