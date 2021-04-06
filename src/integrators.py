@@ -47,9 +47,9 @@ def rk4(q0, p0, dt, func, out_q, out_p):
         out_q[i] = q
         out_p[i] = p
         q_k1, p_k1 = func(q, p, dt, t)
-        q_k2, p_k2 = func(q + 0.5*dt*q_k1, p + 0.5*dt*p_k1, dt, t)
-        q_k3, p_k3 = func(q + 0.5*dt*q_k2, p + 0.5*dt*p_k2, dt, t)
-        q_k4, p_k4 = func(q + dt*q_k3, p + dt*p_k3, dt, t)
+        q_k2, p_k2 = func(q + 0.5*dt*q_k1, p + 0.5*dt*p_k1, dt, t + 0.5*dt)
+        q_k3, p_k3 = func(q + 0.5*dt*q_k2, p + 0.5*dt*p_k2, dt, t + 0.5*dt)
+        q_k4, p_k4 = func(q + dt*q_k3, p + dt*p_k3, dt, t + dt)
         p_next = p + (1./6.) * dt * (p_k1 + 2 * p_k2 + 2 * p_k3 + p_k4)
         q_next = q + (1./6.) * dt * (q_k1 + 2 * q_k2 + 2 * q_k3 + q_k4)
         t += dt
