@@ -111,14 +111,13 @@ class SpringMeshSystem(System):
             q_dot = q_dot.reshape((-1, n_particles, n_dims))
             # Compute length of each spring and "diff" directions of the forces
             diffs = q[:, edge_indices[0], :] - q[:, edge_indices[1], :]
-            diffs_vel = q_dot[:, edge_indices[0], :] - q_dot[:, edge_indices[1], :]
             lengths = np.sqrt((diffs ** 2).sum(axis=-1))
             # Compute forces
-            edge_forces = ((np.expand_dims(-1 * spring_consts * (lengths - rest_lengths) / lengths, axis=-1) * diffs)
-                           - viscosity_constant * diffs_vel)
+            edge_forces = (np.expand_dims(-1 * spring_consts * (lengths - rest_lengths) / lengths, axis=-1) * diffs)
             # Gather forces for each of their "lead" particles
             forces = np.zeros(shape=(q.shape[0], n_particles, n_dims), dtype=q.dtype)
             gather_forces(edge_forces=edge_forces, out=forces)
+            forces -= viscosity_constant * q_dot
             # Mask forces on fixed particles
             forces[:, fixed_mask, :] = 0
             return forces
@@ -145,15 +144,11 @@ class SpringMeshSystem(System):
         jac_idx_arr = np.arange(n_particles * n_dims).reshape((n_particles, n_dims))
         arr_size = n_particles * n_dims
         eye_n_dims = np.tile(np.expand_dims(np.eye(n_dims), axis=0), (2*len(self.edges), 1, 1))
-        jac_b = np.zeros((arr_size, arr_size))
+        jac_b = - viscosity_constant * np.eye(arr_size, arr_size)
         I = np.eye(n_dims * n_particles)
         zeromat = np.zeros_like(I)
         I_zero = np.block([I, zeromat])
         zero_I = np.block([zeromat, I])
-        for edge in self.edges:
-            for a, b in [(edge.a, edge.b), (edge.b, edge.a)]:
-                jac_b[jac_idx_arr[a], jac_idx_arr[b]] += viscosity_constant
-                jac_b[jac_idx_arr[a], jac_idx_arr[a]] -= viscosity_constant
         jac_idx_arr.setflags(write=False)
         eye_n_dims.setflags(write=False)
         jac_b.setflags(write=False)
@@ -210,6 +205,20 @@ class SpringMeshSystem(System):
             q_dot_rows = zero_I - dt * minv_jf
             return np.concatenate((q_rows, q_dot_rows), axis=0)
 
+        @jit(nopython=True)
+        def _bdf_2_func(q_prev, q_prev_prev, q_dot_prev, q_dot_prev_prev, q_next, q_dot_next, dt):
+            forces = compute_forces(q_next, q_dot_next).reshape((-1, ))
+            q_val = q_next - (4 / 3) * q_prev + (1 / 3) * q_prev_prev - (2 / 3) * dt * q_dot_next
+            q_dot_val = q_dot_next - (4 / 3) * q_dot_prev + (1 / 3) * q_dot_prev_prev - (2 / 3) * dt * M_inv * forces
+            return np.concatenate((q_val, q_dot_val), axis=-1)
+
+        @jit(nopython=True)
+        def _bdf_2_jac(q_prev, q_dot_prev, q_next, q_dot_next, dt):
+            minv_jf = np.diag(M_inv) @ _force_grad(q_next, q_dot_next)
+            q_rows = I_zero - ((2 / 3) * dt)**2 * minv_jf
+            q_dot_rows = zero_I - (2 / 3) * dt * minv_jf
+            return np.concatenate((q_rows, q_dot_rows), axis=0)
+
         # Do the newton iterations
         @jit(nopython=True)
         def compute_next_step(q_prev, q_dot_prev, dt):
@@ -233,6 +242,31 @@ class SpringMeshSystem(System):
                     break
             return q_next, q_dot_next
 
+        # Do the newton iterations
+        @jit(nopython=True)
+        def compute_next_step_bdf_2(q_prev, q_prev_prev, q_dot_prev, q_dot_prev_prev, dt):
+            split_idx = n_dims * n_particles
+            q_prev = q_prev.reshape((-1, ))
+            q_prev_prev = q_prev_prev.reshape((-1, ))
+            q_dot_prev = q_dot_prev.reshape((-1, ))
+            q_dot_prev_prev = q_dot_prev_prev.reshape((-1, ))
+            q_next = q_prev.copy()
+            q_dot_next = q_dot_prev.copy()
+            val = _bdf_2_func(q_prev, q_prev_prev, q_dot_prev, q_dot_prev_prev, q_next, q_dot_next, dt)
+            num_iter = 0
+            while np.linalg.norm(val) > 1e-12:
+                val = _bdf_2_func(q_prev, q_prev_prev, q_dot_prev, q_dot_prev_prev, q_next, q_dot_next, dt)
+                jac = _bdf_2_jac(q_prev, q_dot_prev, q_next, q_dot_next, dt)
+                jac_inv_prod = np.linalg.solve(jac, val)
+                q_incr = jac_inv_prod[:split_idx]
+                q_dot_incr = jac_inv_prod[split_idx:]
+                q_next = q_next - q_incr
+                q_dot_next = q_dot_next - q_dot_incr
+                num_iter += 1
+                if num_iter > 50:
+                    break
+            return q_next, q_dot_next
+
         @jit(nopython=True)
         def back_euler(q0, p0, dt, out_q, out_p):
             q = q0.reshape((-1, ))
@@ -243,6 +277,21 @@ class SpringMeshSystem(System):
                 q, q_dot = compute_next_step(q, q_dot, dt)
         self.back_euler = back_euler
 
+        @jit(nopython=True)
+        def bdf_2(q0, p0, dt, out_q, out_p):
+            q_prev = q0.reshape((-1, ))
+            q_dot_prev = M_inv * p0.reshape((-1, ))
+            out_q[0] = q_prev
+            out_p[0] = masses_repeats * q_dot_prev
+            q, q_dot = compute_next_step(q_prev, q_dot_prev, dt)
+            for i in range(1, out_q.shape[0]):
+                out_q[i] = q
+                out_p[i] = masses_repeats * q_dot
+                tmp = (q, q_dot)
+                q, q_dot = compute_next_step_bdf_2(q, q_prev, q_dot, q_dot_prev, dt)
+                q_prev, q_dot_prev = tmp
+        self.bdf_2 = bdf_2
+
     def _args_compatible(self, n_dims, particles, edges, vel_decay):
         return (self.n_dims == n_dims and
                 self.particles == particles and
@@ -250,7 +299,7 @@ class SpringMeshSystem(System):
                 self.viscosity_constant == vel_decay)
 
     def hamiltonian(self, q, p):
-        return np.zeros(q.shape[0], q.shape[1])
+        return np.zeros([q.shape[0], q.shape[1]])
 
     def _compute_next_step(self, q, q_dot, time_step_size, mat_unknown_factors):
         # Input states are (n_particle, n_dim)
