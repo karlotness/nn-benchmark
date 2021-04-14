@@ -393,17 +393,18 @@ class SpringMeshAllPerturb(InitialConditionSource):
 
     def _generate_initial_condition(self):
         particles, springs = self.mesh_generator.generate_mesh()
+        perturbs = self._sample_ring_uniform(min(self.magnitude_range),
+                                             max(self.magnitude_range),
+                                             num_pts=self.n_particles)
         # Apply perturbation
-        for particle in particles:
+        for pi, particle in enumerate(particles):
             if particle["is_fixed"]:
                 # Do not perturb fixed particles
                 continue
             # Perturb this particle using interpolated values
-            perturb = self._sample_ring_uniform(min(self.magnitude_range),
-                                                max(self.magnitude_range),
-                                                num_pts=1)
-            perturb_x = perturb[0, 0]
-            perturb_y = perturb[0, 1]
+            perturb = perturbs[pi, :]
+            perturb_x = perturb[0]
+            perturb_y = perturb[1]
             # Apply perturbation
             particle["position"][0] += perturb_x
             particle["position"][1] += perturb_y
