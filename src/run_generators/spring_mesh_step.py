@@ -119,7 +119,7 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
             mlp_step_train = utils.MLP(experiment=experiment_general,
                                        training_set=train_set[coarse],
                                        hidden_dim=width, depth=depth,
-                                       validation_set=val_set[coarse], epochs=EPOCHS,
+                                       validation_set=val_set[coarse], epochs=EPOCHS*(coarse+1),
                                        predict_type="step")
             writable_objects.append(mlp_step_train)
             for eval_set in eval_sets:
