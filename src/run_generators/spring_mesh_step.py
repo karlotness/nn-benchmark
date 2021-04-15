@@ -127,7 +127,7 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
                                                   network=mlp_step_train,
                                                   eval_set=eval_set[coarse],
                                                   integrator="null")
-            writable_objects.append(mlp_step_eval)
+                writable_objects.append(mlp_step_eval)
 
     writable_objects.extend(general_int_nets)
     for trained_net, eval_set, integrator in itertools.product(general_int_nets, eval_sets, EVAL_INTEGRATORS):
