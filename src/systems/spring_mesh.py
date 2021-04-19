@@ -1,10 +1,13 @@
 import numpy as np
 from scipy.linalg import lu_factor, lu_solve
+from scipy import sparse
+from scipy.sparse import linalg as sp_linalg
 from .defs import System, TrajectoryResult, SystemResult, StatePair, SystemCache
 from collections import namedtuple
 import logging
 import time
 from numba import jit
+import itertools
 
 
 Particle = namedtuple("Particle", ["mass", "is_fixed"])
@@ -31,7 +34,7 @@ def batch_outer(v, w):
 
 
 class SpringMeshSystem(System):
-    def __init__(self, n_dims, particles, edges, vel_decay):
+    def __init__(self, n_dims, particles, edges, vel_decay, _newton_iter=True):
         super().__init__()
         self.particles = particles
         self.edges = edges
@@ -42,6 +45,8 @@ class SpringMeshSystem(System):
         self.masses.setflags(write=False)
         self.fixed_mask = np.array([p.is_fixed for p in self.particles], dtype=np.bool)
         self.fixed_mask.setflags(write=False)
+        self.fixed_idxs = self.fixed_mask.nonzero()[0]
+        self.fixed_idxs.setflags(write=False)
         self.viscosity_constant = vel_decay
         # Gather other data
         self.edge_indices = np.array([(e.a, e.b) for e in self.edges] +
@@ -59,34 +64,45 @@ class SpringMeshSystem(System):
         self.col_coords = np.concatenate([np.repeat(0, 2 * len(edges)),
                                           np.repeat(1, 2 * len(edges))])
         # Compute the update matrices
-        mass_matrix = np.diag(np.tile(np.expand_dims(self.masses, 1), (1, self.n_dims)).reshape((-1,)))
-        mass_matrix.setflags(write=False)
-        assert mass_matrix.shape == (self.n_particles * self.n_dims, self.n_particles * self.n_dims)
+        self.mass_mults = np.tile(np.expand_dims(self.masses, 1), (1, self.n_dims)).reshape((-1,))
+        self.mass_mults.setflags(write=False)
+        self._mass_matrix_sparse = sparse.diags(self.mass_mults)
+        assert self._mass_matrix_sparse.shape == (self.n_particles * self.n_dims, self.n_particles * self.n_dims)
         # Build the stiffness matrix
-        stiff_mat_parts = [[np.zeros((self.n_dims, self.n_dims)) for _ in range(self.n_particles)] for _ in range(self.n_particles)]
+        stiff_mat_parts = np.empty((self.n_particles, self.n_particles), dtype=object)
         for edge in self.edges:
             m_aa = np.diag([edge.spring_const] * self.n_dims)
             m_ab = np.diag([-1 * edge.spring_const] * self.n_dims)
             m_ba = m_ab
             m_bb = m_aa
-            stiff_mat_parts[edge.a][edge.a] += m_aa
-            stiff_mat_parts[edge.a][edge.b] += m_ab
-            stiff_mat_parts[edge.b][edge.a] += m_ba
-            stiff_mat_parts[edge.b][edge.b] += m_bb
-        stiff_mat = np.block(stiff_mat_parts)
-        stiff_mat.setflags(write=False)
+            for (ai, bi) in itertools.product((edge.a, edge.b), repeat=2):
+                if stiff_mat_parts[ai, bi] is None:
+                    stiff_mat_parts[ai, bi] = np.zeros((self.n_dims, self.n_dims))
+            stiff_mat_parts[edge.a, edge.a] += m_aa
+            stiff_mat_parts[edge.a, edge.b] += m_ab
+            stiff_mat_parts[edge.b, edge.a] += m_ba
+            stiff_mat_parts[edge.b, edge.b] += m_bb
+        stiff_mat = sparse.bmat(stiff_mat_parts)
         assert stiff_mat.shape == (self.n_particles * self.n_dims, self.n_particles * self.n_dims)
         # Compute the selection matrix for non-fixed vertices
         n_non_fixed = self.n_particles - np.count_nonzero(self.fixed_mask)
-        unfixed_mask_parts = [[np.zeros((self.n_dims, self.n_dims), dtype=np.bool) for _ in range(self.n_particles)] for _ in range(n_non_fixed)]
+        unfixed_mask_parts = np.empty((n_non_fixed, self.n_particles), dtype=object)
         for i, j in enumerate(np.nonzero(np.logical_not(self.fixed_mask))[0]):
-            unfixed_mask_parts[i][j] = np.eye(self.n_dims, dtype=np.bool)
-        unfixed_mask_mat = np.block(unfixed_mask_parts)
-        unfixed_mask_mat.setflags(write=False)
+            unfixed_mask_parts[i, j] = np.eye(self.n_dims, dtype=np.bool)
+        for i in range(unfixed_mask_parts.shape[0]):
+            if unfixed_mask_parts[i, 0] is None:
+                unfixed_mask_parts[i, 0] = np.zeros((self.n_dims, self.n_dims), dtype=np.bool)
+        for i in range(unfixed_mask_parts.shape[1]):
+            if unfixed_mask_parts[0, i] is None:
+                unfixed_mask_parts[0, i] = np.zeros((self.n_dims, self.n_dims), dtype=np.bool)
+        unfixed_mask_mat = sparse.bmat(unfixed_mask_parts)
+
+
+        #unfixed_mask_mat.setflags(write=False)
         assert unfixed_mask_mat.shape == (n_non_fixed * self.n_dims, self.n_particles * self.n_dims)
         # Store system matrices
-        self._mass_matrix = mass_matrix
         self._select_matrix = unfixed_mask_mat
+        _, self._select_idx_in = self._select_matrix.nonzero()
         self._stiff_mat = stiff_mat
         # Set up support functions for computing derivatives
         edge_indices = self.edge_indices
@@ -96,6 +112,7 @@ class SpringMeshSystem(System):
         spring_consts = self.spring_consts
         rest_lengths = self.rest_lengths
         fixed_mask = self.fixed_mask
+        fixed_idxs = self.fixed_mask
         masses = self.masses
         masses_expanded = np.expand_dims(masses, axis=(0, -1))
         masses_repeats = np.tile(np.expand_dims(masses, -1), (1, n_dims)).reshape((-1, ))
@@ -119,7 +136,7 @@ class SpringMeshSystem(System):
             gather_forces(edge_forces=edge_forces, out=forces)
             forces -= viscosity_constant * q_dot
             # Mask forces on fixed particles
-            forces[:, fixed_mask, :] = 0
+            forces[:, fixed_idxs, :] = 0
             return forces
         self.compute_forces = compute_forces
         # Set up free derivative function
@@ -134,13 +151,15 @@ class SpringMeshSystem(System):
             forces = compute_forces(q=q, q_dot=q_dot)
             # Update positions
             pos = (1 / masses_expanded) * p
-            pos[:, fixed_mask, :] = 0
+            pos[:, fixed_idxs, :] = 0
             q_out = pos.reshape(orig_q_shape)
             p_out = forces.reshape(orig_p_shape)
             return q_out, p_out
         self.derivative = derivative
 
         # Configure functions for Newton iteration
+        if not _newton_iter:
+            return
         jac_idx_arr = np.arange(n_particles * n_dims).reshape((n_particles, n_dims))
         arr_size = n_particles * n_dims
         eye_n_dims = np.tile(np.expand_dims(np.eye(n_dims), axis=0), (2*len(self.edges), 1, 1))
@@ -188,7 +207,7 @@ class SpringMeshSystem(System):
             # Store results from term_ab
             store_jac(term_ab, jac)
             res = np.concatenate((jac, jac_b), axis=-1)
-            res[np.repeat(fixed_mask, n_dims)] = 0
+            res[np.repeat(fixed_idxs, n_dims)] = 0
             return res
 
         @jit(nopython=True)
@@ -301,25 +320,25 @@ class SpringMeshSystem(System):
     def hamiltonian(self, q, p):
         return np.zeros([q.shape[0], q.shape[1]])
 
-    def _compute_next_step(self, q, q_dot, time_step_size, mat_unknown_factors):
+    def _compute_next_step(self, q, q_dot, time_step_size, mat_solver):
         # Input states are (n_particle, n_dim)
         forces_orig = self.compute_forces(q=q, q_dot=q_dot)[0]
         forces = forces_orig.reshape((-1,))
         q = q.reshape((-1, ))
         q_dot = q_dot.reshape((-1, ))
-        known = self._select_matrix @ (self._mass_matrix @ q_dot) + (time_step_size * (self._select_matrix @ forces))
+        known = ((self.mass_mults * q_dot)[self._select_idx_in] + (time_step_size * (forces[self._select_idx_in])))
         # Two of the values to return
-        q_dot_hat_next = lu_solve(mat_unknown_factors, known)
-        q_next = q + time_step_size * (self._select_matrix.T @ q_dot_hat_next)
+        q_dot_hat_next = mat_solver(known)
+        q_next = q.copy()
+        q_next[self._select_idx_in] += time_step_size * q_dot_hat_next
         # Reshape
-        q_dot_next = (self._select_matrix.T @ q_dot_hat_next).reshape((self.n_particles, self.n_dims))
+        q_dot_next = np.zeros_like(q_dot)
+        q_dot_next[self._select_idx_in] = q_dot_hat_next
         q_next = q_next.reshape((self.n_particles, self.n_dims))
         # Get the p values to return
-        p = np.zeros_like(q_dot, shape=(self.n_particles, self.n_dims))
-        for i, part in enumerate(self.particles):
-            if part.is_fixed:
-                continue
-            p[i] = part.mass * q_dot_next[i]
+        p = (self.mass_mults * q_dot_next).reshape((self.n_particles, self.n_dims))
+        p[self.fixed_idxs] = 0
+        q_dot_next = q_dot_next.reshape((self.n_particles, self.n_dims))
         return q_next, q_dot_next, p, forces_orig
 
     def generate_trajectory(self, q0, p0, num_time_steps, time_step_size,
@@ -337,8 +356,8 @@ class SpringMeshSystem(System):
 
         # Compute updates using explicit Euler
         # compute update matrices
-        mat_unknown = self._select_matrix @ (self._mass_matrix - (time_step_size ** 2) * self._stiff_mat) @ self._select_matrix.T
-        mat_unknown_factors = lu_factor(mat_unknown)
+        mat_unknown = self._select_matrix @ (self._mass_matrix_sparse - (time_step_size ** 2) * self._stiff_mat) @ self._select_matrix.T
+        mat_solver = sp_linalg.factorized(mat_unknown.tocsc())
 
         init_vel = np.zeros_like(q0)
         for i, part in enumerate(self.particles):
@@ -355,7 +374,7 @@ class SpringMeshSystem(System):
             q_dot[i] /= part.mass
         for step_idx in range(1, num_steps):
             q, q_dot, p, _p_dot_next = self._compute_next_step(q=q, q_dot=q_dot, time_step_size=time_step_size,
-                                                               mat_unknown_factors=mat_unknown_factors)
+                                                               mat_solver=mat_solver)
             if step_idx % subsample == 0:
                 p_dot = self.compute_forces(q=q, q_dot=p)[0]
                 qs.append(q)
@@ -467,7 +486,7 @@ def generate_data(system_args, base_logger=None):
                                         edges=edges, vel_decay=vel_decay)
         if system is None:
             system = SpringMeshSystem(n_dims=n_dims, particles=particles,
-                                      edges=edges, vel_decay=vel_decay)
+                                      edges=edges, vel_decay=vel_decay, _newton_iter=False)
             spring_mesh_cache.insert(system)
 
         traj_gen_start = time.perf_counter()
