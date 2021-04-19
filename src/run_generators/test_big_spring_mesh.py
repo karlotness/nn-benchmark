@@ -10,7 +10,7 @@ parser.add_argument("base_dir", type=str,
 
 args = parser.parse_args()
 base_dir = pathlib.Path(args.base_dir)
-mesh_size = 20
+mesh_size = 80
 
 EPOCHS = 400
 GN_EPOCHS = 5
