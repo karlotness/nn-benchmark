@@ -2,13 +2,11 @@ name: nn-benchmark
 channels:
   - pytorch
   - defaults
-  - gpytorch
 dependencies:
   - python=3.8
   - scipy
   - pytorch=1.7.1
   - cudatoolkit=11.0
-  - nodejs
   - matplotlib
   - jupyterlab
   - ipywidgets
@@ -17,7 +15,6 @@ dependencies:
   - pandas
   - joblib
   - numba
-  - gpytorch
   - git
   - pip
   - pip:
