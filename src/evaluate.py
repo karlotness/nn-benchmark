@@ -10,7 +10,7 @@ from train import create_dataset as train_create_dataset
 import methods
 import dataset
 import integrators
-from systems import spring, wave, particle, spring_mesh, taylor_green
+from systems import spring, wave, particle, spring_mesh, taylor_green, navier_stokes
 import joblib
 from collections import namedtuple
 
@@ -460,6 +460,10 @@ def run_phase(base_dir, out_dir, phase_args):
             edges = np.array([(e["a"], e["b"]) for e in edges_dict] +
                              [(e["b"], e["a"]) for e in edges_dict], dtype=np.int64).T
             system = taylor_green.system_from_records(n_grid=n_grid, space_scale=space_scale, viscosity=viscosity, density=density, vertices=vertices, edges=edges_dict)
+        elif eval_dataset.system == "navier-stokes":
+            grid_resolution = eval_dataset.system_metadata["grid_resolution"]
+            viscosity = trajectory.trajectory_meta["viscosity"][0].item()
+            system = navier_stokes.system_from_records(grid_resolution=grid_resolution, viscosity=viscosity)
         else:
             raise ValueError(f"Unknown system type {eval_dataset.system}")
 
