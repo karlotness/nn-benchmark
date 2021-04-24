@@ -190,7 +190,11 @@ def generate_data(system_args, base_logger=None):
 
         # Generate trajectory
         traj_gen_start = time.perf_counter()
-        traj_result = system.generate_trajectory()
+        traj_result = system.generate_trajectory(
+            num_time_steps=num_time_steps,
+            time_step_size=time_step_size,
+            in_velocity=in_velocity,
+        )
         traj_gen_elapsed = time.perf_counter() - traj_gen_start
         logger.info(f"Generated {traj_name} in {traj_gen_elapsed} sec")
 
