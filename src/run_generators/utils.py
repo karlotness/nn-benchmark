@@ -503,6 +503,19 @@ class TaylorGreenInitialConditionSource(InitialConditionSource):
         return state
 
 
+class NavierStokesInitialConditionSource(InitialConditionSource):
+    def __init__(self,
+                 velocity_range=(1.25, 1.75)):
+        super().__init__()
+        self.velocity_range = velocity_range
+
+    def _generate_initial_condition(self):
+        velocity = np.random.uniform(*self.velocity_range)
+        return {
+            "in_velocity": velocity,
+        }
+
+
 class WritableDescription:
     def __init__(self, experiment, phase, name):
         self.experiment = experiment
@@ -818,6 +831,55 @@ class TaylorGreenDataset(Dataset):
 
     def input_size(self):
         return 3 * (self.n_grid ** 2)
+
+
+class NavierStokesDataset(Dataset):
+    def __init__(self, experiment, initial_cond_source, num_traj,
+                 set_type="train",
+                 num_time_steps=10, time_step_size=0.08):
+        noise_sigma = 0.0
+        super().__init__(experiment=experiment,
+                         name_tail=f"n{num_traj}-t{num_time_steps}-n{noise_sigma}",
+                         system="navier-stokes",
+                         set_type=set_type)
+        self.num_traj = num_traj
+        self.initial_cond_source = initial_cond_source
+        self.num_time_steps = num_time_steps
+        self.time_step_size = time_step_size
+        self.initial_conditions = self.initial_cond_source.sample_initial_conditions(self.num_traj)
+        assert isinstance(self.initial_cond_source, NavierStokesInitialConditionSource)
+
+    def description(self):
+        trajectories = []
+        for icond in self.initial_conditions:
+            traj = {
+                "viscosity": 0.001,
+                "in_velocity": 1.5,
+                "num_time_steps": self.num_time_steps,
+                "time_step_size": self.time_step_size,
+            }
+            traj.update(icond)
+            trajectories.append(traj)
+        # Generate template
+        template = {
+            "phase_args": {
+                "system": "navier-stokes",
+                "system_args": {
+                    "grid_resolution": 0.01,
+                    "trajectory_defs": trajectories,
+                }
+            },
+            "slurm_args": {
+                "gpu": False,
+                "time": "02:30:00",
+                "cpus": 4,
+                "mem": 6,
+            },
+        }
+        return template
+
+    def input_size(self):
+        return 9282 * 3
 
 
 class ExistingDataset:
