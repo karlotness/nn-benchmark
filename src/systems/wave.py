@@ -268,7 +268,7 @@ def generate_data(system_args, base_logger=None):
             # Deduplicate noiseless trajectory
             del trajectories[f"{traj_name}_p_noiseless"]
             del trajectories[f"{traj_name}_q_noiseless"]
-            traj_keys = trajectory_metadata[-1]
+            traj_keys = trajectory_metadata[-1]["field_keys"]
             traj_keys["q_noiseless"] = traj_keys["q"]
             traj_keys["p_noiseless"] = traj_keys["p"]
 
