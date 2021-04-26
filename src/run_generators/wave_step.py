@@ -21,7 +21,7 @@ WAVE_N_GRID = 125
 EVAL_INTEGRATORS = ["leapfrog", "euler", "rk4"]
 
 COARSE_LEVELS = [1, 2, 4, 8, 16]
-TRAIN_SET_SIZES = [1000]
+TRAIN_SET_SIZES = [50]
 
 experiment_general = utils.Experiment("wave-step")
 
