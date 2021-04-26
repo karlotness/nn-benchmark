@@ -568,7 +568,7 @@ class SpringDataset(Dataset):
     def __init__(self, experiment, initial_cond_source, num_traj,
                  set_type="train",
                  num_time_steps=30, time_step_size=0.3, subsampling=1,
-                 noise_sigma=0.0,
+                 noise_sigma=0,
                  mesh_based=False):
         super().__init__(experiment=experiment,
                          name_tail=f"n{num_traj}-t{num_time_steps}-n{noise_sigma}",
@@ -620,7 +620,7 @@ class WaveDataset(Dataset):
     def __init__(self, experiment, initial_cond_source, num_traj,
                  set_type="train", n_grid=250,
                  num_time_steps=200, time_step_size=0.1, wave_speed=0.1,
-                 subsampling=1000, noise_sigma=0.0):
+                 subsampling=1000, noise_sigma=0):
         super().__init__(experiment=experiment,
                          name_tail=f"n{num_traj}-t{num_time_steps}-n{noise_sigma}",
                          system="wave",
@@ -675,7 +675,7 @@ class WaveDataset(Dataset):
 class ParticleDataset(Dataset):
     def __init__(self, experiment, initial_cond_source, num_traj,
                  set_type="train", n_dim=2, n_particles=2,
-                 num_time_steps=200, time_step_size=0.1, noise_sigma=0.0,
+                 num_time_steps=200, time_step_size=0.1, noise_sigma=0,
                  g=1.0, rtol=1e-6):
         super().__init__(experiment=experiment,
                          name_tail=f"n{num_traj}-t{num_time_steps}-n{noise_sigma}",
@@ -733,7 +733,7 @@ class SpringMeshDataset(Dataset):
     def __init__(self, experiment, initial_cond_source, num_traj,
                  set_type="train",
                  num_time_steps=500, time_step_size=0.1,
-                 subsampling=10, noise_sigma=0.0, vel_decay=0.1):
+                 subsampling=10, noise_sigma=0, vel_decay=0.1):
         super().__init__(experiment=experiment,
                          name_tail=f"n{num_traj}-t{num_time_steps}-n{noise_sigma}",
                          system="spring-mesh",
@@ -785,7 +785,7 @@ class TaylorGreenDataset(Dataset):
     def __init__(self, experiment, initial_cond_source, num_traj,
                  set_type="train", n_grid=250,
                  num_time_steps=200, time_step_size=0.1):
-        noise_sigma = 0.0
+        noise_sigma = 0
         super().__init__(experiment=experiment,
                          name_tail=f"n{num_traj}-t{num_time_steps}-n{noise_sigma}",
                          system="taylor-green",
@@ -837,7 +837,7 @@ class NavierStokesDataset(Dataset):
     def __init__(self, experiment, initial_cond_source, num_traj,
                  set_type="train",
                  num_time_steps=10, time_step_size=0.08):
-        noise_sigma = 0.0
+        noise_sigma = 0
         super().__init__(experiment=experiment,
                          name_tail=f"n{num_traj}-t{num_time_steps}-n{noise_sigma}",
                          system="navier-stokes",

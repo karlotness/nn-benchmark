@@ -125,7 +125,7 @@ def generate_data(system_args, base_logger=None):
         # Extract parameters
         num_time_steps = traj_def["num_time_steps"]
         time_step_size = traj_def["time_step_size"]
-        noise_sigma = traj_def.get("noise_sigma", 0.0)
+        noise_sigma = traj_def.get("noise_sigma", 0)
         subsample = int(traj_def.get("subsample", 1))
 
         # Generate trajectory
@@ -167,6 +167,15 @@ def generate_data(system_args, base_logger=None):
              "timing": {
                  "traj_gen_time": traj_gen_end - traj_gen_start
              }})
+
+        if noise_sigma == 0:
+            # Deduplicate noiseless trajectory
+            del trajectories[f"{traj_name}_p_noiseless"]
+            del trajectories[f"{traj_name}_q_noiseless"]
+            traj_keys = trajectory_metadata[-1]
+            traj_keys["q_noiseless"] = traj_keys["q"]
+            traj_keys["p_noiseless"] = traj_keys["p"]
+
     logger.info("Done generating trajectories")
 
     return SystemResult(trajectories=trajectories,
