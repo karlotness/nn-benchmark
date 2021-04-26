@@ -11,7 +11,7 @@ parser.add_argument("base_dir", type=str,
 
 EPOCHS = 400
 GN_EPOCHS = 25
-NUM_REPEATS = 1
+NUM_REPEATS = 3
 # Spring base parameters
 SPRING_END_TIME = 2 * math.pi
 SPRING_DT = 0.00781
@@ -96,43 +96,37 @@ for coarse, train_set in train_sets:
                                              training_set=train_set,
                                              eval_set=eval_set)
         writable_objects.append(knn_pred)
-        for integrator in EVAL_INTEGRATORS:
-            knn_reg = utils.KNNRegressorOneshot(experiment_general,
-                                                training_set=train_set,
-                                                eval_set=eval_set,
-                                                integrator=integrator)
-            writable_objects.append(knn_reg)
 
 # Emit MLP, GN, NNkernel runs
 for (coarse, train_set), _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
     # Only one integrator for this one, the "null" integrator
-    gn_train = utils.GN(experiment=experiment_general,
-                        training_set=train_set,
-                        validation_set=val_sets[coarse],
-                        epochs=GN_EPOCHS)
-    writable_objects.append(gn_train)
-    for eval_set in eval_sets[coarse]:
-        gn_eval = utils.NetworkEvaluation(experiment=experiment_general,
-                                          network=gn_train,
-                                          eval_set=eval_set,
-                                          integrator="null")
-        writable_objects.append(gn_eval)
+    # gn_train = utils.GN(experiment=experiment_general,
+    #                     training_set=train_set,
+    #                     validation_set=val_sets[coarse],
+    #                     epochs=GN_EPOCHS)
+    # writable_objects.append(gn_train)
+    # for eval_set in eval_sets[coarse]:
+    #     gn_eval = utils.NetworkEvaluation(experiment=experiment_general,
+    #                                       network=gn_train,
+    #                                       eval_set=eval_set,
+    #                                       integrator="null")
+    #     writable_objects.append(gn_eval)
     # Other runs work across all integrators
     general_int_nets = []
-    nn_kernel = utils.NNKernel(experiment=experiment_general,
-                               training_set=train_set,
-                               learning_rate=0.001, weight_decay=0.0001,
-                               hidden_dim=4096, train_dtype="float",
-                               optimizer="sgd",
-                               batch_size=750, epochs=EPOCHS, validation_set=val_sets[coarse],
-                               nonlinearity="relu")
-    general_int_nets.append(nn_kernel)
+    # nn_kernel = utils.NNKernel(experiment=experiment_general,
+    #                            training_set=train_set,
+    #                            learning_rate=0.001, weight_decay=0.0001,
+    #                            hidden_dim=4096, train_dtype="float",
+    #                            optimizer="sgd",
+    #                            batch_size=750, epochs=EPOCHS, validation_set=val_sets[coarse],
+    #                            nonlinearity="relu")
+    # general_int_nets.append(nn_kernel)
     for width, depth in [(200, 3), (2048, 2)]:
         mlp_deriv_train = utils.MLP(experiment=experiment_general,
                                     training_set=train_set,
                                     hidden_dim=width, depth=depth,
                                     validation_set=val_sets[coarse], epochs=EPOCHS,
-                                    predict_type="deriv")
+                                    predict_type="step")
         general_int_nets.append(mlp_deriv_train)
         for eval_set in eval_sets[coarse]:
             mlp_deriv_eval = utils.NetworkEvaluation(experiment=experiment_general,
