@@ -8,6 +8,7 @@ import json
 import collections
 import os
 import utils
+import time
 
 PHASES = ["data_gen", "train", "eval"]
 
@@ -232,6 +233,7 @@ def do_slurm_launch(run_descr, root_directory):
             container_path = container_path.resolve()
             run_cmd = f"singularity run --nv '{container_path}' python3 main.py '{run_descr}' '{root_directory}'"
     try:
+        time.sleep(0.5)
         subprocess.run(["sbatch",
                         "--wrap", run_cmd,
                         "--job-name", f"{shortname}",
