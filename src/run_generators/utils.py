@@ -544,6 +544,8 @@ class WritableDescription:
         # Update values for experiment
         descr.update(self.description())
         # Write description to file
+        if(out_path.is_file()):
+            raise ValueError(f"Description already exists at: {out_path}")
         out_path.parent.mkdir(parents=True, exist_ok=True)
         with open(out_path, "w", encoding="utf8") as out_file:
             json.dump(descr, out_file)
