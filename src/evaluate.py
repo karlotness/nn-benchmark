@@ -160,8 +160,8 @@ def train_knn(net, eval_args, base_dir, base_logger):
             assert batch.q_noiseless.shape[0] == 1
             data_x.append(np.concatenate([batch.p[0], batch.q[0]], axis=-1))
             data_y.append(np.concatenate([batch.p_step[0], batch.q_step[0]], axis=-1))
-        data_x = np.concatenate(data_x, axis=0)
-        data_y = np.concatenate(data_y, axis=0)
+        data_x = np.stack(data_x, axis=0)
+        data_y = np.stack(data_y, axis=0)
         net.fit(data_x, data_y)
         logger.info("Finished fitting of dataset for KNN Predictor.")
     # Return the KNN
