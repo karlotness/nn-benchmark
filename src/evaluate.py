@@ -133,7 +133,7 @@ def train_knn(net, eval_args, base_dir, base_logger):
     eval_type = eval_args["eval_type"]
     if eval_type == "knn-predictor-oneshot":
         assert eval_args["train_data"]["dataset"] == "step-snapshot"
-        assert eval_args["train_data"]["loader"]["type"] == "pytorch"
+        assert eval_args["train_data"]["loader"].get("type", "pytorch") == "pytorch"
         assert eval_args["train_data"]["loader"]["batch_size"] == 1
 
     train_dataset, train_loader = create_dataset(base_dir, eval_args["train_data"])
