@@ -298,7 +298,7 @@ class StepSnapshotDataset(data.Dataset):
     def __getitem__(self, idx):
         p_step = self._dp_dt[idx]
         q_step = self._dq_dt[idx]
-        return Snapshot(name=self._name[idx],
+        return StepSnapshot(name=self._name[idx],
                         trajectory_meta=self._traj_meta[idx],
                         p=self._p[idx], q=self._q[idx],
                         dp_dt=p_step, dq_dt=q_step,
