@@ -295,9 +295,10 @@ def run_phase(base_dir, out_dir, phase_args):
     elif eval_type in {"knn-predictor", "knn-predictor-oneshot"}:
         KNNPrediction = namedtuple("KNNPrediction", ["q", "p"])
         def model_next_step(q, p, dt=1.0, t=0):
+            p_len = p.shape[-1]
             x = np.concatenate([p, q], axis=-1)
             ret = net.predict(x)
-            next_p, next_q = np.split(ret, 2, axis=-1)
+            next_p, next_q = np.split(ret, [p_len], axis=-1)
             return KNNPrediction(q=next_q, p=next_p)
         time_deriv_func = model_next_step
         if integrator_type != "null":

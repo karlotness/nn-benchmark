@@ -22,7 +22,7 @@ class MLP(torch.nn.Module):
     def forward(self, q, p):
         x = torch.cat([p, q], dim=-1)
         ret = self.ops(x)
-        split_size = ret.shape[-1] // 2
+        split_size = [p.shape[-1], q.shape[-1]]
         if self.predict_type == "deriv":
             dp, dq = torch.split(ret, split_size, dim=-1)
             result = TimeDerivative(dq_dt=dq, dp_dt=dp)
