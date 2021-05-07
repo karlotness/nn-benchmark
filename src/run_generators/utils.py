@@ -1718,7 +1718,7 @@ class NetworkEvaluation(Evaluation):
             "slurm_args": {
                 "gpu": gpu,
                 "time": "16:00:00",
-                "cpus": 8 if gpu else 20,
+                "cpus": 4 if gpu else 20,
                 "mem": self._get_mem_requirement(eval_set=self.eval_set),
             },
         }
