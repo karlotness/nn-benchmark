@@ -185,7 +185,7 @@ def system_from_records(grid_resolution, viscosity, base_logger=None):
     cached_sys = navier_stokes_cache.find(
         grid_resolution=grid_resolution,
         viscosity=viscosity,
-        base_logger=logger
+        base_logger=base_logger
     )
     if cached_sys is not None:
         return cached_sys
@@ -193,7 +193,7 @@ def system_from_records(grid_resolution, viscosity, base_logger=None):
         new_sys = NavierStokesSystem(
             grid_resolution=grid_resolution,
             viscosity=viscosity,
-            base_logger=logger
+            base_logger=base_logger
         )
         navier_stokes_cache.insert(new_sys)
         return new_sys
