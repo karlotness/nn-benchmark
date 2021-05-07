@@ -1706,7 +1706,7 @@ class KNNOneshotEvaluation(NetworkEvaluation):
 
     def __init__(self, experiment, training_set, eval_set, knn_type,
                  eval_dtype="double", integrator="leapfrog",
-                 dataset_type="snapshot"):
+                 dataset_type="snapshot", dataset_args=None, batch_size=750):
         method = f"knn-{knn_type}-oneshot"
         self._mock_network = self.MockNetwork(name=f"{method}-{training_set.name}",
                                               train_dtype=eval_dtype,
@@ -1718,6 +1718,8 @@ class KNNOneshotEvaluation(NetworkEvaluation):
                          eval_dtype=eval_dtype)
         self.training_set = training_set
         self.dataset_type = dataset_type
+        self.dataset_args = dataset_args or {}
+        self.batch_size = batch_size
 
     def description(self):
         template = super().description()
@@ -1728,23 +1730,29 @@ class KNNOneshotEvaluation(NetworkEvaluation):
             "linearize": True,
             "dataset_args": {},
             "loader": {
-                "batch_size": 750,
+                "batch_size": self.batch_size,
                 "shuffle": False,
             },
         }
+        template["phase_args"]["eval"]["train_data"]["dataset_args"].update(self.dataset_args)
         return template
 
 
 class KNNPredictorOneshot(KNNOneshotEvaluation):
     def __init__(self, experiment, training_set, eval_set,
-                 eval_dtype="double"):
+                 eval_dtype="double", step_time_skew=1, step_subsample=1):
         super().__init__(experiment=experiment,
                          training_set=training_set,
                          eval_set=eval_set,
                          eval_dtype=eval_dtype,
                          integrator="null",
                          knn_type="predictor",
-                         dataset_type="trajectory")
+                         batch_size=1,
+                         dataset_type="step-snapshot",
+                         dataset_args={
+                             "time-skew": step_time_skew,
+                             "subsample": step_subsample,
+                         })
 
 
 class KNNRegressorOneshot(KNNOneshotEvaluation):
