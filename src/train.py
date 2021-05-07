@@ -162,6 +162,10 @@ def create_dataset(base_dir, data_args):
             data_set = base_data_set
         elif dataset_type == "snapshot":
             data_set = dataset.SnapshotDataset(traj_dataset=base_data_set)
+        elif dataset_type == "step-snapshot":
+            time_skew = int(data_args["dataset_args"].get("time-skew", 1))
+            subsample = int(data_args["dataset_args"].get("subsample", 1))
+            data_set = dataset.StepSnapshotDataset(traj_dataset=base_data_set, subsample=subsample, time_skew=time_skew)
         elif dataset_type == "taylor-green":
             data_set = dataset.TaylorGreenSnapshotDataset(traj_dataset=base_data_set)
         elif dataset_type == "rollout-chunk":
@@ -170,16 +174,6 @@ def create_dataset(base_dir, data_args):
                                                    rollout_length=rollout_length)
         else:
             raise ValueError(f"Invalid dataset type {dataset_type}")
-
-
-        if "predict_type" in data_args:
-            predict_type = data_args["predict_type"]
-            if predict_type == "step" and dataset_type in {"snapshot", "taylor-green"}:
-                data_set = dataset.StepSnapshotDataset(data_set)
-            elif predict_type == "deriv":
-                pass
-            else:
-                raise ValueError(f"Invalid predict type {predict_type}")
 
         loader_args = data_args["loader"]
         loader_type = loader_args.get("type", "pytorch")

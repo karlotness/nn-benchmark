@@ -4,6 +4,7 @@ from collections import namedtuple
 import numpy as np
 import torch
 from torch.utils import data
+import math
 
 Trajectory = namedtuple("Trajectory", ["name", "p", "q", "dp_dt", "dq_dt",
                                        "t", "trajectory_meta",
@@ -230,36 +231,87 @@ class SnapshotDataset(data.Dataset):
 
 
 
-StepSnapshot = namedtuple("StepSnapshot", ["name", "p", "q", "p_step", "q_step",
-                                           "t", "trajectory_meta",
-                                           "p_noiseless", "q_noiseless",
-                                           "masses", "edge_index", "vertices"])
+StepSnapshot = namedtuple("StepSnapshot",
+                          ["name", "p", "q", "dp_dt", "dq_dt",
+                           "p_step", "q_step",
+                           "t", "trajectory_meta",
+                           "p_noiseless", "q_noiseless",
+                           "masses", "edge_index", "vertices"])
+
 
 class StepSnapshotDataset(data.Dataset):
 
-    def __init__(self, snapshot_dataset):
-        self.snapshot_dataset = snapshot_dataset
+    def __init__(self, traj_dataset, subsample=1, time_skew=1):
+        self._traj_dataset = traj_dataset
+        self.subsample = subsample
+        self.time_skew = time_skew
+
+        self.system = self._traj_dataset.system
+        self.system_metadata = self._traj_dataset.system_metadata
+
+        name = []
+        p = []
+        q = []
+        dp_dt = []
+        dq_dt = []
+        t = []
+        traj_meta = []
+        p_noiseless = []
+        q_noiseless = []
+        masses = []
+        edge_indices = []
+        vertices = []
+
+        for traj_i in range(len(self._traj_dataset)):
+            traj = self._traj_dataset[traj_i]
+            # Stack the components
+            traj_num_steps = math.ceil((traj.p.shape[0] - time_skew) / subsample)
+            name.extend([traj.name] * traj_num_steps)
+            p.append(traj.p[:-self.time_skew:self.subsample])
+            q.append(traj.q[:-self.time_skew:self.subsample])
+            dp_dt.append(traj.p[self.time_skew::self.subsample])
+            dq_dt.append(traj.q[self.time_skew::self.subsample])
+            t.append(traj.t[:-self.time_skew:self.subsample])
+            traj_meta.extend([traj.trajectory_meta] * traj_num_steps)
+            p_noiseless.append(traj.p_noiseless[:-self.time_skew:self.subsample])
+            q_noiseless.append(traj.q_noiseless[:-self.time_skew:self.subsample])
+            masses.extend([traj.masses] * traj_num_steps)
+            edge_indices.extend([traj.edge_index] * traj_num_steps)
+            vertices.extend([traj.vertices] * traj_num_steps)
+            # Check length computation
+            assert p[-1].shape[0] == traj_num_steps
+
+        # Load each trajectory and join the components
+        self._name = name
+        self._p = np.concatenate(p)
+        self._q = np.concatenate(q)
+        self._dp_dt = np.concatenate(dp_dt)
+        self._dq_dt = np.concatenate(dq_dt)
+        self._t = np.concatenate(t)
+        self._traj_meta = traj_meta
+        self._p_noiseless = np.concatenate(p_noiseless)
+        self._q_noiseless = np.concatenate(q_noiseless)
+        self._masses = masses
+        self._edge_indices = edge_indices
+        self._vertices = vertices
 
     def __getitem__(self, idx):
-        batch = self.snapshot_dataset[idx]
-        next_batch = self.snapshot_dataset[idx + 1]
-        return StepSnapshot(
-            name = batch.name,
-            p = batch.p,
-            q = batch.q,
-            p_step = next_batch.p_noiseless,
-            q_step = next_batch.q_noiseless,
-            p_noiseless = batch.p_noiseless,
-            q_noiseless = batch.q_noiseless,
-            trajectory_meta = batch.trajectory_meta,
-            t = batch.t,
-            vertices = batch.vertices,
-            edge_index = batch.edge_index,
-            masses = batch.masses,
-        )
+        p_step = self._dp_dt[idx]
+        q_step = self._dq_dt[idx]
+        return Snapshot(name=self._name[idx],
+                        trajectory_meta=self._traj_meta[idx],
+                        p=self._p[idx], q=self._q[idx],
+                        dp_dt=p_step, dq_dt=q_step,
+                        p_step=p_step, q_step=q_step,
+                        t=self._t[idx],
+                        p_noiseless=self._p_noiseless[idx],
+                        q_noiseless=self._q_noiseless[idx],
+                        masses=self._masses[idx],
+                        edge_index=self._edge_indices[idx],
+                        vertices=self._vertices[idx])
 
     def __len__(self):
-        return len(self.snapshot_dataset) - 1
+        return len(self._traj_meta)
 
 
 Rollout = namedtuple("Rollout", ["name", "p", "q", "dp_dt", "dq_dt",
