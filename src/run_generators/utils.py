@@ -91,9 +91,12 @@ class Experiment:
         self._name_counters[name] += 1
         return self._name_counters[name]
 
-    def get_run_name(self, name_core):
+    def get_run_name(self, name_core, name_tag=None):
         suffix = self._get_run_suffix(name=name_core)
-        name = f"{self.name}_{name_core}_{suffix:05}"
+        tag = ""
+        if name_tag:
+            tag = f"tag{name_tag}_"
+        name = f"{self.name}_{name_core}_{tag}{suffix:05}"
         return name
 
     @staticmethod
@@ -520,16 +523,28 @@ class WritableDescription:
     def __init__(self, experiment, phase, name):
         self.experiment = experiment
         self.name = name
-        self.full_name = self.experiment.get_run_name(name)
-        self.path = f"run/{phase}/{self.full_name}"
-        self._descr_path = f"descr/{phase}/{self.full_name}.json"
         self.phase = phase
+        self.name_tag = None
 
     def description(self):
         # Subclasses provide top-level dictionary including slurm_args
         # So dictionary with "phase_args" and "slurm_args" keys
         # Rest is filled in here
         raise NotImplementedError("Subclass this")
+
+    @property
+    def full_name(self):
+        return self.experiment.get_run_name(self.name, name_tag=self.name_tag)
+
+    @property
+    def path(self):
+        full_name = self.full_name
+        return f"run/{self.phase}/{full_name}"
+
+    @property
+    def _descr_path(self):
+        full_name = self.full_name
+        return f"descr/{self.phase}/{full_name}.json"
 
     def write_description(self, base_dir):
         base_dir = pathlib.Path(base_dir)
