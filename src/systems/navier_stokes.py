@@ -21,7 +21,8 @@ NavierStokesTrajectoryResult = namedtuple("NavierStokesTrajectoryResult",
                                            "grads",
                                            "pressures",
                                            "pressures_grads",
-                                           "t"])
+                                           "t",
+                                           "fixed_mask"])
 
 
 class NavierStokesSystem(System):
@@ -68,6 +69,10 @@ class NavierStokesSystem(System):
             "tensor_formulation": "NavierStokes",
         }
 
+    @staticmethod
+    def _replace_nan(mat):
+        mat[np.isnan(mat)] = 0.0
+        return mat
 
     def generate_trajectory(self, num_time_steps, time_step_size, in_velocity):
         # Create temporary directory
@@ -132,16 +137,48 @@ class NavierStokesSystem(System):
             pressures = np.stack(pressures)
             pressures_grads = np.stack(pressures_grads)
 
+        fixed_mask = np.any(np.isnan(solutions[0]), axis=1)
+
         # Repackage results
         t = time_step_size * np.arange(num_time_steps)
         return NavierStokesTrajectoryResult(
             grids=grids,
-            solutions=solutions,
-            grads=grads,
-            pressures=pressures,
-            pressures_grads=pressures_grads,
+            solutions=self._replace_nan(solutions),
+            grads=self._replace_nan(grads),
+            pressures=self._replace_nan(pressures),
+            pressures_grads=self._replace_nan(pressures_grads),
             t=t,
+            fixed_mask=fixed_mask,
         )
+
+
+def compute_edge_indices(vtx_coords):
+    # Determine grid size
+    # Grid indexing here referred to as [a, b]
+    max_coords = np.max(vtx_coords, axis=0)
+    num_b = int(max_coords[-1] / vtx_coords[1, -1]) + 1
+    num_a = vtx_coords.shape[0] // num_b
+    assert num_a * num_b == vtx_coords.shape[0]
+    edges = []
+    for a in range(num_a):
+        for b in range(num_b):
+            curr_idx = num_b * a + b
+            for da, db in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                na = a + da
+                nb = b + db
+                if not (0 <= na < num_a and 0 <= nb < num_b):
+                    continue
+                next_idx = num_b * na + nb
+                edges.append((curr_idx, next_idx))
+    edges = np.array(edges, dtype=np.int64)
+
+    # Check the results
+    db = vtx_coords[1, -1] - vtx_coords[0, -1]
+    da = vtx_coords[num_b, 0] - vtx_coords[0, 0]
+    max_diff = 1.1 * np.expand_dims(np.array([da, db], dtype=np.float64), 0)
+    assert np.all(np.abs(vtx_coords[edges[:, 0]] - vtx_coords[edges[:, 1]]) <= max_diff)
+
+    return edges
 
 
 def system_from_records(grid_resolution, viscosity, base_logger=None):
@@ -173,6 +210,7 @@ def generate_data(system_args, base_logger=None):
 
     grid_resolution = system_args.get("grid_resolution", 0.01)
     trajectory_defs = system_args["trajectory_defs"]
+
     for i, traj_def in enumerate(trajectory_defs):
         traj_name = f"traj_{i:05}"
         logger.info(f"Generating trajectory {traj_name}")
@@ -200,13 +238,20 @@ def generate_data(system_args, base_logger=None):
 
         # Store trajectory data
         trajectories.update({
-            f"{traj_name}_grids": traj_result.grids,
             f"{traj_name}_solutions": traj_result.solutions,
             f"{traj_name}_grads": traj_result.grads,
             f"{traj_name}_pressures": traj_result.pressures,
             f"{traj_name}_pressures_grads": traj_result.pressures_grads,
             f"{traj_name}_t": traj_result.t,
         })
+
+        # Store one copy of each fixed result
+        if "edge_indices" not in trajectories:
+            trajectories["edge_indices"] = compute_edge_indices(traj_result.grids[0])
+        if "vertices" not in trajectories:
+            trajectories["vertices"] = traj_result.grids[0]
+        if "fixed_mask" not in trajectories:
+            trajectories["fixed_mask"] = traj_result.fixed_mask
 
         # Store per-trajectory metadata
         trajectory_metadata.append(
@@ -218,7 +263,6 @@ def generate_data(system_args, base_logger=None):
              "noise_sigma": 0,
              "field_keys": {
                  # Plain names
-                 "grids": f"{traj_name}_grids",
                  "solutions": f"{traj_name}_solutions",
                  "grads": f"{traj_name}_grads",
                  "pressures": f"{traj_name}_pressures",
@@ -231,6 +275,10 @@ def generate_data(system_args, base_logger=None):
                  "t": f"{traj_name}_t",
                  "p_noiseless": f"{traj_name}_solutions",
                  "q_noiseless": f"{traj_name}_pressures",
+                 # Grid information (fixed)
+                 "edge_indices": "edge_indices",
+                 "vertices": "vertices",
+                 "fixed_mask": "fixed_mask",
              },
              "timing": {
                  "traj_gen_time": traj_gen_elapsed
