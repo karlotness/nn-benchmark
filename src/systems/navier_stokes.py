@@ -39,6 +39,9 @@ class NavierStokesSystem(System):
         return (self.grid_resolution == grid_resolution and
                 self.viscosity == viscosity)
 
+    def hamiltonian(self, q, p):
+        return -1 * np.ones_like(q, shape=(q.shape[0]))
+
     def _gen_config(self, mesh_file, num_time_steps, time_step_size, in_velocity):
         t_end = num_time_steps * time_step_size
         return {
