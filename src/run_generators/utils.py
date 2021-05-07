@@ -85,14 +85,15 @@ class Experiment:
         self.name = name
         self._name_counters = {}
 
-    def _get_run_suffix(self, name):
-        if name not in self._name_counters:
-            self._name_counters[name] = 0
-        self._name_counters[name] += 1
-        return self._name_counters[name]
+    def _get_run_suffix(self, name, name_tag=None):
+        name_key = (name, name_tag)
+        if name_key not in self._name_counters:
+            self._name_counters[name_key] = 0
+        self._name_counters[name_key] += 1
+        return self._name_counters[name_key]
 
     def get_run_name(self, name_core, name_tag=None):
-        suffix = self._get_run_suffix(name=name_core)
+        suffix = self._get_run_suffix(name=name_core, name_tag=name_tag)
         tag = ""
         if name_tag:
             tag = f"tag{name_tag}_"
@@ -525,6 +526,7 @@ class WritableDescription:
         self.name = name
         self.phase = phase
         self.name_tag = None
+        self._full_name = None
 
     def description(self):
         # Subclasses provide top-level dictionary including slurm_args
@@ -534,7 +536,9 @@ class WritableDescription:
 
     @property
     def full_name(self):
-        return self.experiment.get_run_name(self.name, name_tag=self.name_tag)
+        if self._full_name is None:
+            self._full_name = self.experiment.get_run_name(self.name, name_tag=self.name_tag)
+        return self._full_name
 
     @property
     def path(self):
