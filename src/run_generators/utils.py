@@ -952,6 +952,8 @@ class TrainedNetwork(WritableDescription):
                 return 73
             else:
                 return 37
+        elif system == "navier-stokes":
+            return 32
         return 16
 
 
