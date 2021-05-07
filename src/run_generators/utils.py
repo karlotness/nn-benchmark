@@ -1281,7 +1281,8 @@ class MLP(TrainedNetwork):
                  hidden_dim=2048, depth=2, train_dtype="float",
                  scheduler="none", scheduler_step="epoch", end_lr=None,
                  batch_size=750, epochs=1000, validation_set=None,
-                 noise_type="none", noise_variance=0, predict_type="deriv"):
+                 noise_type="none", noise_variance=0, predict_type="deriv",
+                 step_time_skew=1, step_subsample=1):
         super().__init__(experiment=experiment,
                          method="-".join(["mlp", predict_type]),
                          name_tail=f"{training_set.name}-d{depth}-h{hidden_dim}")
@@ -1300,10 +1301,17 @@ class MLP(TrainedNetwork):
         self.noise_type = noise_type
         self.noise_variance = noise_variance
         self.predict_type = predict_type
+        self.step_time_skew = step_time_skew
+        self.step_subsample = step_subsample
         generate_scheduler_args(self, end_lr)
         assert predict_type in {"deriv", "step"}
 
     def description(self):
+        dataset_type = "snapshot"
+        if self.training_set == "taylor-green":
+            dataset_type = "taylor-green"
+        elif self.predict_type == "step":
+            dataset_type = "step-snapshot"
         template = {
             "phase_args": {
                 "network": {
@@ -1332,7 +1340,7 @@ class MLP(TrainedNetwork):
                 },
                 "train_data": {
                     "data_dir": self.training_set.path,
-                    "dataset": ("taylor-green" if self.training_set.system == "taylor-green" else "snapshot"),
+                    "dataset": dataset_type,
                     "predict_type": self.predict_type,
                     "linearize": True,
                     "dataset_args": {},
@@ -1356,6 +1364,11 @@ class MLP(TrainedNetwork):
                 "type": self.noise_type,
                 "variance": self.noise_variance
             }
+        if self.predict_type == "step":
+             template["phase_args"]["train_data"]["dataset_args"].update({
+                 "time-skew": self.step_time_skew,
+                 "subsample": self.step_subsample,
+             })
         return template
 
 
@@ -1421,7 +1434,7 @@ class CNN(TrainedNetwork):
                 },
                 "train_data": {
                     "data_dir": self.training_set.path,
-                    "dataset": "snapshot",
+                    "dataset": ("snapshot" if self.predict_type == "deriv" else "step-snapshot"),
                     "predict_type": self.predict_type,
                     "linearize": False,
                     "dataset_args": {},
