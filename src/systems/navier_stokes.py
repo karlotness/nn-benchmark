@@ -52,7 +52,7 @@ class NavierStokesSystem(System):
             "BDF_order": 3,
             "n_refs": 0,
             "tend": t_end,
-            "time_steps": num_time_steps,
+            "time_steps": num_time_steps + 1,
             "vismesh_rel_area": 0.0001,
             "problem_params": {
                 "U": in_velocity,
@@ -128,7 +128,7 @@ class NavierStokesSystem(System):
             grads = []
             pressures = []
             pressures_grads = []
-            for i in range(num_time_steps):
+            for i in range(1, num_time_steps + 1):
                 grids.append(np.loadtxt(tmp_dir / f"step_{i}.vtu_grid.txt"))
                 solutions.append(np.loadtxt(tmp_dir / f"step_{i}.vtu_sol.txt"))
                 grads.append(np.loadtxt(tmp_dir / f"step_{i}.vtu_grad.txt"))
