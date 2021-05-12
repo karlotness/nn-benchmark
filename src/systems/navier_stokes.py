@@ -233,6 +233,7 @@ def generate_data(system_args, base_logger=None):
         time_step_size = traj_def["time_step_size"]
         in_velocity = traj_def["in_velocity"]
         viscosity = traj_def.get("viscosity", 0.001)
+        subsample = int(traj_def.get("subsample", 1))
 
         # Create system
         system = navier_stokes_cache.find(grid_resolution=grid_resolution, viscosity=viscosity, base_logger=logger)
@@ -246,6 +247,7 @@ def generate_data(system_args, base_logger=None):
             num_time_steps=num_time_steps,
             time_step_size=time_step_size,
             in_velocity=in_velocity,
+            subsample=subsample,
         )
         traj_gen_elapsed = time.perf_counter() - traj_gen_start
         logger.info(f"Generated {traj_name} in {traj_gen_elapsed} sec")

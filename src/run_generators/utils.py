@@ -857,7 +857,7 @@ class TaylorGreenDataset(Dataset):
 class NavierStokesDataset(Dataset):
     def __init__(self, experiment, initial_cond_source, num_traj,
                  set_type="train",
-                 num_time_steps=10, time_step_size=0.08):
+                 num_time_steps=10, time_step_size=0.08, subsampling=1):
         noise_sigma = 0
         super().__init__(experiment=experiment,
                          name_tail=f"n{num_traj}-t{num_time_steps}-n{noise_sigma}",
@@ -868,6 +868,7 @@ class NavierStokesDataset(Dataset):
         self.num_time_steps = num_time_steps
         self.time_step_size = time_step_size
         self.initial_conditions = self.initial_cond_source.sample_initial_conditions(self.num_traj)
+        self.subsampling = subsampling
         assert isinstance(self.initial_cond_source, NavierStokesInitialConditionSource)
 
     def description(self):
@@ -878,6 +879,7 @@ class NavierStokesDataset(Dataset):
                 "in_velocity": 1.5,
                 "num_time_steps": self.num_time_steps,
                 "time_step_size": self.time_step_size,
+                "subsample": self.subsampling,
             }
             traj.update(icond)
             trajectories.append(traj)
