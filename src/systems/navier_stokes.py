@@ -52,7 +52,7 @@ class NavierStokesSystem(System):
             "BDF_order": 3,
             "n_refs": 0,
             "tend": t_end,
-            "time_steps": num_time_steps + 1,
+            "time_steps": num_time_steps + 2,
             "vismesh_rel_area": 0.0001,
             "problem_params": {
                 "U": in_velocity,
@@ -123,22 +123,23 @@ class NavierStokesSystem(System):
                 self.logger.info("PolyFEM finished")
 
             # Gather results
-            grids = []
-            solutions = []
-            grads = []
-            pressures = []
-            pressures_grads = []
-            for i in range(1, num_time_steps + 1):
-                grids.append(np.loadtxt(tmp_dir / f"step_{i}.vtu_grid.txt"))
-                solutions.append(np.loadtxt(tmp_dir / f"step_{i}.vtu_sol.txt"))
-                grads.append(np.loadtxt(tmp_dir / f"step_{i}.vtu_grad.txt"))
-                pressures.append(np.loadtxt(tmp_dir / f"step_{i}.vtu_p_sol.txt"))
-                pressures_grads.append(np.loadtxt(tmp_dir / f"step_{i}.vtu_p_grad.txt"))
-            grids = np.stack(grids)
-            solutions = np.stack(solutions)
-            grads = np.stack(grads)
-            pressures = np.stack(pressures)
-            pressures_grads = np.stack(pressures_grads)
+            raw_grids = []
+            raw_solutions = []
+            raw_pressures = []
+            for i in range(1, num_time_steps + 2):
+                raw_grids.append(np.loadtxt(tmp_dir / f"step_{i}.vtu_grid.txt"))
+                raw_solutions.append(np.loadtxt(tmp_dir / f"step_{i}.vtu_sol.txt"))
+                raw_pressures.append(np.loadtxt(tmp_dir / f"step_{i}.vtu_p_sol.txt"))
+            raw_grids = np.stack(raw_grids)
+            raw_solutions = np.stack(raw_solutions)
+            raw_pressures = np.stack(raw_pressures)
+
+        # Process for derivatives, etc.
+        grids = raw_grids[:-1]
+        solutions = raw_solutions[:-1]
+        pressures = raw_pressures[:-1]
+        grads = (1/time_step_size) * np.diff(raw_solutions, axis=0)
+        pressures_grads = (1/time_step_size) * np.diff(raw_pressures, axis=0)
 
         fixed_mask = np.any(np.isnan(solutions[0]), axis=1)
 
