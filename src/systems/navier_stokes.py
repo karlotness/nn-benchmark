@@ -77,7 +77,13 @@ class NavierStokesSystem(System):
         mat[np.isnan(mat)] = 0.0
         return mat
 
-    def generate_trajectory(self, num_time_steps, time_step_size, in_velocity):
+    def generate_trajectory(self, num_time_steps, time_step_size, in_velocity, subsample=1):
+        orig_time_step_size = time_step_size
+        orig_num_time_steps = num_time_steps
+
+        time_step_size = time_step_size / subsample
+        num_time_steps = num_time_steps * subsample
+
         # Create temporary directory
         with tempfile.TemporaryDirectory(prefix="polyfem-") as _tmp_dir:
             self.logger.info(f"Generating trajectory in {_tmp_dir}")
@@ -123,28 +129,32 @@ class NavierStokesSystem(System):
                 self.logger.info("PolyFEM finished")
 
             # Gather results
-            raw_grids = []
-            raw_solutions = []
-            raw_pressures = []
-            for i in range(1, num_time_steps + 2):
-                raw_grids.append(np.loadtxt(tmp_dir / f"step_{i}.vtu_grid.txt"))
-                raw_solutions.append(np.loadtxt(tmp_dir / f"step_{i}.vtu_sol.txt"))
-                raw_pressures.append(np.loadtxt(tmp_dir / f"step_{i}.vtu_p_sol.txt"))
-            raw_grids = np.stack(raw_grids)
-            raw_solutions = np.stack(raw_solutions)
-            raw_pressures = np.stack(raw_pressures)
+            grids = []
+            solutions = []
+            pressures = []
+            grads = []
+            pressures_grads = []
+            for i in range(subsample, num_time_steps + 1, subsample):
+                i_next = i + 1
+                grids.append(np.loadtxt(tmp_dir / f"step_{i}.vtu_grid.txt"))
+                solutions.append(np.loadtxt(tmp_dir / f"step_{i}.vtu_sol.txt"))
+                pressures.append(np.loadtxt(tmp_dir / f"step_{i}.vtu_p_sol.txt"))
 
-        # Process for derivatives, etc.
-        grids = raw_grids[:-1]
-        solutions = raw_solutions[:-1]
-        pressures = raw_pressures[:-1]
-        grads = (1/time_step_size) * np.diff(raw_solutions, axis=0)
-        pressures_grads = (1/time_step_size) * np.diff(raw_pressures, axis=0)
+                _grad = (1/time_step_size) * (np.loadtxt(tmp_dir / f"step_{i_next}.vtu_sol.txt") - np.loadtxt(tmp_dir / f"step_{i}.vtu_sol.txt"))
+                _press_grad = (1/time_step_size) * (np.loadtxt(tmp_dir / f"step_{i_next}.vtu_p_sol.txt") - np.loadtxt(tmp_dir / f"step_{i}.vtu_p_sol.txt"))
+                grads.append(_grad)
+                pressures_grads.append(_press_grad)
+
+        grids = np.stack(grids)
+        solutions = np.stack(solutions)
+        pressures = np.stack(pressures)
+        grads = np.stack(grads)
+        pressures_grads = np.stack(pressures_grads)
 
         fixed_mask = np.any(np.isnan(solutions[0]), axis=1)
 
         # Repackage results
-        t = time_step_size * np.arange(num_time_steps)
+        t = orig_time_step_size * np.arange(orig_num_time_steps)
         return NavierStokesTrajectoryResult(
             grids=grids,
             solutions=self._replace_nan(solutions),
