@@ -38,7 +38,7 @@ eval_sets = []
 
 # Generate data sets
 # Generate train set
-for num_traj in [50]:
+for num_traj in [25]:
     train_sets.append(
         utils.SpringMeshDataset(experiment_general,
                                 train_source,
@@ -87,11 +87,12 @@ for source, num_traj, type_key, step_multiplier in [
 # Emit baseline integrator runs for each evaluation set
 for eval_set, integrator in itertools.product(eval_sets, EVAL_INTEGRATORS + ["back-euler"]):
     for coarse in range(0, 7):
-        integration_run_double = utils.BaselineIntegrator(experiment=experiment_general,
-                                                          eval_set=eval_set[coarse],
-                                                          eval_dtype="double",
-                                                          integrator=integrator)
-        writable_objects.append(integration_run_double)
+        pass
+        # integration_run_double = utils.BaselineIntegrator(experiment=experiment_general,
+        #                                                   eval_set=eval_set[coarse],
+        #                                                   eval_dtype="double",
+        #                                                   integrator=integrator)
+        # writable_objects.append(integration_run_double)
 
 # Emit KNN baselines
 for train_set, eval_set in itertools.product(train_sets, eval_sets):
@@ -111,47 +112,55 @@ for train_set, eval_set in itertools.product(train_sets, eval_sets):
 # Emit MLP, GN, NNkernel runs
 for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
     # Only one integrator for this one, the "null" integrator
-    for hidden in [64, 128, 256, 512, 1024]:
-        gn_train = utils.GN(experiment=experiment_general,
-                            training_set=train_set,
-                            validation_set=val_set,
-                            hidden_dim=hidden,
-                            batch_size=3,
-                            epochs=GN_EPOCHS)
-        writable_objects.append(gn_train)
-        for eval_set in eval_sets:
-            gn_eval = utils.NetworkEvaluation(experiment=experiment_general,
-                                              network=gn_train,
-                                              eval_set=eval_set[0],
-                                              integrator="null")
-            writable_objects.append(gn_eval)
+    # for hidden in [64, 128, 256, 512, 1024]:
+    #     gn_train = utils.GN(experiment=experiment_general,
+    #                         training_set=train_set,
+    #                         validation_set=val_set,
+    #                         hidden_dim=hidden,
+    #                         batch_size=3,
+    #                         epochs=GN_EPOCHS)
+    #     writable_objects.append(gn_train)
+    #     for eval_set in eval_sets:
+    #         gn_eval = utils.NetworkEvaluation(experiment=experiment_general,
+    #                                           network=gn_train,
+    #                                           eval_set=eval_set[0],
+    #                                           integrator="null")
+    #         writable_objects.append(gn_eval)
     # Other runs work across all integrators
     general_int_nets = []
-    for hidden in [32768, 2048, 8192]:
-        nn_kernel = utils.NNKernel(experiment=experiment_general,
-                                   training_set=train_set,
-                                   learning_rate=0.001, weight_decay=0.0001,
-                                   hidden_dim=hidden, train_dtype="float",
-                                   optimizer="sgd",
-                                   batch_size=375, epochs=EPOCHS, validation_set=val_set,
-                                   nonlinearity="relu")
-        general_int_nets.append(nn_kernel)
-    for width, depth in itertools.product([200, 1024, 2048, 4096],
-                                          [2, 3, 4]):
+    # for hidden in [32768, 2048, 8192]:
+    #     nn_kernel = utils.NNKernel(experiment=experiment_general,
+    #                                training_set=train_set,
+    #                                learning_rate=0.001, weight_decay=0.0001,
+    #                                hidden_dim=hidden, train_dtype="float",
+    #                                optimizer="sgd",
+    #                                batch_size=375, epochs=EPOCHS, validation_set=val_set,
+    #                                nonlinearity="relu")
+    #     general_int_nets.append(nn_kernel)
+    for width, depth, (lr, lrkey) in itertools.product([200, 1024, 2048, 4096],
+                                              [2, 3, 4],
+                                              [
+                                                  (1e-3/10, "10"),
+                                                  (1e-3/20, "20"),
+                                                  (1e-3/50, "50"),
+                                              ]):
         mlp_deriv_train = utils.MLP(experiment=experiment_general,
                                    training_set=train_set,
                                    batch_size=375,
                                    hidden_dim=width, depth=depth,
+                                   learning_rate=lr,
                                    validation_set=val_set, epochs=EPOCHS)
+        mlp_deriv_train.name_tag = f"lrcut{lrkey}"
         general_int_nets.append(mlp_deriv_train)
 
     writable_objects.extend(general_int_nets)
     for trained_net, eval_set, integrator in itertools.product(general_int_nets, eval_sets, EVAL_INTEGRATORS):
-        writable_objects.append(
-            utils.NetworkEvaluation(experiment=experiment_general,
-                                    network=trained_net,
-                                    eval_set=eval_set[0],
-                                    integrator=integrator))
+        eval_run = utils.NetworkEvaluation(experiment=experiment_general,
+                                           network=trained_net,
+                                           eval_set=eval_set[0],
+                                           integrator=integrator)
+        eval_run.name_tag = trained_net.name_tag
+        writable_objects.append(eval_run)
 
 if __name__ == "__main__":
     for obj in writable_objects:
