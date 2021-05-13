@@ -791,9 +791,9 @@ class SpringMeshDataset(Dataset):
             },
             "slurm_args": {
                 "gpu": False,
-                "time": "04:30:00",
-                "cpus": 8,
-                "mem": 20,
+                "time": "24:00:00",
+                "cpus": 4,
+                "mem": 40,
             },
         }
         return template
