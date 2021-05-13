@@ -11,6 +11,7 @@ import time
 from collections import namedtuple
 from .defs import System, SystemCache, SystemResult
 import numpy as np
+import concurrent.futures
 
 
 IN_MESH_PATH = pathlib.Path(__file__).parent / "resources" / "mesh.obj.xz"
@@ -225,80 +226,111 @@ def generate_data(system_args, base_logger=None):
     grid_resolution = system_args.get("grid_resolution", 0.01)
     trajectory_defs = system_args["trajectory_defs"]
 
-    for i, traj_def in enumerate(trajectory_defs):
-        traj_name = f"traj_{i:05}"
-        logger.info(f"Generating trajectory {traj_name}")
-
-        num_time_steps = traj_def["num_time_steps"]
-        time_step_size = traj_def["time_step_size"]
-        in_velocity = traj_def["in_velocity"]
-        viscosity = traj_def.get("viscosity", 0.001)
-        subsample = int(traj_def.get("subsample", 1))
-
-        # Create system
-        system = navier_stokes_cache.find(grid_resolution=grid_resolution, viscosity=viscosity, base_logger=logger)
-        if system is None:
-            system = NavierStokesSystem(grid_resolution=grid_resolution, viscosity=viscosity, base_logger=logger)
-            navier_stokes_cache.insert(system)
-
+    def generate_trajectory(system, metadata):
         # Generate trajectory
         traj_gen_start = time.perf_counter()
         traj_result = system.generate_trajectory(
-            num_time_steps=num_time_steps,
-            time_step_size=time_step_size,
-            in_velocity=in_velocity,
-            subsample=subsample,
+            num_time_steps=metadata["num_time_steps"],
+            time_step_size=metadata["time_step_size"],
+            in_velocity=metadata["in_velocity"],
+            subsample=metadata["subsample"],
         )
         traj_gen_elapsed = time.perf_counter() - traj_gen_start
-        logger.info(f"Generated {traj_name} in {traj_gen_elapsed} sec")
+        metadata["traj_result"] = traj_result
+        metadata["traj_gen_elapsed"] = traj_gen_elapsed
 
-        # Store trajectory data
-        trajectories.update({
-            f"{traj_name}_solutions": traj_result.solutions,
-            f"{traj_name}_grads": traj_result.grads,
-            f"{traj_name}_pressures": traj_result.pressures,
-            f"{traj_name}_pressures_grads": traj_result.pressures_grads,
-            f"{traj_name}_t": traj_result.t,
-        })
+        return metadata
 
-        # Store one copy of each fixed result
-        if "edge_indices" not in trajectories:
-            trajectories["edge_indices"] = compute_edge_indices(traj_result.grids[0])
-        if "vertices" not in trajectories:
-            trajectories["vertices"] = traj_result.grids[0]
-        if "fixed_mask" not in trajectories:
-            trajectories["fixed_mask"] = traj_result.fixed_mask
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = []
+        for i, traj_def in enumerate(trajectory_defs):
+            traj_name = f"traj_{i:05}"
+            logger.info(f"Generating trajectory {traj_name}")
 
-        # Store per-trajectory metadata
-        trajectory_metadata.append(
-            {"name": traj_name,
-             "num_time_steps": num_time_steps,
-             "time_step_size": time_step_size,
-             "in_velocity": in_velocity,
-             "viscosity": viscosity,
-             "noise_sigma": 0,
-             "field_keys": {
-                 # Plain names
-                 "solutions": f"{traj_name}_solutions",
-                 "grads": f"{traj_name}_grads",
-                 "pressures": f"{traj_name}_pressures",
-                 "pressures_grads": f"{traj_name}_pressures_grads",
-                 # Mapped names
-                 "p": f"{traj_name}_solutions",
-                 "q": f"{traj_name}_pressures",
-                 "dpdt": f"{traj_name}_grads",
-                 "dqdt": f"{traj_name}_pressures_grads",
-                 "t": f"{traj_name}_t",
-                 "p_noiseless": f"{traj_name}_solutions",
-                 "q_noiseless": f"{traj_name}_pressures",
-                 # Grid information (fixed)
-                 "edge_indices": "edge_indices",
-                 "vertices": "vertices",
-                 "fixed_mask": "fixed_mask",
-             },
-             "timing": {
-                 "traj_gen_time": traj_gen_elapsed
-             }})
+            num_time_steps = traj_def["num_time_steps"]
+            time_step_size = traj_def["time_step_size"]
+            in_velocity = traj_def["in_velocity"]
+            viscosity = traj_def.get("viscosity", 0.001)
+            subsample = int(traj_def.get("subsample", 1))
+
+            # Create system
+            system = navier_stokes_cache.find(grid_resolution=grid_resolution, viscosity=viscosity, base_logger=logger)
+            if system is None:
+                system = NavierStokesSystem(grid_resolution=grid_resolution, viscosity=viscosity, base_logger=logger)
+                navier_stokes_cache.insert(system)
+
+            metadata = {
+                "traj_name": traj_name,
+                "num_time_steps": num_time_steps,
+                "time_step_size": time_step_size,
+                "in_velocity": in_velocity,
+                "viscosity": viscosity,
+                "subsample": subsample,
+            }
+
+            futures.append(executor.submit(generate_trajectory, system=system, metadata=metadata))
+
+        for future in concurrent.futures.as_completed(futures):
+            result = future.result()
+
+            traj_name = result["traj_name"]
+            num_time_steps = result["num_time_steps"]
+            time_step_size = result["time_step_size"]
+            in_velocity = result["in_velocity"]
+            viscosity = result["viscosity"]
+            subsample = result["subsample"]
+            traj_result = result["traj_result"]
+            traj_gen_elapsed = result["traj_gen_elapsed"]
+
+            logger.info(f"Generated {traj_name} in {traj_gen_elapsed} sec")
+
+            # Store trajectory data
+            trajectories.update({
+                f"{traj_name}_solutions": traj_result.solutions,
+                f"{traj_name}_grads": traj_result.grads,
+                f"{traj_name}_pressures": traj_result.pressures,
+                f"{traj_name}_pressures_grads": traj_result.pressures_grads,
+                f"{traj_name}_t": traj_result.t,
+            })
+
+            # Store one copy of each fixed result
+            if "edge_indices" not in trajectories:
+                trajectories["edge_indices"] = compute_edge_indices(traj_result.grids[0])
+            if "vertices" not in trajectories:
+                trajectories["vertices"] = traj_result.grids[0]
+            if "fixed_mask" not in trajectories:
+                trajectories["fixed_mask"] = traj_result.fixed_mask
+
+            # Store per-trajectory metadata
+            trajectory_metadata.append(
+                {"name": traj_name,
+                 "num_time_steps": num_time_steps,
+                 "time_step_size": time_step_size,
+                 "in_velocity": in_velocity,
+                 "viscosity": viscosity,
+                 "noise_sigma": 0,
+                 "field_keys": {
+                     # Plain names
+                     "solutions": f"{traj_name}_solutions",
+                     "grads": f"{traj_name}_grads",
+                     "pressures": f"{traj_name}_pressures",
+                     "pressures_grads": f"{traj_name}_pressures_grads",
+                     # Mapped names
+                     "p": f"{traj_name}_solutions",
+                     "q": f"{traj_name}_pressures",
+                     "dpdt": f"{traj_name}_grads",
+                     "dqdt": f"{traj_name}_pressures_grads",
+                     "t": f"{traj_name}_t",
+                     "p_noiseless": f"{traj_name}_solutions",
+                     "q_noiseless": f"{traj_name}_pressures",
+                     # Grid information (fixed)
+                     "edge_indices": "edge_indices",
+                     "vertices": "vertices",
+                     "fixed_mask": "fixed_mask",
+                 },
+                 "timing": {
+                     "traj_gen_time": traj_gen_elapsed
+                 }})
 
     logger.info("Done generating trajectories")
 
