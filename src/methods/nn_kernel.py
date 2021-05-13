@@ -25,12 +25,13 @@ class NNKernel(torch.nn.Module):
         return TimeDerivative(dq_dt=dq, dp_dt=dp)
 
 
-def build_network(arch_args):
+def build_network(arch_args, predict_type):
     input_dim = arch_args["input_dim"]
     hidden_dim = arch_args["hidden_dim"]
     output_dim = arch_args["output_dim"]
     nonlinearity = NONLINEARITIES[arch_args["nonlinearity"]]
     kern = NNKernel(input_dim=input_dim, hidden_dim=hidden_dim,
                     output_dim=output_dim,
-                    nonlinearity=nonlinearity)
+                    nonlinearity=nonlinearity,
+                    predict_type=predict_type)
     return kern

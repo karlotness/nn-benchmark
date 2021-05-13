@@ -27,7 +27,9 @@ def build_network(net_args):
         # Lazy import GN to avoid pytorch-geometric if possible
         from . import gn
         return gn.build_network(arch_args)
-    elif arch == "nn-kernel":
-        return nn_kernel.build_network(arch_args)
+    elif arch == "nn-kernel-deriv":
+        return nn_kernel.build_network(arch_args, predict_type="deriv")
+    elif arch == "nn-kernel-step":
+        return nn_kernel.build_network(arch_args, predict_type="step")
     else:
         raise ValueError(f"Invalid architecture: {arch}")

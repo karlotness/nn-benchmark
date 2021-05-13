@@ -221,7 +221,7 @@ def run_phase(base_dir, out_dir, phase_args):
             return net.time_derivative(p=p, q=q, create_graph=False)
         time_deriv_func = hnn_model_time_deriv
         hamiltonian_func = model_hamiltonian
-    elif eval_type in {"mlp-deriv", "nn-kernel"}:
+    elif eval_type in {"mlp-deriv", "nn-kernel-deriv"}:
         MLPDerivative = namedtuple("MLPDerivative", ["dq_dt", "dp_dt"])
         def net_no_grad(q, p, dt=1.0, t=0):
             with torch.no_grad():
@@ -232,7 +232,7 @@ def run_phase(base_dir, out_dir, phase_args):
                 dp = ret.dp_dt.detach().cpu().numpy()
                 return MLPDerivative(dq_dt=dq, dp_dt=dp)
         time_deriv_func = net_no_grad
-    elif eval_type in {"mlp-step"}:
+    elif eval_type in {"mlp-step", "nn-kernel-step"}:
         MLPPrediction = namedtuple("MLPPrediction", ["q", "p"])
         def model_next_step(q, p, dt=1.0, t=0):
             with torch.no_grad():

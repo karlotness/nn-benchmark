@@ -1490,9 +1490,10 @@ class NNKernel(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, learning_rate=1e-3,
                  hidden_dim=2048, train_dtype="float",
                  batch_size=750, epochs=1000, validation_set=None,
-                 nonlinearity="relu", optimizer="sgd", weight_decay=0):
+                 nonlinearity="relu", optimizer="sgd", weight_decay=0,
+                 predict_type="deriv"):
         super().__init__(experiment=experiment,
-                         method="nn-kernel",
+                         method="-".join(["nn-kernel", predict_type]),
                          name_tail=f"{training_set.name}-h{hidden_dim}-lr{learning_rate}-wd{weight_decay}")
         self.training_set = training_set
         self.gpu = gpu
@@ -1506,12 +1507,19 @@ class NNKernel(TrainedNetwork):
         self.optimizer = optimizer
         self.weight_decay = weight_decay
         self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
+        self.predict_type = predict_type
+        assert predict_type in {"deriv", "step"}
 
     def description(self):
+        dataset_type = "snapshot"
+        if self.training_set == "taylor-green":
+            dataset_type = "taylor-green"
+        elif self.predict_type == "step":
+            dataset_type = "step-snapshot"
         template = {
             "phase_args": {
                 "network": {
-                    "arch": "nn-kernel",
+                    "arch": "-".join(["nn-kernel", self.predict_type]),
                     "arch_args": {
                         "input_dim": self.training_set.input_size(),
                         "hidden_dim": self.hidden_dim,
@@ -1528,12 +1536,13 @@ class NNKernel(TrainedNetwork):
                     "max_epochs": self.epochs,
                     "try_gpu": self.gpu,
                     "train_dtype": self.train_dtype,
-                    "train_type": "nn-kernel",
+                    "train_type": "-".join(["nn-kernel", self.predict_type]),
                     "train_type_args": {},
                 },
                 "train_data": {
                     "data_dir": self.training_set.path,
-                    "dataset": ("taylor-green" if self.training_set.system == "taylor-green" else "snapshot"),
+                    "dataset": dataset_type,
+                    "predict_type": self.predict_type,
                     "linearize": True,
                     "dataset_args": {},
                     "loader": {

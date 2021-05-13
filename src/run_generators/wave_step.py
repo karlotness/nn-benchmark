@@ -152,6 +152,22 @@ for (coarse, train_set), _repeat in itertools.product(train_sets, range(NUM_REPE
                                               integrator="null")
             writable_objects.append(mlp_step_eval)
 
+    nn_kernel_step_train = utils.NNKernel(experiment=experiment_general,
+                                          training_set=train_set,
+                                          learning_rate=0.001, weight_decay=0.0001,
+                                          hidden_dim=32768, train_dtype="float",
+                                          optimizer="sgd",
+                                          batch_size=750, epochs=EPOCHS, validation_set=val_sets[coarse],
+                                          nonlinearity="relu", predict_type="step")
+    writable_objects.append(nn_kernel_step_train)
+    for eval_set in eval_sets[coarse]:
+        nn_kernel_step_eval = utils.NetworkEvaluation(experiment=experiment_general,
+                                                      network=nn_kernel_step_train,
+                                                      eval_set=eval_set,
+                                                      integrator="null")
+        writable_objects.append(nn_kernel_step_eval)
+
+
     writable_objects.extend(general_int_nets)
     for trained_net, eval_set, integrator in itertools.product(general_int_nets, eval_sets[coarse], EVAL_INTEGRATORS):
         writable_objects.append(
