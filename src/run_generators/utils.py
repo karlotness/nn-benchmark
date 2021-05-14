@@ -520,6 +520,22 @@ class NavierStokesInitialConditionSource(InitialConditionSource):
         }
 
 
+class NavierStokesFixedInitialConditionSource(NavierStokesInitialConditionSource):
+    def __init__(self,
+                 fixed_velocities=None,
+                 fallback_velocity_range=(1.25, 1.75)):
+        super().__init__(velocity_range=fallback_velocity_range)
+        self._conditions = (fixed_velocities or []).copy()
+        self._conditions.reverse()
+
+    def _generate_initial_condition(self):
+        if self._conditions:
+            return {
+                "in_velocity": self._conditions.pop(),
+            }
+        else:
+            return super()._generate_initial_condition()
+
 class WritableDescription:
     def __init__(self, experiment, phase, name):
         self.experiment = experiment
