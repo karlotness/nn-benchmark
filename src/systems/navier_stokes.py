@@ -12,7 +12,6 @@ from collections import namedtuple
 from .defs import System, SystemCache, SystemResult
 import numpy as np
 import concurrent.futures
-import psutil
 
 
 IN_MESH_PATH = pathlib.Path(__file__).parent / "resources" / "mesh.obj.xz"
