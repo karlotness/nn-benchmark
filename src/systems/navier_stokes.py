@@ -273,6 +273,7 @@ def generate_data(system_args, base_logger=None):
 
             metadata = {
                 "traj_name": traj_name,
+                "traj_num": i,
                 "num_time_steps": num_time_steps,
                 "time_step_size": time_step_size,
                 "in_velocity": in_velocity,
@@ -285,6 +286,7 @@ def generate_data(system_args, base_logger=None):
         for future in concurrent.futures.as_completed(futures):
             result = future.result()
 
+            traj_num = result["traj_num"]
             traj_name = result["traj_name"]
             num_time_steps = result["num_time_steps"]
             time_step_size = result["time_step_size"]
@@ -315,36 +317,40 @@ def generate_data(system_args, base_logger=None):
 
             # Store per-trajectory metadata
             trajectory_metadata.append(
-                {"name": traj_name,
-                 "num_time_steps": num_time_steps,
-                 "time_step_size": time_step_size,
-                 "in_velocity": in_velocity,
-                 "viscosity": viscosity,
-                 "noise_sigma": 0,
-                 "field_keys": {
-                     # Plain names
+                (traj_num,
+                 {"name": traj_name,
+                  "num_time_steps": num_time_steps,
+                  "time_step_size": time_step_size,
+                  "in_velocity": in_velocity,
+                  "viscosity": viscosity,
+                  "noise_sigma": 0,
+                  "field_keys": {
+                      # Plain names
                      "solutions": f"{traj_name}_solutions",
-                     "grads": f"{traj_name}_grads",
-                     "pressures": f"{traj_name}_pressures",
-                     "pressures_grads": f"{traj_name}_pressures_grads",
-                     # Mapped names
+                      "grads": f"{traj_name}_grads",
+                      "pressures": f"{traj_name}_pressures",
+                      "pressures_grads": f"{traj_name}_pressures_grads",
+                      # Mapped names
                      "p": f"{traj_name}_solutions",
-                     "q": f"{traj_name}_pressures",
-                     "dpdt": f"{traj_name}_grads",
-                     "dqdt": f"{traj_name}_pressures_grads",
-                     "t": f"{traj_name}_t",
-                     "p_noiseless": f"{traj_name}_solutions",
-                     "q_noiseless": f"{traj_name}_pressures",
-                     # Grid information (fixed)
+                      "q": f"{traj_name}_pressures",
+                      "dpdt": f"{traj_name}_grads",
+                      "dqdt": f"{traj_name}_pressures_grads",
+                      "t": f"{traj_name}_t",
+                      "p_noiseless": f"{traj_name}_solutions",
+                      "q_noiseless": f"{traj_name}_pressures",
+                      # Grid information (fixed)
                      "edge_indices": "edge_indices",
-                     "vertices": "vertices",
-                     "fixed_mask": "fixed_mask",
-                 },
-                 "timing": {
-                     "traj_gen_time": traj_gen_elapsed
-                 }})
+                      "vertices": "vertices",
+                      "fixed_mask": "fixed_mask",
+                  },
+                  "timing": {
+                      "traj_gen_time": traj_gen_elapsed
+                  }}))
 
     logger.info("Done generating trajectories")
+
+    trajectory_metadata.sort()
+    trajectory_metadata = [d for _i, d in trajectory_metadata]
 
     return SystemResult(
         trajectories=trajectories,
