@@ -910,9 +910,9 @@ class NavierStokesDataset(Dataset):
             },
             "slurm_args": {
                 "gpu": False,
-                "time": "05:00:00",
-                "cpus": 4,
-                "mem": 15,
+                "time": "08:00:00",
+                "cpus": 16,
+                "mem": 32,
             },
         }
         return template
