@@ -12,6 +12,7 @@ from collections import namedtuple
 from .defs import System, SystemCache, SystemResult
 import numpy as np
 import concurrent.futures
+import psutil
 
 
 IN_MESH_PATH = pathlib.Path(__file__).parent / "resources" / "mesh.obj.xz"
@@ -241,7 +242,13 @@ def generate_data(system_args, base_logger=None):
 
         return metadata
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    num_cores = os.environ.get("SLURM_JOB_CPUS_PER_NODE")
+    if num_cores is None:
+        num_cores = len(os.sched_getaffinity(0))
+    else:
+        num_cores = int(num_cores)
+
+    with concurrent.futures.ThreadPoolExecutor(int(num_cores)) as executor:
         futures = []
         for i, traj_def in enumerate(trajectory_defs):
             traj_name = f"traj_{i:05}"
