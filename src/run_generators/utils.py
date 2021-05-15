@@ -808,7 +808,7 @@ class SpringMeshDataset(Dataset):
             "slurm_args": {
                 "gpu": False,
                 "time": "10:00:00",
-                "cpus": 16,
+                "cpus": min(16, len(trajectories)),
                 "mem": 40,
             },
         }
@@ -911,7 +911,7 @@ class NavierStokesDataset(Dataset):
             "slurm_args": {
                 "gpu": False,
                 "time": "08:00:00",
-                "cpus": 16,
+                "cpus": min(16, len(trajectories)),
                 "mem": 32,
             },
         }
