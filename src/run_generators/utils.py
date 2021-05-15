@@ -975,8 +975,10 @@ class TrainedNetwork(WritableDescription):
             else:
                 return 37
         elif system == "navier-stokes":
-            return 32
-        return 16
+            return 40
+        elif system == "spring-mesh":
+            return 40
+        return 35
 
 
 class HNN(TrainedNetwork):
