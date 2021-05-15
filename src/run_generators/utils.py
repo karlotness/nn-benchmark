@@ -1509,7 +1509,8 @@ class NNKernel(TrainedNetwork):
                  hidden_dim=2048, train_dtype="float",
                  batch_size=750, epochs=1000, validation_set=None,
                  nonlinearity="relu", optimizer="sgd", weight_decay=0,
-                 predict_type="deriv"):
+                 predict_type="deriv",
+                 step_time_skew=1, step_subsample=1):
         super().__init__(experiment=experiment,
                          method="-".join(["nn-kernel", predict_type]),
                          name_tail=f"{training_set.name}-h{hidden_dim}-lr{learning_rate}-wd{weight_decay}")
@@ -1527,6 +1528,8 @@ class NNKernel(TrainedNetwork):
         self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
         self.predict_type = predict_type
         assert predict_type in {"deriv", "step"}
+        self.step_time_skew = step_time_skew
+        self.step_subsample = step_subsample
 
     def description(self):
         dataset_type = "snapshot"
@@ -1578,6 +1581,11 @@ class NNKernel(TrainedNetwork):
         }
         if self.validation_set is not None:
             template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
+        if self.predict_type == "step":
+             template["phase_args"]["train_data"]["dataset_args"].update({
+                 "time-skew": self.step_time_skew,
+                 "subsample": self.step_subsample,
+             })
         return template
 
 
