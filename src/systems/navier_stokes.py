@@ -247,13 +247,13 @@ def generate_data(system_args, base_logger=None):
 
         return metadata
 
-    num_cores = os.environ.get("SLURM_JOB_CPUS_PER_NODE")
-    if num_cores is None:
-        num_cores = len(os.sched_getaffinity(0))
-    else:
-        num_cores = int(num_cores)
+    # Determine number of cores accessible from this job
+    num_cores = int(os.environ.get("SLURM_JOB_CPUS_PER_NODE",
+                                   len(os.sched_getaffinity(0))))
+    # Limit workers to at most the number of trajectories
+    num_tasks = min(num_cores, len(trajectory_defs))
 
-    with concurrent.futures.ThreadPoolExecutor(int(num_cores)) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_tasks) as executor:
         futures = []
         for i, traj_def in enumerate(trajectory_defs):
             traj_name = f"traj_{i:05}"

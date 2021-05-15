@@ -546,16 +546,18 @@ def generate_data(system_args, base_logger=None):
     else:
         logger = logging.getLogger("spring-mesh")
 
-    # Determine number of cores accessible from this job
-    num_cores = int(os.environ.get("SLURM_JOB_CPUS_PER_NODE",
-                                   len(os.sched_getaffinity(0))))
-
     trajectory_metadata = []
     trajectories = {}
     vel_decay = system_args.get("vel_decay", 0.0)
     trajectory_defs = system_args["trajectory_defs"]
 
-    with concurrent.futures.ProcessPoolExecutor(max_workers=num_cores) as executor:
+    # Determine number of cores accessible from this job
+    num_cores = int(os.environ.get("SLURM_JOB_CPUS_PER_NODE",
+                                   len(os.sched_getaffinity(0))))
+    # Limit workers to at most the number of trajectories
+    num_tasks = min(num_cores, len(trajectory_defs))
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_tasks) as executor:
         futures = []
         for i, traj_def in enumerate(trajectory_defs):
             futures.append(executor.submit(_generate_data_worker, i=i, traj_def=traj_def, vel_decay=vel_decay))
