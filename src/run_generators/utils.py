@@ -1700,9 +1700,7 @@ class Evaluation(WritableDescription):
 
     def _get_mem_requirement(self, eval_set):
         system = eval_set.system
-        if system == "wave":
-            return 32
-        return 16
+        return 32
 
 
 class NetworkEvaluation(Evaluation):
