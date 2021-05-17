@@ -10,17 +10,15 @@ parser.add_argument("base_dir", type=str,
 
 args = parser.parse_args()
 base_dir = pathlib.Path(args.base_dir)
-mesh_size = 80
 
-EPOCHS = 400 * 2
-GN_EPOCHS = 75 * 2
+EPOCHS = 400
+GN_EPOCHS = 75
 NUM_REPEATS = 1
-# Spring base parameters
-SPRING_END_TIME = 2 * math.pi
-SPRING_DT = 0.00781
-SPRING_STEPS = math.ceil(SPRING_END_TIME / SPRING_DT)
-VEL_DECAY = 0.1
-SPRING_SUBSAMPLE = 2**7
+# Navier-Stokes base parameters
+NS_END_TIME = 0.08 * 65
+NS_DT = 0.08
+NS_STEPS = math.ceil(NS_END_TIME / NS_DT)
+NS_SUBSAMPLE = 4
 EVAL_INTEGRATORS = ["leapfrog", "euler", "rk4"]
 
 COARSE_LEVELS = [1, 4, 16, 64]  # Used for time skew parameter for training & validation
@@ -28,17 +26,14 @@ TRAIN_SET_SIZES = [12, 25, 50]
 
 writable_objects = []
 
-experiment_general = utils.Experiment(f"springmesh-{mesh_size}-perturball-runs")
-experiment_step = utils.Experiment(f"springmesh-{mesh_size}-perturball-runs-step")
-experiment_deriv = utils.Experiment(f"springmesh-{mesh_size}-perturball-runs-deriv")
+experiment_general = utils.Experiment("ns-runs")
+experiment_step = utils.Experiment("ns-runs-step")
+experiment_deriv = utils.Experiment("ns-runs-deriv")
 
-mesh_gen = utils.SpringMeshGridGenerator(grid_shape=(mesh_size, mesh_size), fix_particles="top")
-
-
-train_source = utils.SpringMeshAllPerturb(mesh_generator=mesh_gen, magnitude_range=(0, 0.35))
-val_source = utils.SpringMeshAllPerturb(mesh_generator=mesh_gen, magnitude_range=(0, 0.35))
-eval_source = utils.SpringMeshAllPerturb(mesh_generator=mesh_gen, magnitude_range=(0, 0.35))
-eval_outdist_source = utils.SpringMeshAllPerturb(mesh_generator=mesh_gen, magnitude_range=(0.35, 0.45))
+train_source = utils.NavierStokesInitialConditionSource(velocity_range=(0.25, 1.75))
+val_source = utils.NavierStokesInitialConditionSource(velocity_range=(0.25, 1.75))
+eval_source = utils.NavierStokesInitialConditionSource(velocity_range=(0.25, 1.75))
+eval_outdist_source = utils.NavierStokesInitialConditionSource(velocity_range=(1.75, 2.0))
 
 train_sets = []
 val_set = None
@@ -47,48 +42,42 @@ eval_sets = {}
 # Generate data sets
 # Generate train set
 for num_traj in TRAIN_SET_SIZES:
-    train_sets.append(
-        utils.SpringMeshDataset(experiment_general,
-                                train_source,
-                                num_traj,
-                                set_type="train",
-                                num_time_steps=SPRING_STEPS,
-                                time_step_size=SPRING_DT,
-                                subsampling=SPRING_SUBSAMPLE,
-                                noise_sigma=0,
-                                vel_decay=VEL_DECAY))
+    _train_set = utils.NavierStokesDataset(experiment=experiment_general,
+                                           initial_cond_source=train_source,
+                                           set_type="train",
+                                           num_traj=num_traj,
+                                           subsampling=NS_SUBSAMPLE,
+                                           num_time_steps=NS_STEPS,
+                                           time_step_size=NS_DT)
+    train_sets.append(_train_set)
+    _val_set = utils.NavierStokesDataset(experiment=experiment_general,
+                                         initial_cond_source=val_source,
+                                         set_type="val",
+                                         num_traj=2,
+                                         subsampling=NS_SUBSAMPLE,
+                                         num_time_steps=NS_STEPS,
+                                         time_step_size=NS_DT)
+    val_set = _val_set
 writable_objects.extend(train_sets)
-# Generate val set
-val_set = utils.SpringMeshDataset(experiment_general,
-                                  val_source,
-                                  3,
-                                  set_type="val",
-                                  num_time_steps=SPRING_STEPS,
-                                  time_step_size=SPRING_DT,
-                                  subsampling=SPRING_SUBSAMPLE,
-                                  noise_sigma=0,
-                                  vel_decay=VEL_DECAY)
 writable_objects.append(val_set)
 # Generate eval sets
 for source, num_traj, type_key, step_multiplier in [
         (eval_source, 5, "eval", 1),
-        #(eval_source, 5, "eval-long", 3),
+        #(eval_source, 3, "eval-long", 3),
         (eval_outdist_source, 5, "eval-outdist", 1),
-        #(eval_outdist_source, 5, "eval-outdist-long", 3),
+        #(eval_outdist_source, 3, "eval-outdist-long", 3),
         ]:
     for coarse in COARSE_LEVELS:
-        _spring_dt = SPRING_DT * coarse
-        _spring_steps = math.ceil(SPRING_END_TIME / _spring_dt)
-        _spring_subsample = SPRING_SUBSAMPLE * coarse
-        _eval_set = utils.SpringMeshDataset(experiment_general,
-                                            source,
-                                            num_traj,
-                                            set_type=type_key,
-                                            num_time_steps=_spring_steps,
-                                            time_step_size=_spring_dt,
-                                            subsampling=_spring_subsample,
-                                            noise_sigma=0,
-                                            vel_decay=VEL_DECAY)
+        _ns_dt = NS_DT * coarse
+        _ns_steps = math.ceil(NS_END_TIME / _ns_dt)
+        _ns_subsample = NS_SUBSAMPLE * coarse
+        _eval_set = utils.NavierStokesDataset(experiment=experiment_general,
+                                              initial_cond_source=eval_source,
+                                              set_type=f"{type_key}-cors{coarse}",
+                                              num_traj=num_traj,
+                                              num_time_steps=_ns_steps,
+                                              subsampling=_ns_subsample,
+                                              time_step_size=_ns_dt)
         _eval_set.name_tag = f"cors{coarse}"
         if coarse not in eval_sets:
             eval_sets[coarse] = []
@@ -100,12 +89,14 @@ writable_objects.extend(itertools.chain.from_iterable(eval_sets.values()))
 for integrator in (EVAL_INTEGRATORS + ["back-euler", "bdf-2"]):
     for coarse in [1]: #COARSE_LEVELS:
         for eval_set in eval_sets[coarse]:
-            integration_run_double = utils.BaselineIntegrator(experiment=experiment_deriv,
-                                                              eval_set=eval_set,
-                                                              eval_dtype="double",
-                                                              integrator=integrator)
-            integration_run_double.name_tag = f"cors{coarse}"
-            writable_objects.append(integration_run_double)
+            # NO BASELINES YET
+            pass
+            # integration_run_double = utils.BaselineIntegrator(experiment=experiment_deriv,
+            #                                                   eval_set=eval_set,
+            #                                                   eval_dtype="double",
+            #                                                   integrator=integrator)
+            # integration_run_double.name_tag = f"cors{coarse}"
+            # writable_objects.append(integration_run_double)
 
 
 # Emit KNN runs
@@ -132,19 +123,20 @@ for train_set, integrator in itertools.product(train_sets, EVAL_INTEGRATORS):
 
 # DERIVATIVE: Emit MLP, GN, NNkernel runs
 for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
+    # NO GN SUPPORT YET
     # GN runs
-    gn_train = utils.GN(experiment=experiment_deriv,
-                        training_set=train_set,
-                        validation_set=val_set,
-                        batch_size=3,
-                        epochs=GN_EPOCHS)
-    writable_objects.append(gn_train)
-    for eval_set in eval_sets[1]:
-        gn_eval = utils.NetworkEvaluation(experiment=experiment_deriv,
-                                          network=gn_train,
-                                          eval_set=eval_set,
-                                          integrator="null")
-        writable_objects.append(gn_eval)
+    # gn_train = utils.GN(experiment=experiment_deriv,
+    #                     training_set=train_set,
+    #                     validation_set=val_set,
+    #                     batch_size=3,
+    #                     epochs=GN_EPOCHS)
+    # writable_objects.append(gn_train)
+    # for eval_set in eval_sets[1]:
+    #     gn_eval = utils.NetworkEvaluation(experiment=experiment_deriv,
+    #                                       network=gn_train,
+    #                                       eval_set=eval_set,
+    #                                       integrator="null")
+    #     writable_objects.append(gn_eval)
     # Other networks work for all integrators
     general_int_nets = []
     # NN Kernel

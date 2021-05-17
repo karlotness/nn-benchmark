@@ -78,16 +78,21 @@ class NavierStokesSystem(System):
         mat[np.isnan(mat)] = 0.0
         return mat
 
-    def generate_trajectory(self, num_time_steps, time_step_size, in_velocity, subsample=1):
+    def generate_trajectory(self, num_time_steps, time_step_size, in_velocity, subsample=1, logger_override=None):
         orig_time_step_size = time_step_size
         orig_num_time_steps = num_time_steps
 
         time_step_size = time_step_size / subsample
         num_time_steps = num_time_steps * subsample
 
+        if logger_override is not None:
+            logger = logger_override.getChild("ns-system")
+        else:
+            logger = self.logger
+
         # Create temporary directory
         with tempfile.TemporaryDirectory(prefix="polyfem-") as _tmp_dir:
-            self.logger.info(f"Generating trajectory in {_tmp_dir}")
+            logger.info(f"Generating trajectory in {_tmp_dir}")
             tmp_dir = pathlib.Path(_tmp_dir)
 
             # Write the mesh file
@@ -106,15 +111,15 @@ class NavierStokesSystem(System):
                 json.dump(config, config_file)
 
             # Run PolyFEM
-            polyfem_logger = self.logger.getChild("polyfem")
+            polyfem_logger = logger.getChild("polyfem")
             prog = shutil.which(str(pathlib.Path(os.environ.get("POLYFEM_BIN_DIR", "")) / "PolyFEM_bin"))
             if not prog:
                 raise ValueError("Cannot find PolyFEM; please install and set POLYFEM_BIN_DIR")
             cmdline = [prog, "--json", "config.json", "--cmd"]
             new_env = dict(os.environ)
             if "OMP_NUM_THREADS" not in new_env:
-                new_env["OMP_NUM_THREADS"] = os.environ.get("SLURM_JOB_CPUS_PER_NODE", "1")
-            self.logger.info(f"Launching PolyFEM: {cmdline}")
+                new_env["OMP_NUM_THREADS"] = "2"
+            logger.info(f"Launching PolyFEM: {cmdline}")
             with subprocess.Popen(cmdline, stdout=subprocess.PIPE, env=new_env, cwd=tmp_dir) as proc:
                 for line in proc.stdout:
                     level = logging.DEBUG
@@ -127,7 +132,7 @@ class NavierStokesSystem(System):
             if proc.returncode != 0:
                 raise RuntimeError(f"PolyFEM failed: {proc.returncode}")
             else:
-                self.logger.info("PolyFEM finished")
+                logger.info("PolyFEM finished")
 
             # Gather results
             grids = []
@@ -234,6 +239,7 @@ def generate_data(system_args, base_logger=None):
             time_step_size=metadata["time_step_size"],
             in_velocity=metadata["in_velocity"],
             subsample=metadata["subsample"],
+            logger_override=logger.getChild(metadata["traj_name"])
         )
         traj_gen_elapsed = time.perf_counter() - traj_gen_start
         metadata["traj_result"] = traj_result
@@ -241,13 +247,13 @@ def generate_data(system_args, base_logger=None):
 
         return metadata
 
-    num_cores = os.environ.get("SLURM_JOB_CPUS_PER_NODE")
-    if num_cores is None:
-        num_cores = len(os.sched_getaffinity(0))
-    else:
-        num_cores = int(num_cores)
+    # Determine number of cores accessible from this job
+    num_cores = int(os.environ.get("SLURM_JOB_CPUS_PER_NODE",
+                                   len(os.sched_getaffinity(0))))
+    # Limit workers to at most the number of trajectories
+    num_tasks = min(num_cores, len(trajectory_defs))
 
-    with concurrent.futures.ThreadPoolExecutor(int(num_cores)) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_tasks) as executor:
         futures = []
         for i, traj_def in enumerate(trajectory_defs):
             traj_name = f"traj_{i:05}"
@@ -267,6 +273,7 @@ def generate_data(system_args, base_logger=None):
 
             metadata = {
                 "traj_name": traj_name,
+                "traj_num": i,
                 "num_time_steps": num_time_steps,
                 "time_step_size": time_step_size,
                 "in_velocity": in_velocity,
@@ -279,6 +286,7 @@ def generate_data(system_args, base_logger=None):
         for future in concurrent.futures.as_completed(futures):
             result = future.result()
 
+            traj_num = result["traj_num"]
             traj_name = result["traj_name"]
             num_time_steps = result["num_time_steps"]
             time_step_size = result["time_step_size"]
@@ -309,36 +317,40 @@ def generate_data(system_args, base_logger=None):
 
             # Store per-trajectory metadata
             trajectory_metadata.append(
-                {"name": traj_name,
-                 "num_time_steps": num_time_steps,
-                 "time_step_size": time_step_size,
-                 "in_velocity": in_velocity,
-                 "viscosity": viscosity,
-                 "noise_sigma": 0,
-                 "field_keys": {
-                     # Plain names
+                (traj_num,
+                 {"name": traj_name,
+                  "num_time_steps": num_time_steps,
+                  "time_step_size": time_step_size,
+                  "in_velocity": in_velocity,
+                  "viscosity": viscosity,
+                  "noise_sigma": 0,
+                  "field_keys": {
+                      # Plain names
                      "solutions": f"{traj_name}_solutions",
-                     "grads": f"{traj_name}_grads",
-                     "pressures": f"{traj_name}_pressures",
-                     "pressures_grads": f"{traj_name}_pressures_grads",
-                     # Mapped names
+                      "grads": f"{traj_name}_grads",
+                      "pressures": f"{traj_name}_pressures",
+                      "pressures_grads": f"{traj_name}_pressures_grads",
+                      # Mapped names
                      "p": f"{traj_name}_solutions",
-                     "q": f"{traj_name}_pressures",
-                     "dpdt": f"{traj_name}_grads",
-                     "dqdt": f"{traj_name}_pressures_grads",
-                     "t": f"{traj_name}_t",
-                     "p_noiseless": f"{traj_name}_solutions",
-                     "q_noiseless": f"{traj_name}_pressures",
-                     # Grid information (fixed)
+                      "q": f"{traj_name}_pressures",
+                      "dpdt": f"{traj_name}_grads",
+                      "dqdt": f"{traj_name}_pressures_grads",
+                      "t": f"{traj_name}_t",
+                      "p_noiseless": f"{traj_name}_solutions",
+                      "q_noiseless": f"{traj_name}_pressures",
+                      # Grid information (fixed)
                      "edge_indices": "edge_indices",
-                     "vertices": "vertices",
-                     "fixed_mask": "fixed_mask",
-                 },
-                 "timing": {
-                     "traj_gen_time": traj_gen_elapsed
-                 }})
+                      "vertices": "vertices",
+                      "fixed_mask": "fixed_mask",
+                  },
+                  "timing": {
+                      "traj_gen_time": traj_gen_elapsed
+                  }}))
 
     logger.info("Done generating trajectories")
+
+    trajectory_metadata.sort()
+    trajectory_metadata = [d for _i, d in trajectory_metadata]
 
     return SystemResult(
         trajectories=trajectories,
