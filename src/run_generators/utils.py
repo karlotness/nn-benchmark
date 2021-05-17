@@ -1269,6 +1269,9 @@ class GN(TrainedNetwork):
         generate_scheduler_args(self, end_lr)
 
     def description(self):
+        dataset_type = "snapshot"
+        if self.training_set in {"navier-stokes"}:
+            dataset_type = "navier-stokes"
         template = {
             "phase_args": {
                 "network": {
@@ -1299,7 +1302,7 @@ class GN(TrainedNetwork):
                 },
                 "train_data": {
                     "data_dir": self.training_set.path,
-                    "dataset": "snapshot",
+                    "dataset": dataset_type,
                     "dataset_args": {},
                     "loader": {
                         "type": "pytorch-geometric",
