@@ -27,10 +27,10 @@ def package_batch(system, p, q, dp_dt, dq_dt, masses, edge_index, boundary_verti
         x = torch.from_numpy(np.concatenate((vertices, q), axis=-1))
     elif system == "spring-mesh":
         x = torch.from_numpy(q)
-    elif system == "taylor-green":
+    elif system in {"taylor-green", "navier-stokes"}:
         x = vertices
         if dp_dt is not None:
-            dp_dt = np.concatenate((dp_dt, q), axis=-1)
+            dp_dt = np.concatenate((dp_dt, q[:, np.newaxis]), axis=-1)
     else:
         raise ValueError(f"Invalid system {system}")
 
@@ -59,7 +59,7 @@ def unpack_results(result, system):
         return result[:, :, 1]
     elif system == "spring-mesh":
         return result
-    elif system == "taylor-green":
+    elif system in {"taylor-green", "navier-stokes"}:
         return result
     else:
       raise ValueError(f"Invalid system {system}")

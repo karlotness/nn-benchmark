@@ -10,6 +10,7 @@ import joblib
 import integrators
 import numpy as np
 from collections import namedtuple
+import copy
 
 
 TRAIN_DTYPES = {
@@ -166,8 +167,8 @@ def create_dataset(base_dir, data_args):
             time_skew = int(data_args["dataset_args"].get("time-skew", 1))
             subsample = int(data_args["dataset_args"].get("subsample", 1))
             data_set = dataset.StepSnapshotDataset(traj_dataset=base_data_set, subsample=subsample, time_skew=time_skew)
-        elif dataset_type == "taylor-green":
-            data_set = dataset.TaylorGreenSnapshotDataset(traj_dataset=base_data_set)
+        elif dataset_type == "navier-stokes":
+            data_set = dataset.NavierStokesSnapshotDataset(traj_dataset=base_data_set)
         elif dataset_type == "rollout-chunk":
             rollout_length = int(data_args["dataset_args"]["rollout_length"])
             data_set = dataset.RolloutChunkDataset(traj_dataset=base_data_set,
@@ -208,6 +209,14 @@ def create_dataset(base_dir, data_args):
     else:
         val_data_set, val_loader = None, None
     return train_data_set, train_loader, val_data_set, val_loader
+
+
+def add_auxiliary_data(trajectory_dataset, network_args):
+    if trajectory_dataset.system == "navier-stokes":
+        network_args["arch_args"]["mesh_coords"] = trajectory_dataset[0].vertices.tolist()
+        network_args["arch_args"]["static_nodes"] = trajectory_dataset._traj_dataset._npz_file["fixed_mask"].tolist()
+    else:
+        pass
 
 
 def select_device(try_gpu, base_logger):
@@ -410,9 +419,14 @@ def run_phase(base_dir, out_dir, phase_args):
     out_dir = pathlib.Path(out_dir)
     training_args = phase_args["training"]
 
+    # Load the data
+    logger.info("Constructing dataset")
+    train_dataset, train_loader, val_dataset, val_loader = create_dataset(base_dir, phase_args["train_data"])
+    add_auxiliary_data(train_dataset, phase_args["network"])
+    network_args = phase_args["network"]
+
     # Construct the network
     logger.info("Building network")
-    network_args = phase_args["network"]
     net = methods.build_network(network_args)
 
     # Misc training parameters
@@ -422,10 +436,6 @@ def run_phase(base_dir, out_dir, phase_args):
     logger.info(f"Training in dtype {train_dtype}")
     train_type = training_args["train_type"]
     train_type_args = training_args["train_type_args"]
-
-    # Load the data
-    logger.info("Constructing dataset")
-    train_dataset, train_loader, val_dataset, val_loader = create_dataset(base_dir, phase_args["train_data"])
 
     # Set up noise injection
     noise_injector = create_live_noise(

@@ -63,6 +63,19 @@ def generate_packing_args(instance, system, dataset):
         instance.e_features = 6
         instance.mesh_coords = [list(map(float, p)) for p in dataset.initial_cond_source.vertices]
         instance.static_nodes = [1 for p in dataset.initial_cond_source.vertices]
+    elif system == "navier-stokes":
+        dim = dataset.input_size() // 2
+        instance.particle_process_type = "identity"
+        instance.adjacency_args = {
+            "type": "native",
+            "boundary_conditions": None,
+            "boundary_vertices": None,
+            "dimension": dim,
+            }
+        instance.v_features = [4, 5]
+        instance.e_features = 6
+        instance.mesh_coords = None
+        instance.static_nodes = None
     else:
         raise ValueError(f"Invalid system {system}")
 
@@ -1333,10 +1346,10 @@ class MLP(TrainedNetwork):
 
     def description(self):
         dataset_type = "snapshot"
-        if self.training_set == "taylor-green":
-            dataset_type = "taylor-green"
-        elif self.predict_type == "step":
+        if self.predict_type == "step":
             dataset_type = "step-snapshot"
+        elif self.training_set in {"taylor-green", "navier-stokes"}:
+            dataset_type = "navier-stokes"
         template = {
             "phase_args": {
                 "network": {
@@ -1512,10 +1525,10 @@ class NNKernel(TrainedNetwork):
 
     def description(self):
         dataset_type = "snapshot"
-        if self.training_set == "taylor-green":
-            dataset_type = "taylor-green"
-        elif self.predict_type == "step":
+        if self.predict_type == "step":
             dataset_type = "step-snapshot"
+        elif self.training_set in {"taylor-green", "navier-stokes"}:
+            dataset_type = "navier-stokes"
         template = {
             "phase_args": {
                 "network": {
@@ -1810,7 +1823,7 @@ class KNNRegressorOneshot(KNNOneshotEvaluation):
                          eval_set=eval_set,
                          eval_dtype=eval_dtype,
                          integrator=integrator,
-                         dataset_type=("taylor-green" if training_set.system == "taylor-green" else "snapshot"),
+                         dataset_type=("navier-stokes" if training_set.system in {"taylor-green", "navier-stokes"} else "snapshot"),
                          knn_type="regressor")
 
 

@@ -193,7 +193,7 @@ def compute_edge_indices(vtx_coords):
     max_diff = 1.1 * np.expand_dims(np.array([da, db], dtype=np.float64), 0)
     assert np.all(np.abs(vtx_coords[edges[:, 0]] - vtx_coords[edges[:, 1]]) <= max_diff)
 
-    return edges
+    return edges.T
 
 
 def system_from_records(grid_resolution, viscosity, base_logger=None):

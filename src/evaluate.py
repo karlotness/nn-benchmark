@@ -31,7 +31,7 @@ class NullEvalDecorator:
         return int_res
 
 
-class TaylorGreenEvalDecorator:
+class NavierStokesEvalDecorator:
     def __init__(self, integrator):
         self.pressure_steps = []
         if integrator == "rk4":
@@ -202,8 +202,8 @@ def run_phase(base_dir, out_dir, phase_args):
     eval_dataset, eval_loader = create_dataset(base_dir, phase_args["eval_data"])
 
     make_eval_decorator = NullEvalDecorator
-    if eval_dataset.system == "taylor-green" and eval_type != "gn":
-        make_eval_decorator = TaylorGreenEvalDecorator
+    if eval_dataset.system in {"taylor-green", "navier-stokes"} and eval_type != "gn":
+        make_eval_decorator = NavierStokesEvalDecorator
 
     # Integrate each trajectory, compute stats and store
     logger.info("Starting evaluation")
@@ -312,7 +312,7 @@ def run_phase(base_dir, out_dir, phase_args):
             dq_dt, dp_dt = system.derivative(p=p, q=q)
             return SystemDerivative(dp_dt=dp_dt, dq_dt=dq_dt)
         time_deriv_func = system_derivative
-        if eval_dataset.system == "taylor-green":
+        if eval_dataset.system in {"taylor-green", "navier-stokes"}:
             # Special case for TG derivatives
             def tg_system_derivative(q, p, dt=1.0, t=0):
                 # q is pressure
@@ -386,7 +386,7 @@ def run_phase(base_dir, out_dir, phase_args):
                     accel = gn.unpack_results(accel, eval_dataset.system)
 
                     # Prediction for Taylor Green
-                    if eval_dataset.system == "taylor-green":
+                    if eval_dataset.system in {"taylor-green", "navier-stokes"}:
                         accel = accel.squeeze().detach().cpu().numpy()
 
                         p_next = p + time_step_size * accel[..., :2]
@@ -463,6 +463,8 @@ def run_phase(base_dir, out_dir, phase_args):
         elif eval_dataset.system == "navier-stokes":
             grid_resolution = eval_dataset.system_metadata["grid_resolution"]
             viscosity = trajectory.trajectory_meta["viscosity"][0].item()
+            vertices = eval_dataset[0].vertices.tolist()
+            edges = eval_dataset[0].edge_index.tolist()
             system = navier_stokes.system_from_records(grid_resolution=grid_resolution, viscosity=viscosity)
         else:
             raise ValueError(f"Unknown system type {eval_dataset.system}")

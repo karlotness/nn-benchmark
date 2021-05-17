@@ -84,13 +84,13 @@ class TrajectoryDataset(data.Dataset):
         return len(self._trajectory_meta)
 
 
-TaylorGreenSnapshot = namedtuple("TaylorGreenSnapshot", ["name", "p", "q", "dp_dt", "dq_dt",
+NavierStokesSnapshot = namedtuple("NavierStokesSnapshot", ["name", "p", "q", "dp_dt", "dq_dt",
                                                          "t", "trajectory_meta",
                                                          "p_noiseless", "q_noiseless",
                                                          "masses", "edge_index"])
 
 
-class TaylorGreenSnapshotDataset(data.Dataset):
+class NavierStokesSnapshotDataset(data.Dataset):
     def __init__(self, traj_dataset):
         super().__init__()
         self._traj_dataset = traj_dataset
@@ -142,7 +142,7 @@ class TaylorGreenSnapshotDataset(data.Dataset):
         self._edge_indices = edge_indices
 
     def __getitem__(self, idx):
-        return TaylorGreenSnapshot(name=self._name[idx],
+        return NavierStokesSnapshot(name=self._name[idx],
                                    trajectory_meta=self._traj_meta[idx],
                                    p=self._p[idx], q=self._q[idx],
                                    dp_dt=self._dp_dt[idx], dq_dt=self._dq_dt[idx],
