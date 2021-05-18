@@ -1438,8 +1438,12 @@ class CNN(TrainedNetwork):
                  train_dtype="float",
                  scheduler="none", scheduler_step="epoch", scheduler_args={},
                  batch_size=750, epochs=1000, validation_set=None,
-                 noise_type="none", noise_variance=0, predict_type="deriv"):
-        base_num_chans = getattr(training_set, "n_particles", 2)
+                 noise_type="none", noise_variance=0, predict_type="deriv",
+                 step_time_skew=1, step_subsample=1):
+        if training_set.system == "spring-mesh":
+            base_num_chans = 5
+        if training_set.system in {"navier-stokes", "taylor-green"}:
+            base_num_chans = 4
         chan_records = [
             {
                 "kernel_size": ks,
@@ -1466,7 +1470,14 @@ class CNN(TrainedNetwork):
         self.noise_variance = noise_variance
         self.layer_defs = chan_records
         self.predict_type = predict_type
+        self.step_time_skew = step_time_skew
+        self.step_subsample = step_subsample
         assert predict_type in {"deriv", "step"}
+
+        self.conv_dim = 1
+        if training_set.system in {"navier-stokes", "taylor-green", "spring-mesh"}:
+           self.conv_dim = 2
+        self.spatial_reshape = getattr(self.training_set, "spatial_reshape", None)
 
     def description(self):
         template = {
@@ -1476,6 +1487,8 @@ class CNN(TrainedNetwork):
                     "arch_args": {
                         "nonlinearity": "relu",
                         "layer_defs": self.layer_defs,
+                        "dim": self.conv_dim,
+                        "spatial_reshape": self.spatial_reshape,
                     },
                 },
                 "training": {
@@ -1518,6 +1531,11 @@ class CNN(TrainedNetwork):
                 "type": self.noise_type,
                 "variance": self.noise_variance
             }
+        if self.predict_type == "step":
+             template["phase_args"]["train_data"]["dataset_args"].update({
+                 "time-skew": self.step_time_skew,
+                 "subsample": self.step_subsample,
+             })
         return template
 
 
