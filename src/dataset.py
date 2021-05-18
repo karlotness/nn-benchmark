@@ -126,7 +126,13 @@ class NavierStokesSnapshotDataset(data.Dataset):
             p_noiseless.append(traj.p_noiseless[:-1])
             q_noiseless.append(traj.q_noiseless[:-1])
             masses.extend([traj.masses] * traj_num_steps)
-            edge_indices.extend([traj.edge_index] * traj_num_steps)
+
+            # Ensure edge index has proper shape for old NS datasets
+            _edge_index = traj.edge_index
+            if _edge_index.shape[0] != 2:
+                _edge_index = _edge_index.T
+
+            edge_indices.extend([_edge_index] * traj_num_steps)
 
         # Load each trajectory and join the components
         self._name = name
