@@ -799,6 +799,8 @@ class SpringMeshDataset(Dataset):
         self.n_dim = initial_cond_source.n_dim
         self.n_particles = initial_cond_source.n_particles
 
+        self.spatial_reshape = self.initial_cond_source.mesh_generator.grid_shape
+
     def description(self):
         trajectories = []
         for icond in self.initial_conditions:
@@ -899,6 +901,7 @@ class NavierStokesDataset(Dataset):
         self.initial_conditions = self.initial_cond_source.sample_initial_conditions(self.num_traj)
         self.subsampling = subsampling
         assert isinstance(self.initial_cond_source, NavierStokesInitialConditionSource)
+        self.spatial_reshape = (221, 42)
 
     def description(self):
         trajectories = []
