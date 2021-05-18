@@ -125,18 +125,18 @@ for train_set, integrator in itertools.product(train_sets, EVAL_INTEGRATORS):
 for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
     # NO GN SUPPORT YET
     # GN runs
-    # gn_train = utils.GN(experiment=experiment_deriv,
-    #                     training_set=train_set,
-    #                     validation_set=val_set,
-    #                     batch_size=3,
-    #                     epochs=GN_EPOCHS)
-    # writable_objects.append(gn_train)
-    # for eval_set in eval_sets[1]:
-    #     gn_eval = utils.NetworkEvaluation(experiment=experiment_deriv,
-    #                                       network=gn_train,
-    #                                       eval_set=eval_set,
-    #                                       integrator="null")
-    #     writable_objects.append(gn_eval)
+    gn_train = utils.GN(experiment=experiment_deriv,
+                        training_set=train_set,
+                        validation_set=val_set,
+                        batch_size=3,
+                        epochs=GN_EPOCHS)
+    writable_objects.append(gn_train)
+    for eval_set in eval_sets[1]:
+        gn_eval = utils.NetworkEvaluation(experiment=experiment_deriv,
+                                          network=gn_train,
+                                          eval_set=eval_set,
+                                          integrator="null")
+        writable_objects.append(gn_eval)
     # Other networks work for all integrators
     general_int_nets = []
     # NN Kernel
