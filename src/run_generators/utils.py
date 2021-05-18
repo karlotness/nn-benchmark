@@ -1270,7 +1270,7 @@ class GN(TrainedNetwork):
 
     def description(self):
         dataset_type = "snapshot"
-        if self.training_set in {"navier-stokes"}:
+        if self.training_set.system in {"navier-stokes"}:
             dataset_type = "navier-stokes"
         template = {
             "phase_args": {
