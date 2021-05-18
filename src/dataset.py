@@ -28,6 +28,10 @@ class TrajectoryDataset(data.Dataset):
         self._npz_file = np.load(data_dir / "trajectories.npz")
         self._linearize = linearize
 
+        self.fixed_mask = None
+        if "fixed_mask" in self._trajectory_meta[0]["field_keys"]:
+            self.fixed_mask = self._npz_file[self._trajectory_meta[0]["field_keys"]["fixed_mask"]].astype(np.float64)
+
     def __linearize(self, arr):
         if self._linearize:
             num_steps = arr.shape[0]
@@ -177,6 +181,7 @@ class SnapshotDataset(data.Dataset):
 
         self.system = self._traj_dataset.system
         self.system_metadata = self._traj_dataset.system_metadata
+        self.fixed_mask = self._traj_dataset.fixed_mask
 
         name = []
         p = []
