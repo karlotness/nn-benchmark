@@ -258,6 +258,7 @@ class StepSnapshotDataset(data.Dataset):
         self._traj_dataset = traj_dataset
         self.subsample = subsample
         self.time_skew = time_skew
+        self.fixed_mask = self._traj_dataset.fixed_mask
 
         self.system = self._traj_dataset.system
         self.system_metadata = self._traj_dataset.system_metadata

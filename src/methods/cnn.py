@@ -57,10 +57,8 @@ class CNN(torch.nn.Module):
         if not self.spatial_reshape:
             return t
         # Reshape input
-        if t.ndim - 1 < len(self.spatial_reshape):
-            raise ValueError(f"Cannot reshape CNN input with {t.ndim} dimensions to {self.spatial_reshape}")
         n_batch = t.shape[0]
-        target_shape = (n_batch, ) + self.spatial_reshape + (t.shape[1 + len(self.spatial_reshape): ] or (1, ))
+        target_shape = (n_batch, ) + self.spatial_reshape + (t.shape[2: ] or (1, ))
         return t.view(target_shape)
 
     def forward(self, q, p, extra_data=None):
@@ -69,21 +67,22 @@ class CNN(torch.nn.Module):
         orig_p_shape = p.shape
         q = self._spatial_reshape(q)
         p = self._spatial_reshape(p)
-        extra_chans = 0
-        extra_data = ()
-        if extra_data:
+        if extra_data is not None:
             extra_data = (self._spatial_reshape(extra_data), )
-            extra_chans = extra_data.shape[0][-1]
+            extra_chans = extra_data[0].shape[-1]
+        else:
+            extra_chans = 0
+            extra_data = ()
 
         # Concatenate input
         # Pass through operations
         # Split input
-        x = torch.moveaxis(torch.cat((q, p) + extra_data, dim=-1), -1, 1)
+        x = torch.movedim(torch.cat((q, p) + extra_data, dim=-1), -1, 1)
         split_size = [q.shape[-1], p.shape[-1], extra_chans]
-        y = torch.moveaxis(self.ops(x), 1, -1)
+        y = torch.movedim(self.ops(x), 1, -1)
         dq, dp, _extra = torch.split(y, split_size, dim=-1)
-        dq.view(orig_q_shape)
-        dp.view(orig_p_shape)
+        dq = dq.view(orig_q_shape)
+        dp = dp.view(orig_p_shape)
 
         # Package result value
         if self.predict_type == "deriv":

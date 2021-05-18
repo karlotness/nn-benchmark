@@ -324,30 +324,38 @@ def train_mlp(net, batch, loss_fn, train_type_args, tensor_converter, predict_ty
                            total_loss_denom_incr=shape_product(p.shape))
 
 
+def _ensure_cnn_dims(t):
+    if t.ndim < 3:
+        return t.unsqueeze(-1)
+    else:
+        return t
+
+
 def train_cnn(net, batch, loss_fn, train_type_args, tensor_converter, predict_type="deriv", extra_data=None):
     # Extract values from batch
-    p = tensor_converter(batch.p)
-    q = tensor_converter(batch.q)
-    if extra_data:
+    p = _ensure_cnn_dims(tensor_converter(batch.p))
+    q = _ensure_cnn_dims(tensor_converter(batch.q))
+    if extra_data is not None:
         if not torch.is_tensor(extra_data):
             extra_data = torch.from_numpy(extra_data)
         # Ensure we have a batch dimension
         repeat_sizes = tuple([p.shape[0]] + [1 for _ in range(extra_data.ndim)])
-        extra_data = tensor_converter(extra_data).unsqueeze(0).repeat(*repeat_sizes)
+        extra_data = _ensure_cnn_dims(tensor_converter(extra_data).unsqueeze(0).repeat(*repeat_sizes))
 
     # Perform training
     # Assume snapshot dataset (shape [batch_size, n_grid])
     pred = net(p=p, q=q, extra_data=extra_data)
+    n_batch = p.shape[0]
 
     if predict_type == "deriv":
-        dp_dt = tensor_converter(batch.dp_dt)
-        dq_dt = tensor_converter(batch.dq_dt)
+        dp_dt = _ensure_cnn_dims(tensor_converter(batch.dp_dt))
+        dq_dt = _ensure_cnn_dims(tensor_converter(batch.dq_dt))
 
         true = torch.cat([dq_dt, dp_dt], dim=-1)
         pred = torch.cat([pred.dq_dt, pred.dp_dt], dim=-1)
     elif predict_type == "step":
-        p_step = tensor_converter(batch.p_step)
-        q_step = tensor_converter(batch.q_step)
+        p_step = _ensure_cnn_dims(tensor_converter(batch.p_step))
+        q_step = _ensure_cnn_dims(tensor_converter(batch.q_step))
 
         true = torch.cat([q_step, p_step], dim=-1)
         pred = torch.cat([pred.q, pred.p], dim=-1)
