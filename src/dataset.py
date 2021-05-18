@@ -61,6 +61,8 @@ class TrajectoryDataset(data.Dataset):
             masses = np.ones(num_particles)
         if "edge_indices" in meta["field_keys"]:
             edge_index = self._npz_file[meta["field_keys"]["edge_indices"]]
+            if edge_index.shape[0] != 2:
+                edge_index = edge_index.T
         else:
             edge_index = []
         if "vertices" in meta["field_keys"]:
