@@ -44,7 +44,7 @@ class NavierStokesSystem(System):
         return -1 * np.ones_like(q, shape=(q.shape[0]))
 
     def _gen_config(self, mesh_file, num_time_steps, time_step_size, in_velocity):
-        t_end = num_time_steps * time_step_size
+        t_end = (num_time_steps + 1) * time_step_size
         return {
             "mesh": mesh_file,
             "normalize_mesh": False,
@@ -53,7 +53,7 @@ class NavierStokesSystem(System):
             "BDF_order": 3,
             "n_refs": 0,
             "tend": t_end,
-            "time_steps": num_time_steps + 2,
+            "time_steps": num_time_steps + 1,
             "vismesh_rel_area": 0.0001,
             "problem_params": {
                 "U": in_velocity,
