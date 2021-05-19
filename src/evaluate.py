@@ -202,7 +202,7 @@ def run_phase(base_dir, out_dir, phase_args):
     eval_dataset, eval_loader = create_dataset(base_dir, phase_args["eval_data"])
 
     make_eval_decorator = NullEvalDecorator
-    if eval_dataset.system in {"taylor-green", "navier-stokes"} and eval_type != "gn":
+    if eval_dataset.system == "taylor-green" and eval_type != "gn":
         make_eval_decorator = NavierStokesEvalDecorator
 
     # Integrate each trajectory, compute stats and store
@@ -312,7 +312,7 @@ def run_phase(base_dir, out_dir, phase_args):
             dq_dt, dp_dt = system.derivative(p=p, q=q)
             return SystemDerivative(dp_dt=dp_dt, dq_dt=dq_dt)
         time_deriv_func = system_derivative
-        if eval_dataset.system in {"taylor-green", "navier-stokes"}:
+        if eval_dataset.system == "taylor-green":
             # Special case for TG derivatives
             def tg_system_derivative(q, p, dt=1.0, t=0):
                 # q is pressure
