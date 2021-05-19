@@ -1778,7 +1778,7 @@ class NetworkEvaluation(Evaluation):
                 "eval_net_file": self.network_file,
                 "eval_data": {
                     "data_dir": self.eval_set.path,
-                    "linearize": (self.network.method not in {"hogn", "gn", "cnn"}),
+                    "linearize": (self.network.method not in {"hogn", "gn", "cnn", "cnn-step", "cnn-deriv"}),
                 },
                 "eval": {
                     "eval_type": eval_type,
