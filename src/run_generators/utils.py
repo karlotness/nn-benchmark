@@ -1745,7 +1745,7 @@ class Evaluation(WritableDescription):
 class NetworkEvaluation(Evaluation):
     def __init__(self, experiment, network, eval_set, gpu=False, integrator=None,
                  eval_dtype=None, network_file="model.pt"):
-        if network.method in {"knn-predictor", "knn-predictor-oneshot", "gn"}:
+        if network.method in {"knn-predictor", "knn-predictor-oneshot", "gn", "cnn-step", "mlp-step", "nn-kernel-step"}:
             integrator = "null"
         if integrator is None:
             raise ValueError("Must manually specify integrator")
