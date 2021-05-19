@@ -246,40 +246,60 @@ def run_phase(base_dir, out_dir, phase_args):
         if integrator_type != "null":
             raise ValueError(f"mlp-step predictions do not work with integrator {integrator_type}")
     elif eval_type == "cnn-deriv":
+
+        p_full_shape = (1, ) + eval_dataset[0].p[0].shape
+        q_full_shape = (1, ) + eval_dataset[0].q[0].shape
+
+        if len(q_full_shape) < 3:
+            q_full_shape = q_full_shape + (1, )
+        if len(p_full_shape) < 3:
+            p_full_shape = p_full_shape + (1, )
+
+        extra_data = getattr(eval_dataset, "fixed_mask", None)
+        if extra_data is not None:
+            extra_data = torch.from_numpy(extra_data).to(device, dtype=eval_dtype).unsqueeze(0).unsqueeze(-1)
+            extra_data.requires_grad = False
+
         CNNDerivative = namedtuple("CNNDerivative", ["dq_dt", "dp_dt"])
         def cnn_time_deriv(q, p, dt=1.0, t=0):
             with torch.no_grad():
-                unsqueezed = False
-                if len(p.shape) < 3:
-                    # Unsqueeze all tensors
-                    p = p.unsqueeze(1)
-                    q = q.unsqueeze(1)
-                    unsqueezed = True
-                res = net(p=p, q=q)
-                if unsqueezed:
-                    res = CNNDerivative(
-                        dq_dt=res.dq_dt[:, 0],
-                        dp_dt=res.dp_dt[:, 0],
-                    )
-                return res
+                q_orig_shape = q.shape
+                p_orig_shape = p.shape
+                q = torch.from_numpy(q).to(device, dtype=eval_dtype).reshape(q_full_shape)
+                p = torch.from_numpy(p).to(device, dtype=eval_dtype).reshape(p_full_shape)
+                res = net(p=p, q=q, extra_data=extra_data)
+                dq_dt = res.dq_dt.reshape(q_orig_shape).cpu().numpy()
+                dp_dt = res.dp_dt.reshape(p_orig_shape).cpu().numpy()
+                return CNNDerivative(dq_dt=dq_dt, dp_dt=dp_dt)
+
         time_deriv_func = cnn_time_deriv
     elif eval_type == "cnn-step":
+
+        p_full_shape = (1, ) + eval_dataset[0].p[0].shape
+        q_full_shape = (1, ) + eval_dataset[0].q[0].shape
+
+        if len(q_full_shape) < 3:
+            q_full_shape = q_full_shape + (1, )
+        if len(p_full_shape) < 3:
+            p_full_shape = p_full_shape + (1, )
+
+        extra_data = getattr(eval_dataset, "fixed_mask", None)
+        if extra_data is not None:
+            extra_data = torch.from_numpy(extra_data).to(device, dtype=eval_dtype).unsqueeze(0).unsqueeze(-1)
+            extra_data.requires_grad = False
+
         CNNPrediction = namedtuple("CNNPrediction", ["q", "p"])
         def model_next_step(q, p, dt=1.0, t=0):
             with torch.no_grad():
-                unsqueezed = False
-                if len(p.shape) < 3:
-                    # Unsqueeze all tensors
-                    p = p.unsqueeze(1)
-                    q = q.unsqueeze(1)
-                    unsqueezed = True
-                res = net(p=p, q=q)
-                if unsqueezed:
-                    res = CNNPrediction(
-                        q=res.q[:, 0],
-                        p=res.p[:, 0],
-                    )
-                return res
+                q_orig_shape = q.shape
+                p_orig_shape = p.shape
+                q = torch.from_numpy(q).to(device, dtype=eval_dtype).reshape(q_full_shape)
+                p = torch.from_numpy(p).to(device, dtype=eval_dtype).reshape(p_full_shape)
+                res = net(p=p, q=q, extra_data=extra_data)
+                q_next = res.q.reshape(q_orig_shape).cpu().numpy()
+                p_next = res.p.reshape(p_orig_shape).cpu().numpy()
+                return CNNPrediction(q=q_next, p=p_next)
+
         time_deriv_func = model_next_step
         if integrator_type != "null":
             raise ValueError(f"cnn-step predictions do not work with integrator {integrator_type}")
@@ -491,6 +511,9 @@ def run_phase(base_dir, out_dir, phase_args):
         q0, p0 = eval_decorator.decorate_initial_cond(q0, p0)
         wrapped_time_deriv_func = eval_decorator.decorate_deriv_func(time_deriv_func)
         integrate_start = time.perf_counter()
+        if not getattr(eval_dataset, "_linearize", True) and eval_type != "gn":
+            q0 = q0.reshape((1, -1))
+            p0 = p0.reshape((1, -1))
         int_res_raw = integrators.numerically_integrate(
             integrator=integrator_type,
             q0=q0,
@@ -506,6 +529,11 @@ def run_phase(base_dir, out_dir, phase_args):
         # Split the integration result
         int_p = int_res_raw.p
         int_q = int_res_raw.q
+
+        if not getattr(eval_dataset, "_linearize", True) and eval_type != "gn":
+            n_noiseless_steps = p_noiseless.shape[1]
+            p_noiseless = p_noiseless.reshape((1, n_noiseless_steps, -1))
+            q_noiseless = q_noiseless.reshape((1, n_noiseless_steps, -1))
 
         # Compute errors and other statistics
         int_res = np.concatenate([int_p, int_q], axis=-1)
