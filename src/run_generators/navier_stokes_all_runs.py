@@ -16,13 +16,13 @@ GN_EPOCHS = 75
 NUM_REPEATS = 1
 # Navier-Stokes base parameters
 NS_END_TIME = 0.08 * 65
-NS_DT = 0.08
+NS_DT = 0.08 / 4
 NS_STEPS = math.ceil(NS_END_TIME / NS_DT)
-NS_SUBSAMPLE = 4
+NS_SUBSAMPLE = 1
 EVAL_INTEGRATORS = ["leapfrog", "euler", "rk4"]
 
 COARSE_LEVELS = [1, 4, 16, 64]  # Used for time skew parameter for training & validation
-TRAIN_SET_SIZES = [12, 25, 50]
+TRAIN_SET_SIZES = [50] # [12, 25, 50]
 
 writable_objects = []
 
@@ -125,32 +125,32 @@ for train_set, integrator in itertools.product(train_sets, EVAL_INTEGRATORS):
 for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
     # NO GN SUPPORT YET
     # GN runs
-    gn_train = utils.GN(experiment=experiment_deriv,
-                        training_set=train_set,
-                        validation_set=val_set,
-                        batch_size=3,
-                        epochs=GN_EPOCHS)
-    writable_objects.append(gn_train)
-    for eval_set in eval_sets[1]:
-        gn_eval = utils.NetworkEvaluation(experiment=experiment_deriv,
-                                          network=gn_train,
-                                          eval_set=eval_set,
-                                          integrator="null")
-        writable_objects.append(gn_eval)
+    # gn_train = utils.GN(experiment=experiment_deriv,
+    #                     training_set=train_set,
+    #                     validation_set=val_set,
+    #                     batch_size=3,
+    #                     epochs=GN_EPOCHS)
+    # writable_objects.append(gn_train)
+    # for eval_set in eval_sets[1]:
+    #     gn_eval = utils.NetworkEvaluation(experiment=experiment_deriv,
+    #                                       network=gn_train,
+    #                                       eval_set=eval_set,
+    #                                       integrator="null")
+    #     writable_objects.append(gn_eval)
     # Other networks work for all integrators
     general_int_nets = []
     # NN Kernel
     nn_kernel = utils.NNKernel(experiment=experiment_deriv,
                                training_set=train_set,
                                learning_rate=0.001, weight_decay=0.0001,
-                               hidden_dim=32768, train_dtype="float",
+                               hidden_dim=32768*2, train_dtype="float",
                                optimizer="sgd",
                                predict_type="deriv",
                                batch_size=375, epochs=EPOCHS, validation_set=val_set,
                                nonlinearity="relu")
     general_int_nets.append(nn_kernel)
     # MLPs
-    for width, depth in [(200, 3), (2048, 2), (200, 4), (4096, 4)]:
+    for width, depth in [(2048, 2), (4096, 4)]:
         mlp_deriv_train = utils.MLP(experiment=experiment_deriv,
                                     training_set=train_set,
                                     batch_size=375,
@@ -159,6 +159,20 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
                                     predict_type="deriv",
                                     validation_set=val_set, epochs=EPOCHS)
         general_int_nets.append(mlp_deriv_train)
+    # CNNs
+    for mlp_arch in [
+            [(None, 32, 5), (32, 32, 5), (32, 32, 5), (32, None, 5)],
+            [(None, 32, 9), (32, 32, 9), (32, 32, 9), (32, None, 9)],
+            [(None, 64, 9), (64, 64, 9), (64, 64, 9), (64, None, 9)],
+    ]:
+        cnn_deriv_train = utils.CNN(experiment=experiment_deriv,
+                                    training_set=train_set,
+                                    batch_size=375,
+                                    chans_inout_kenel=mlp_arch,
+                                    learning_rate=(1e-3/50),
+                                    predict_type="deriv",
+                                    validation_set=val_set, epochs=EPOCHS)
+        general_int_nets.append(cnn_deriv_train)
     # Eval runs
     writable_objects.extend(general_int_nets)
     for trained_net, eval_set, integrator in itertools.product(general_int_nets, eval_sets[1], EVAL_INTEGRATORS):
@@ -175,7 +189,7 @@ for coarse, train_set, _repeat in itertools.product(COARSE_LEVELS, train_sets, r
     nn_kernel = utils.NNKernel(experiment=experiment_step,
                                training_set=train_set,
                                learning_rate=0.001, weight_decay=0.0001,
-                               hidden_dim=32768, train_dtype="float",
+                               hidden_dim=32768*2, train_dtype="float",
                                optimizer="sgd",
                                predict_type="step",
                                step_time_skew=coarse, step_subsample=1,
@@ -184,7 +198,7 @@ for coarse, train_set, _repeat in itertools.product(COARSE_LEVELS, train_sets, r
     nn_kernel.name_tag = f"cors{coarse}"
     general_int_nets.append(nn_kernel)
 
-    for width, depth in [(200, 3), (2048, 2), (200, 4), (4096, 4)]:
+    for width, depth in [(2048, 2), (4096, 4)]:
         mlp_step_train = utils.MLP(experiment=experiment_step,
                                     training_set=train_set,
                                     batch_size=375,
@@ -195,6 +209,22 @@ for coarse, train_set, _repeat in itertools.product(COARSE_LEVELS, train_sets, r
                                     validation_set=val_set, epochs=EPOCHS)
         mlp_step_train.name_tag = f"cors{coarse}"
         general_int_nets.append(mlp_step_train)
+
+    # CNNs
+    for mlp_arch in [
+            [(None, 32, 5), (32, 32, 5), (32, 32, 5), (32, None, 5)],
+            [(None, 32, 9), (32, 32, 9), (32, 32, 9), (32, None, 9)],
+            [(None, 64, 9), (64, 64, 9), (64, 64, 9), (64, None, 9)],
+    ]:
+        cnn_step_train = utils.CNN(experiment=experiment_step,
+                                   training_set=train_set,
+                                   batch_size=375,
+                                   chans_inout_kenel=mlp_arch,
+                                   learning_rate=(1e-3/50),
+                                   predict_type="step",
+                                   step_time_skew=coarse, step_subsample=1,
+                                   validation_set=val_set, epochs=EPOCHS)
+        general_int_nets.append(cnn_step_train)
 
     writable_objects.extend(general_int_nets)
     for trained_net, eval_set  in itertools.product(general_int_nets, eval_sets[coarse]):
