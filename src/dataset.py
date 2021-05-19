@@ -93,7 +93,7 @@ class TrajectoryDataset(data.Dataset):
 NavierStokesSnapshot = namedtuple("NavierStokesSnapshot", ["name", "p", "q", "dp_dt", "dq_dt",
                                                          "t", "trajectory_meta",
                                                          "p_noiseless", "q_noiseless",
-                                                         "masses", "edge_index"])
+                                                         "masses", "edge_index", "vertices"])
 
 
 class NavierStokesSnapshotDataset(data.Dataset):
@@ -117,6 +117,7 @@ class NavierStokesSnapshotDataset(data.Dataset):
         q_noiseless = []
         masses = []
         edge_indices = []
+        vertices = []
 
         for traj_i in range(len(self._traj_dataset)):
             traj = self._traj_dataset[traj_i]
@@ -139,6 +140,7 @@ class NavierStokesSnapshotDataset(data.Dataset):
                 _edge_index = _edge_index.T
 
             edge_indices.extend([_edge_index] * traj_num_steps)
+            vertices.extend([traj.vertices] * traj_num_steps)
 
         # Load each trajectory and join the components
         self._name = name
@@ -152,6 +154,7 @@ class NavierStokesSnapshotDataset(data.Dataset):
         self._q_noiseless = np.concatenate(q_noiseless)
         self._masses = masses
         self._edge_indices = edge_indices
+        self._vertices = vertices
 
     def __getitem__(self, idx):
         return NavierStokesSnapshot(name=self._name[idx],
@@ -162,7 +165,8 @@ class NavierStokesSnapshotDataset(data.Dataset):
                                    p_noiseless=self._p_noiseless[idx],
                                    q_noiseless=self._q_noiseless[idx],
                                    masses=self._masses[idx],
-                                   edge_index=self._edge_indices[idx])
+                                   edge_index=self._edge_indices[idx],
+                                   vertices=self._vertices[idx])
 
     def __len__(self):
         return len(self._traj_meta)

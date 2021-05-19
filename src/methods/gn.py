@@ -29,8 +29,9 @@ def package_batch(system, p, q, dp_dt, dq_dt, masses, edge_index, boundary_verti
         x = torch.from_numpy(q)
     elif system in {"taylor-green", "navier-stokes"}:
         x = vertices
+        # p = np.concatenate((p, q[:, np.newaxis]), axis=-1)
         if dp_dt is not None:
-            dp_dt = np.concatenate((dp_dt, q[:, np.newaxis]), axis=-1)
+            dp_dt = np.concatenate((dp_dt, dq_dt[:, np.newaxis]), axis=-1)
     else:
         raise ValueError(f"Invalid system {system}")
 
