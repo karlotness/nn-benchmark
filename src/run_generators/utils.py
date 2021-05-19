@@ -1449,7 +1449,7 @@ class CNN(TrainedNetwork):
                 "out_chans": oc or base_num_chans,
             }
             for ic, oc, ks in chans_inout_kenel]
-        name_key = ";".join([f"{cr['kernel_size']}:{cr['in_chans']}:{cr['out_chans']}" for cr in chan_records])
+        name_key = ";".join([f"{cr['kernel_size']}:{cr['in_chans']}" for cr in chan_records])
         super().__init__(experiment=experiment,
                          method="-".join(["cnn", predict_type]),
                          name_tail=f"{training_set.name}-a{name_key}")
