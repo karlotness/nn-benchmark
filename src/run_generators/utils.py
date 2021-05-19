@@ -1370,8 +1370,6 @@ class MLP(TrainedNetwork):
         dataset_type = "snapshot"
         if self.predict_type == "step":
             dataset_type = "step-snapshot"
-        elif self.training_set in {"taylor-green", "navier-stokes"}:
-            dataset_type = "navier-stokes"
         template = {
             "phase_args": {
                 "network": {
@@ -1570,8 +1568,6 @@ class NNKernel(TrainedNetwork):
         dataset_type = "snapshot"
         if self.predict_type == "step":
             dataset_type = "step-snapshot"
-        elif self.training_set in {"taylor-green", "navier-stokes"}:
-            dataset_type = "navier-stokes"
         template = {
             "phase_args": {
                 "network": {
@@ -1869,7 +1865,7 @@ class KNNRegressorOneshot(KNNOneshotEvaluation):
                          eval_set=eval_set,
                          eval_dtype=eval_dtype,
                          integrator=integrator,
-                         dataset_type=("navier-stokes" if training_set.system in {"taylor-green", "navier-stokes"} else "snapshot"),
+                         dataset_type=("navier-stokes" if training_set.system == "taylor-green" else "snapshot"),
                          knn_type="regressor")
 
 
