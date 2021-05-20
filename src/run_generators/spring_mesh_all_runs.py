@@ -167,6 +167,19 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
                                     predict_type="deriv",
                                     validation_set=val_set, epochs=EPOCHS)
         general_int_nets.append(mlp_deriv_train)
+    for cnn_arch in [
+            [(None, 32, 5), (32, 32, 5), (32, 32, 5), (32, None, 5)],
+            [(None, 32, 9), (32, 32, 9), (32, 32, 9), (32, None, 9)],
+            [(None, 64, 9), (64, 64, 9), (64, 64, 9), (64, None, 9)],
+    ]:
+        cnn_deriv_train = utils.CNN(experiment=experiment_deriv,
+                                    training_set=train_set,
+                                    batch_size=375,
+                                    chans_inout_kenel=cnn_arch,
+                                    learning_rate=(1e-3/50),
+                                    predict_type="deriv",
+                                    validation_set=val_set, epochs=EPOCHS)
+        general_int_nets.append(cnn_deriv_train)
     # Eval runs
     writable_objects.extend(general_int_nets)
     for trained_net, eval_set, integrator in itertools.product(general_int_nets, eval_sets[1], EVAL_INTEGRATORS):
@@ -203,6 +216,23 @@ for coarse, train_set, _repeat in itertools.product(COARSE_LEVELS, train_sets, r
                                     validation_set=val_set, epochs=EPOCHS)
         mlp_step_train.name_tag = f"cors{coarse}"
         general_int_nets.append(mlp_step_train)
+
+    # CNNs
+    for cnn_arch in [
+            [(None, 32, 5), (32, 32, 5), (32, 32, 5), (32, None, 5)],
+            [(None, 32, 9), (32, 32, 9), (32, 32, 9), (32, None, 9)],
+            [(None, 64, 9), (64, 64, 9), (64, 64, 9), (64, None, 9)],
+    ]:
+        cnn_step_train = utils.CNN(experiment=experiment_step,
+                                   training_set=train_set,
+                                   batch_size=375,
+                                   chans_inout_kenel=cnn_arch,
+                                   learning_rate=(1e-3/50),
+                                   predict_type="step",
+                                   step_time_skew=coarse, step_subsample=1,
+                                   validation_set=val_set, epochs=EPOCHS)
+        cnn_step_train.name_tag = f"cors{coarse}"
+        general_int_nets.append(cnn_step_train)
 
     writable_objects.extend(general_int_nets)
     for trained_net, eval_set  in itertools.product(general_int_nets, eval_sets[coarse]):
