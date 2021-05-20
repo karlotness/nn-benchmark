@@ -523,9 +523,9 @@ def run_phase(base_dir, out_dir, phase_args):
         torch_converter = TorchTypeConverter(device=device, dtype=train_dtype)
 
         extra_train_args = {}
-        if train_type in {"cnn-step", "cnn-deriv", "cnn"} and (getattr(train_dataset, "fixed_mask", None) is not None):
+        if train_type in {"cnn-step", "cnn-deriv", "cnn"} and (getattr(train_dataset, "extra_fixed_mask", None) is not None):
             logger.info("Providing fixed mask as extra data")
-            _extra_data = torch_converter(torch.from_numpy(train_dataset.fixed_mask))
+            _extra_data = torch_converter(torch.from_numpy(train_dataset.extra_fixed_mask))
             _extra_data.requires_grad = False
             extra_train_args = {"extra_data": _extra_data}
 

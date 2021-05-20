@@ -255,9 +255,11 @@ def run_phase(base_dir, out_dir, phase_args):
         if len(p_full_shape) < 3:
             p_full_shape = p_full_shape + (1, )
 
-        extra_data = getattr(eval_dataset, "fixed_mask", None)
+        extra_data = getattr(eval_dataset, "extra_fixed_mask", None)
         if extra_data is not None:
-            extra_data = torch.from_numpy(extra_data).to(device, dtype=eval_dtype).unsqueeze(0).unsqueeze(-1)
+            extra_data = torch.from_numpy(extra_data).to(device, dtype=eval_dtype).unsqueeze(0)
+            if extra_data.ndim < 3:
+                extra_data = extra_data.unsqueeze(-1)
             extra_data.requires_grad = False
 
         CNNDerivative = namedtuple("CNNDerivative", ["dq_dt", "dp_dt"])
@@ -283,9 +285,11 @@ def run_phase(base_dir, out_dir, phase_args):
         if len(p_full_shape) < 3:
             p_full_shape = p_full_shape + (1, )
 
-        extra_data = getattr(eval_dataset, "fixed_mask", None)
+        extra_data = getattr(eval_dataset, "extra_fixed_mask", None)
         if extra_data is not None:
-            extra_data = torch.from_numpy(extra_data).to(device, dtype=eval_dtype).unsqueeze(0).unsqueeze(-1)
+            extra_data = torch.from_numpy(extra_data).to(device, dtype=eval_dtype).unsqueeze(0)
+            if extra_data.ndim < 3:
+                extra_data = extra_data.unsqueeze(-1)
             extra_data.requires_grad = False
 
         CNNPrediction = namedtuple("CNNPrediction", ["q", "p"])

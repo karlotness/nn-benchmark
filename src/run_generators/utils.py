@@ -1443,8 +1443,8 @@ class CNN(TrainedNetwork):
                  step_time_skew=1, step_subsample=1):
         if training_set.system == "spring-mesh":
             base_num_chans = 5
-        if training_set.system in {"navier-stokes", "taylor-green"}:
-            base_num_chans = 4
+        elif training_set.system in {"navier-stokes", "taylor-green"}:
+            base_num_chans = 5
         chan_records = [
             {
                 "kernel_size": ks,

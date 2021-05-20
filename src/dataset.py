@@ -32,6 +32,10 @@ class TrajectoryDataset(data.Dataset):
         self.fixed_mask = None
         if "fixed_mask" in self._trajectory_meta[0]["field_keys"]:
             self.fixed_mask = self._npz_file[self._trajectory_meta[0]["field_keys"]["fixed_mask"]].astype(np.float64)
+        if "extra_fixed_mask" in self._trajectory_meta[0]["field_keys"]:
+            self.extra_fixed_mask = self._npz_file[self._trajectory_meta[0]["field_keys"]["extra_fixed_mask"]].astype(np.float64)
+        else:
+            self.extra_fixed_mask = self.fixed_mask
 
     def __linearize(self, arr):
         if not isinstance(arr, np.ndarray):
@@ -217,6 +221,7 @@ class SnapshotDataset(data.Dataset):
         self.system = self._traj_dataset.system
         self.system_metadata = self._traj_dataset.system_metadata
         self.fixed_mask = self._traj_dataset.fixed_mask
+        self.extra_fixed_mask = self._traj_dataset.extra_fixed_mask
 
         name = []
         p = []
@@ -305,6 +310,7 @@ class StepSnapshotDataset(data.Dataset):
         self.subsample = subsample
         self.time_skew = time_skew
         self.fixed_mask = self._traj_dataset.fixed_mask
+        self.extra_fixed_mask = self._traj_dataset.extra_fixed_mask
 
         self.system = self._traj_dataset.system
         self.system_metadata = self._traj_dataset.system_metadata
