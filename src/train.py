@@ -569,14 +569,15 @@ def run_phase(base_dir, out_dir, phase_args):
                 val_total_loss_denom = 0
                 time_val_start = time.perf_counter()
                 net.eval()
-                for val_batch_num, val_batch in enumerate(val_loader):
-                    val_result = train_fn(net=net, batch=val_batch,
-                                          loss_fn=loss_fn,
-                                          train_type_args=train_type_args,
-                                          tensor_converter=torch_converter, **extra_train_args)
-                    val_loss = val_result.loss
-                    val_total_loss_denom += val_result.total_loss_denom_incr
-                    val_total_loss += val_loss.item() * val_result.total_loss_denom_incr
+                with torch.no_grad():
+                    for val_batch_num, val_batch in enumerate(val_loader):
+                        val_result = train_fn(net=net, batch=val_batch,
+                                              loss_fn=loss_fn,
+                                              train_type_args=train_type_args,
+                                              tensor_converter=torch_converter, **extra_train_args)
+                        val_loss = val_result.loss
+                        val_total_loss_denom += val_result.total_loss_denom_incr
+                        val_total_loss += val_loss.item() * val_result.total_loss_denom_incr
                 total_val_time = time.perf_counter() - time_val_start
                 avg_val_loss = val_total_loss / val_total_loss_denom
                 # Store validation results
