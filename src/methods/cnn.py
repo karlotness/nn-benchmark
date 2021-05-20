@@ -11,10 +11,12 @@ LayerDef = namedtuple("LayerDef", ["kernel_size", "in_chans", "out_chans"])
 
 class CNN(torch.nn.Module):
     def __init__(self, layer_defs,
-                 nonlinearity=torch.nn.ReLU, predict_type="deriv", dim=1, spatial_reshape=None):
+                 nonlinearity=torch.nn.ReLU, predict_type="deriv", dim=1, spatial_reshape=None,
+                 padding_mode="zeros"):
         super().__init__()
         layers = []
         self.dim = dim
+        self.padding_mode = padding_mode
         assert layer_defs[0].in_chans == layer_defs[-1].out_chans
         for layer_def in layer_defs:
             kern_size = layer_def.kernel_size
@@ -25,6 +27,7 @@ class CNN(torch.nn.Module):
                 kern_size=kern_size,
                 pad=pad,
                 dim=self.dim,
+                pad_mode=self.padding_mode,
             )
             layers.append(_conv)
             layers.append(nonlinearity())
@@ -35,13 +38,14 @@ class CNN(torch.nn.Module):
         self.spatial_reshape = spatial_reshape
 
     @staticmethod
-    def _make_conv(in_chans, out_chans, kern_size, pad, dim=1):
+    def _make_conv(in_chans, out_chans, kern_size, pad, dim=1, pad_mode="zeros"):
         if dim == 1:
             return torch.nn.Conv1d(
                 in_channels=in_chans,
                 out_channels=out_chans,
                 kernel_size=kern_size,
                 padding=pad,
+                padding_mode=pad_mode,
             )
         elif dim == 2:
             return torch.nn.Conv2d(
@@ -49,6 +53,7 @@ class CNN(torch.nn.Module):
                 out_channels=out_chans,
                 kernel_size=kern_size,
                 padding=pad,
+                padding_mode=pad_mode,
             )
         else:
             raise ValueError(f"Invalid convolution dimension {dim}")
@@ -98,6 +103,7 @@ class CNN(torch.nn.Module):
 def build_network(arch_args, predict_type):
     nonlinearity = NONLINEARITIES[arch_args.get("nonlinearity", "relu")]
     dim = int(arch_args.get("dim", 1))
+    padding_mode = arch_args.get("padding_mode", "zeros")
     spatial_reshape = None
     if "spatial_reshape" in arch_args:
         spatial_reshape = tuple(arch_args["spatial_reshape"])
@@ -109,9 +115,12 @@ def build_network(arch_args, predict_type):
             out_chans=record["out_chans"],
         )
         layer_defs.append(layer_def)
-    cnn = CNN(layer_defs=layer_defs,
-              nonlinearity=nonlinearity,
-              predict_type=predict_type,
-              dim=dim,
-              spatial_reshape=spatial_reshape)
+    cnn = CNN(
+        layer_defs=layer_defs,
+        nonlinearity=nonlinearity,
+        predict_type=predict_type,
+        dim=dim,
+        spatial_reshape=spatial_reshape,
+        padding_mode=padding_mode,
+    )
     return cnn
