@@ -23,7 +23,11 @@ NavierStokesTrajectoryResult = namedtuple("NavierStokesTrajectoryResult",
                                            "pressures",
                                            "pressures_grads",
                                            "t",
-                                           "fixed_mask"])
+                                           "fixed_mask",
+                                           "fixed_mask_pressures",
+                                           "fixed_mask_solutions"])
+
+MESH_SIZE = (221, 42)
 
 
 class NavierStokesSystem(System):
@@ -159,7 +163,16 @@ class NavierStokesSystem(System):
         grads = np.stack(grads)
         pressures_grads = np.stack(pressures_grads)
 
-        fixed_mask = np.any(np.isnan(solutions[0]), axis=1)
+        obstacle_mask = np.any(np.isnan(solutions[0]), axis=1)
+
+        fixed_mask = obstacle_mask.copy().reshape(MESH_SIZE)
+        fixed_mask[:, 0] = True
+        fixed_mask[:, -1] = True
+        fixed_mask[0, :] = True
+
+        fixed_mask_pressures = obstacle_mask.copy().reshape(pressures.shape[1:])
+        fixed_mask_solutions = np.tile(np.expand_dims(fixed_mask, axis=-1), (1, 1, 2)).reshape(solutions.shape[1:])
+        fixed_mask = fixed_mask.reshape(obstacle_mask.shape)
 
         # Repackage results
         t = np.array(ts)
@@ -171,6 +184,8 @@ class NavierStokesSystem(System):
             pressures_grads=self._replace_nan(pressures_grads),
             t=t,
             fixed_mask=fixed_mask,
+            fixed_mask_pressures=fixed_mask_pressures,
+            fixed_mask_solutions=fixed_mask_solutions,
         )
 
 
@@ -316,6 +331,10 @@ def generate_data(system_args, base_logger=None):
                 trajectories["vertices"] = traj_result.grids[0]
             if "fixed_mask" not in trajectories:
                 trajectories["fixed_mask"] = traj_result.fixed_mask
+            if "fixed_mask_solutions" not in trajectories:
+                trajectories["fixed_mask_solutions"] = traj_result.fixed_mask_solutions
+            if "fixed_mask_pressures" not in trajectories:
+                trajectories["fixed_mask_pressures"] = traj_result.fixed_mask_pressures
 
             # Store per-trajectory metadata
             trajectory_metadata.append(
@@ -328,22 +347,26 @@ def generate_data(system_args, base_logger=None):
                   "noise_sigma": 0,
                   "field_keys": {
                       # Plain names
-                     "solutions": f"{traj_name}_solutions",
+                      "solutions": f"{traj_name}_solutions",
                       "grads": f"{traj_name}_grads",
                       "pressures": f"{traj_name}_pressures",
                       "pressures_grads": f"{traj_name}_pressures_grads",
                       # Mapped names
-                     "p": f"{traj_name}_solutions",
+                      "p": f"{traj_name}_solutions",
                       "q": f"{traj_name}_pressures",
                       "dpdt": f"{traj_name}_grads",
                       "dqdt": f"{traj_name}_pressures_grads",
                       "t": f"{traj_name}_t",
                       "p_noiseless": f"{traj_name}_solutions",
                       "q_noiseless": f"{traj_name}_pressures",
+                      "fixed_mask_p": "fixed_mask_solutions",
+                      "fixed_mask_q": "fixed_mask_pressures",
                       # Grid information (fixed)
-                     "edge_indices": "edge_indices",
+                      "edge_indices": "edge_indices",
                       "vertices": "vertices",
                       "fixed_mask": "fixed_mask",
+                      "fixed_mask_solutions": "fixed_mask_solutions",
+                      "fixed_mask_pressures": "fixed_mask_pressures",
                   },
                   "timing": {
                       "traj_gen_time": traj_gen_elapsed
