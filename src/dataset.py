@@ -111,7 +111,8 @@ class TrajectoryDataset(data.Dataset):
 NavierStokesSnapshot = namedtuple("NavierStokesSnapshot", ["name", "p", "q", "dp_dt", "dq_dt",
                                                          "t", "trajectory_meta",
                                                          "p_noiseless", "q_noiseless",
-                                                         "masses", "edge_index", "vertices"])
+                                                         "masses", "edge_index", "vertices",
+                                                         "fixed_mask_p", "fixed_mask_q"])
 
 
 class NavierStokesSnapshotDataset(data.Dataset):
@@ -136,6 +137,8 @@ class NavierStokesSnapshotDataset(data.Dataset):
         masses = []
         edge_indices = []
         vertices = []
+        fixed_mask_p = []
+        fixed_mask_q = []
 
         for traj_i in range(len(self._traj_dataset)):
             traj = self._traj_dataset[traj_i]
@@ -160,6 +163,10 @@ class NavierStokesSnapshotDataset(data.Dataset):
             edge_indices.extend([_edge_index] * traj_num_steps)
             vertices.extend([traj.vertices] * traj_num_steps)
 
+            # Remove fake time dimension added above
+            fixed_mask_p.extend([traj.fixed_mask_p[0]] * traj_num_steps)
+            fixed_mask_q.extend([traj.fixed_mask_q[0]] * traj_num_steps)
+
         # Load each trajectory and join the components
         self._name = name
         self._p = np.concatenate(p)
@@ -173,6 +180,8 @@ class NavierStokesSnapshotDataset(data.Dataset):
         self._masses = masses
         self._edge_indices = edge_indices
         self._vertices = vertices
+        self._fixed_mask_p = fixed_mask_p
+        self._fixed_mask_q = fixed_mask_q
 
     def __getitem__(self, idx):
         return NavierStokesSnapshot(name=self._name[idx],
@@ -184,7 +193,10 @@ class NavierStokesSnapshotDataset(data.Dataset):
                                    q_noiseless=self._q_noiseless[idx],
                                    masses=self._masses[idx],
                                    edge_index=self._edge_indices[idx],
-                                   vertices=self._vertices[idx])
+                                   vertices=self._vertices[idx],
+                                   fixed_mask_p=self._fixed_mask_p[idx],
+                                   fixed_mask_q=self._fixed_mask_q[idx],
+                                )
 
     def __len__(self):
         return len(self._traj_meta)
