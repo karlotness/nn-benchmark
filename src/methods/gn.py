@@ -10,9 +10,11 @@ from collections import namedtuple
 TimeDerivative = namedtuple("TimeDerivative", ["dq_dt", "dp_dt"])
 
 
-def package_batch(system, p, q, dp_dt, dq_dt, masses, edge_index, boundary_vertices, vertices=None):
+def package_batch(system, p, q, dp_dt, dq_dt, masses, edge_index, boundary_vertices, vertices=None, fixed_mask_p=None, fixed_mask_q=None):
     if vertices is None:
         vertices = torch.unsqueeze(torch.linspace(0, 1, p.shape[1]), 0).repeat(p.shape[0], p.shape[1])
+
+    fixed_mask_y = None
 
     if system == "spring":
         p = np.pad(p, ((1, 1), (1, 0)), "constant", constant_values=0)
@@ -27,11 +29,15 @@ def package_batch(system, p, q, dp_dt, dq_dt, masses, edge_index, boundary_verti
         x = torch.from_numpy(np.concatenate((vertices, q), axis=-1))
     elif system == "spring-mesh":
         x = torch.from_numpy(q)
+        if fixed_mask_p is not None and dp_dt is not None:
+            fixed_mask_y = fixed_mask_p.reshape(dp_dt.shape)
     elif system in {"taylor-green", "navier-stokes"}:
         x = vertices
         # p = np.concatenate((p, q[:, np.newaxis]), axis=-1)
         if dp_dt is not None:
             dp_dt = np.concatenate((dp_dt, dq_dt[:, np.newaxis]), axis=-1)
+        if fixed_mask_p is not None and dp_dt is not None:
+            fixed_mask_y = np.concatenate((fixed_mask_p, fixed_mask_q[:, np.newaxis]), axis=-1).reshape(dp_dt.shape)
     else:
         raise ValueError(f"Invalid system {system}")
 
@@ -50,6 +56,7 @@ def package_batch(system, p, q, dp_dt, dq_dt, masses, edge_index, boundary_verti
 
     # v = torch.from_numpy(np.concatenate((np.zeros_like(v), v), axis=-1))
     ret = data.Data(x=v, edge_index=edge_index, pos=x, y=acceleration)
+    ret.fixed_mask_y = fixed_mask_y
     return ret
 
 

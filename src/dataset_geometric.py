@@ -104,9 +104,17 @@ def package_data(data_set, package_args, system):
         dp_dt = batch.dp_dt
         dq_dt = batch.dq_dt
         masses = batch.masses
+        fixed_mask_p = batch.fixed_mask_p
+        fixed_mask_q = batch.fixed_mask_q
         proc_part = particle_process_func(p=p, q=q,
                                           dp_dt=dp_dt, dq_dt=dq_dt,
-                                          masses=masses)
+                                          masses=masses,
+                                          )
+
+        if not torch.is_tensor(fixed_mask_p) and not isinstance(fixed_mask_p, np.ndarray):
+            fixed_mask_p = None
+            fixed_mask_q = None
+
         if edge_index is None:
             # Pull directly from batch
             edge_index = torch.tensor(batch.edge_index).long()
@@ -114,7 +122,8 @@ def package_data(data_set, package_args, system):
         packaged = package_func(p=proc_part.p, q=proc_part.q,
                                 dp_dt=proc_part.dp_dt, dq_dt=proc_part.dq_dt,
                                 masses=proc_part.masses, edge_index=edge_index,
-                                boundary_vertices=boundary_vertices, vertices=vertices)
+                                boundary_vertices=boundary_vertices, vertices=vertices,
+                                fixed_mask_p=fixed_mask_p, fixed_mask_q=fixed_mask_q)
         data_elems.append(packaged)
 
     return data_elems
