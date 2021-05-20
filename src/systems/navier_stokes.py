@@ -25,7 +25,8 @@ NavierStokesTrajectoryResult = namedtuple("NavierStokesTrajectoryResult",
                                            "t",
                                            "fixed_mask",
                                            "fixed_mask_pressures",
-                                           "fixed_mask_solutions"])
+                                           "fixed_mask_solutions",
+                                           "extra_fixed_mask"])
 
 MESH_SIZE = (221, 42)
 
@@ -173,6 +174,7 @@ class NavierStokesSystem(System):
         fixed_mask_pressures = obstacle_mask.copy().reshape(pressures.shape[1:])
         fixed_mask_solutions = np.tile(np.expand_dims(fixed_mask, axis=-1), (1, 1, 2)).reshape(solutions.shape[1:])
         fixed_mask = fixed_mask.reshape(obstacle_mask.shape)
+        extra_fixed_mask = np.stack([fixed_mask, obstacle_mask], axis=-1)
 
         # Repackage results
         t = np.array(ts)
@@ -186,6 +188,7 @@ class NavierStokesSystem(System):
             fixed_mask=fixed_mask,
             fixed_mask_pressures=fixed_mask_pressures,
             fixed_mask_solutions=fixed_mask_solutions,
+            extra_fixed_mask=extra_fixed_mask,
         )
 
 
@@ -346,6 +349,8 @@ def generate_data(system_args, base_logger=None):
                 trajectories["vertices"] = traj_result.grids[0]
             if "fixed_mask" not in trajectories:
                 trajectories["fixed_mask"] = traj_result.fixed_mask
+            if "extra_fixed_mask" not in trajectories:
+                trajectories["extra_fixed_mask"] = traj_result.extra_fixed_mask
             if "fixed_mask_solutions" not in trajectories:
                 trajectories["fixed_mask_solutions"] = traj_result.fixed_mask_solutions
             if "fixed_mask_pressures" not in trajectories:
@@ -380,6 +385,7 @@ def generate_data(system_args, base_logger=None):
                       "edge_indices": "edge_indices",
                       "vertices": "vertices",
                       "fixed_mask": "fixed_mask",
+                      "extra_fixed_mask": "extra_fixed_mask",
                       "fixed_mask_solutions": "fixed_mask_solutions",
                       "fixed_mask_pressures": "fixed_mask_pressures",
                   },
