@@ -82,11 +82,11 @@ class TrajectoryDataset(data.Dataset):
         if "fixed_mask_p" in meta["field_keys"]:
             fixed_mask_p = np.expand_dims(self._npz_file[meta["field_keys"]["fixed_mask_p"]], 0)
         else:
-            fixed_mask_p = []
+            fixed_mask_p = [[]]
         if "fixed_mask_q" in meta["field_keys"]:
             fixed_mask_q = np.expand_dims(self._npz_file[meta["field_keys"]["fixed_mask_q"]], 0)
         else:
-            fixed_mask_q = []
+            fixed_mask_q = [[]]
 
         # Package and return
         return Trajectory(name=name, trajectory_meta=meta,
