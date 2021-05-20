@@ -285,6 +285,7 @@ def train_srnn(net, batch, loss_fn, train_type_args, tensor_converter):
         p_0=p[:, 0],
         q_0=q[:, 0],
         model=net,
+        boundary_cond_func=None,
         method=integrators.IntegrationScheme.HAMILTONIAN,
         T=training_steps,
         dt=time_step_size,

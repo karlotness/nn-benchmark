@@ -442,6 +442,7 @@ def run_phase(base_dir, out_dir, phase_args):
         time_step_size = trajectory.trajectory_meta["time_step_size"][0]
         edges = None
         vertices = None
+        boundary_cond_func = lambda t, p, q: (p, q)
 
         # Compute hamiltonians
         # Construct systems
@@ -482,10 +483,14 @@ def run_phase(base_dir, out_dir, phase_args):
             system = taylor_green.system_from_records(n_grid=n_grid, space_scale=space_scale, viscosity=viscosity, density=density, vertices=vertices, edges=edges_dict)
         elif eval_dataset.system == "navier-stokes":
             grid_resolution = eval_dataset.system_metadata["grid_resolution"]
+            in_velocity = trajectory.trajectory_meta["in_velocity"][0].item()
             viscosity = trajectory.trajectory_meta["viscosity"][0].item()
             vertices = eval_dataset[0].vertices.tolist()
             edges = eval_dataset[0].edge_index.tolist()
             system = navier_stokes.system_from_records(grid_resolution=grid_resolution, viscosity=viscosity)
+            boundary_mask_solutions = eval_dataset._npz_file["fixed_mask_solutions"]
+            boundary_mask_pressures = eval_dataset._npz_file["fixed_mask_pressures"]
+            bound_cond_func = navier_stokes.generate_boundary_condition_function(in_velocity, np.array(vertices), boundary_mask_solutions, boundary_mask_pressures)
         else:
             raise ValueError(f"Unknown system type {eval_dataset.system}")
 
@@ -521,6 +526,7 @@ def run_phase(base_dir, out_dir, phase_args):
             num_steps=int(num_time_steps.detach().cpu().item()),
             dt=float(time_step_size.detach().cpu().item()),
             deriv_func=wrapped_time_deriv_func,
+            bound_cond_func=boundary_cond_func,
             system=system)
         int_res_raw = eval_decorator.process_results(int_res_raw)
 

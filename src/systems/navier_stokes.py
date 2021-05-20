@@ -189,6 +189,21 @@ class NavierStokesSystem(System):
         )
 
 
+def generate_boundary_condition_function(in_velocity, vertices, boundary_mask_solution, boundary_mask_pressure):
+        def boundary_condition_function(t, p, q):
+            reset_p = p.copy()
+            reset_q = q.copy()
+
+            solution_boundary = np.zeros_like(p)
+            y = vertices[0, :, 1]
+            solution_boundary[0, :] = inv_velocity * 4 * y * (0.41 - y) / (0.41 * 0.41) * (1 - np.exp(-5 * t))
+            reset_p[boundary_mask_solution[np.newaxis, ...].repeat(p.shape[0], axis=0)] = solution_boundary
+            reset_q[boundary_mask_pressure[np.newaxis, ...].repeat(q.shape[0], axis=0)] = 0
+
+            return p, q
+        return boundary_condition_function
+
+
 def compute_edge_indices(vtx_coords):
     # Determine grid size
     # Grid indexing here referred to as [a, b]

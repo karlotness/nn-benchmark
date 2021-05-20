@@ -5,7 +5,7 @@ import numba
 IntegrationResult = namedtuple("IntegrationResult", ["q", "p"])
 
 @numba.jit(nopython=True)
-def euler(q0, p0, dt, func, out_q, out_p):
+def euler(q0, p0, dt, func, bc_func, out_q, out_p):
     q = q0
     p = p0
     t = 0
@@ -19,7 +19,7 @@ def euler(q0, p0, dt, func, out_q, out_p):
 
 
 @numba.jit(nopython=True)
-def leapfrog(q0, p0, dt, func, out_q, out_p):
+def leapfrog(q0, p0, dt, func, bc_func, out_q, out_p):
     q = q0
     p = p0
     t = 0
@@ -39,7 +39,7 @@ def leapfrog(q0, p0, dt, func, out_q, out_p):
 
 
 @numba.jit(nopython=True)
-def rk4(q0, p0, dt, func, out_q, out_p):
+def rk4(q0, p0, dt, func, bc_func, out_q, out_p):
     q = q0
     p = p0
     t = 0
@@ -57,7 +57,7 @@ def rk4(q0, p0, dt, func, out_q, out_p):
         q = q_next
 
 
-def null_integrator(q0, p0, dt, func, out_q, out_p):
+def null_integrator(q0, p0, dt, func, bc_func, out_q, out_p):
     q = q0
     p = p0
     t = 0
@@ -67,9 +67,12 @@ def null_integrator(q0, p0, dt, func, out_q, out_p):
         q, p = func(q, p, dt, t)
         t += dt
 
+        # Reset boundary conditions.
+        p, q = bc_func(t=t, p=p, q=q)
+
 
 @numba.jit(nopython=True)
-def backward_euler(x0, dt, func, out_x, deriv_mat):
+def backward_euler(x0, dt, func, bc_func, out_x, deriv_mat):
     x = x0
     deriv_eye = np.eye(x.shape[-1], dtype=x0.dtype)
     unknown_mat = np.expand_dims(deriv_eye - dt * deriv_mat, 0)
@@ -79,7 +82,7 @@ def backward_euler(x0, dt, func, out_x, deriv_mat):
 
 
 @numba.jit(nopython=True)
-def bdf_2(x0, dt, func, out_x, deriv_mat):
+def bdf_2(x0, dt, func, bc_func, out_x, deriv_mat):
     x = x0
     deriv_eye = np.eye(x.shape[-1], dtype=x0.dtype)
 
@@ -109,7 +112,7 @@ INTEGRATORS = {
 }
 
 
-def numerically_integrate(integrator, q0, p0, num_steps, dt, deriv_func, system=None):
+def numerically_integrate(integrator, q0, p0, num_steps, dt, deriv_func, bound_cond_func, system=None):
     try:
         # Find the integrator function
         int_func, implicit_attr = INTEGRATORS[integrator]
@@ -142,5 +145,5 @@ def numerically_integrate(integrator, q0, p0, num_steps, dt, deriv_func, system=
         out_shape_p = (num_steps, p0.shape[-1])
         out_q = np.empty_like(q0, shape=out_shape_q)
         out_p = np.empty_like(p0, shape=out_shape_p)
-        int_func(q0, p0, dt, deriv_func, out_q, out_p)
+        int_func(q0, p0, dt, deriv_func, bound_cond_func, out_q, out_p)
     return IntegrationResult(q=out_q, p=out_p)
