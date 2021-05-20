@@ -171,6 +171,7 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
                                     chans_inout_kenel=cnn_arch,
                                     learning_rate=(1e-3/50),
                                     predict_type="deriv",
+                                    padding_mode="replicate",
                                     validation_set=val_set, epochs=EPOCHS)
         general_int_nets.append(cnn_deriv_train)
     # Eval runs
@@ -223,6 +224,7 @@ for coarse, train_set, _repeat in itertools.product(COARSE_LEVELS, train_sets, r
                                    learning_rate=(1e-3/50),
                                    predict_type="step",
                                    step_time_skew=coarse, step_subsample=1,
+                                   padding_mode="replicate",
                                    validation_set=val_set, epochs=EPOCHS)
         cnn_step_train.name_tag = f"cors{coarse}"
         general_int_nets.append(cnn_step_train)
