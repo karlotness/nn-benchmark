@@ -308,17 +308,29 @@ def train_mlp(net, batch, loss_fn, train_type_args, tensor_converter, predict_ty
     # Perform training
     # Assume snapshot dataset (shape [batch_size, n_grid])
     if predict_type == "deriv":
+        pred_q_shape = pred.dq_dt.shape
+        pred_p_shape = pred.dp_dt.shape
         dp_dt = tensor_converter(batch.dp_dt)
         dq_dt = tensor_converter(batch.dq_dt)
         true = torch.cat([dq_dt, dp_dt], dim=-1)
         pred = torch.cat([pred.dq_dt, pred.dp_dt], dim=-1)
     elif predict_type == "step":
+        pred_q_shape = pred.q.shape
+        pred_p_shape = pred.p.shape
         p_step = tensor_converter(batch.p_step)
         q_step = tensor_converter(batch.q_step)
         true = torch.cat([q_step, p_step], dim=-1)
         pred = torch.cat([pred.q, pred.p], dim=-1)
     else:
         raise ValueError(f"Invalid predict type {predict_type}")
+
+    # Handle the possible fixed mask
+    if torch.is_tensor(batch.fixed_mask_p):
+        fm_q = batch.fixed_mask_q.to(device=tensor_converter.device).reshape(pred_q_shape)
+        fm_p = batch.fixed_mask_p.to(device=tensor_converter.device).reshape(pred_p_shape)
+        mask = torch.logical_not(torch.cat([fm_q, fm_p], dim=-1).reshape(pred.shape))
+        true = torch.masked_select(true, mask)
+        pred = torch.masked_select(pred, mask)
 
     loss = loss_fn(pred, true)
     return TrainLossResult(loss=loss,
@@ -349,12 +361,16 @@ def train_cnn(net, batch, loss_fn, train_type_args, tensor_converter, predict_ty
     n_batch = p.shape[0]
 
     if predict_type == "deriv":
+        pred_q_shape = pred.dq_dt.shape
+        pred_p_shape = pred.dp_dt.shape
         dp_dt = _ensure_cnn_dims(tensor_converter(batch.dp_dt))
         dq_dt = _ensure_cnn_dims(tensor_converter(batch.dq_dt))
 
         true = torch.cat([dq_dt, dp_dt], dim=-1)
         pred = torch.cat([pred.dq_dt, pred.dp_dt], dim=-1)
     elif predict_type == "step":
+        pred_q_shape = pred.q.shape
+        pred_p_shape = pred.p.shape
         p_step = _ensure_cnn_dims(tensor_converter(batch.p_step))
         q_step = _ensure_cnn_dims(tensor_converter(batch.q_step))
 
@@ -362,6 +378,14 @@ def train_cnn(net, batch, loss_fn, train_type_args, tensor_converter, predict_ty
         pred = torch.cat([pred.q, pred.p], dim=-1)
     else:
         raise ValueError(f"Invalid predict type {predict_type}")
+
+    # Handle the possible fixed mask
+    if torch.is_tensor(batch.fixed_mask_p):
+        fm_q = batch.fixed_mask_q.to(device=tensor_converter.device).reshape(pred_q_shape)
+        fm_p = batch.fixed_mask_p.to(device=tensor_converter.device).reshape(pred_p_shape)
+        mask = torch.logical_not(torch.cat([fm_q, fm_p], dim=-1).reshape(pred.shape))
+        true = torch.masked_select(true, mask)
+        pred = torch.masked_select(pred, mask)
 
     loss = loss_fn(pred, true)
     return TrainLossResult(loss=loss,
