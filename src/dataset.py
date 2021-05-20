@@ -9,7 +9,8 @@ import math
 Trajectory = namedtuple("Trajectory", ["name", "p", "q", "dp_dt", "dq_dt",
                                        "t", "trajectory_meta",
                                        "p_noiseless", "q_noiseless",
-                                       "masses", "edge_index", "vertices"])
+                                       "masses", "edge_index", "vertices",
+                                       "fixed_mask_p", "fixed_mask_q"])
 
 
 class TrajectoryDataset(data.Dataset):
@@ -33,6 +34,8 @@ class TrajectoryDataset(data.Dataset):
             self.fixed_mask = self._npz_file[self._trajectory_meta[0]["field_keys"]["fixed_mask"]].astype(np.float64)
 
     def __linearize(self, arr):
+        if not isinstance(arr, np.ndarray):
+            return arr
         if self._linearize:
             num_steps = arr.shape[0]
             return arr.reshape((num_steps, -1))
@@ -73,6 +76,18 @@ class TrajectoryDataset(data.Dataset):
             vertices = self._npz_file[meta["field_keys"]["vertices"]]
         else:
             vertices = []
+
+
+        # Handle per-trajectory boundary masks
+        if "fixed_mask_p" in meta["field_keys"]:
+            fixed_mask_p = np.expand_dims(self._npz_file[meta["field_keys"]["fixed_mask_p"]], 0)
+        else:
+            fixed_mask_p = []
+        if "fixed_mask_q" in meta["field_keys"]:
+            fixed_mask_q = np.expand_dims(self._npz_file[meta["field_keys"]["fixed_mask_q"]], 0)
+        else:
+            fixed_mask_q = []
+
         # Package and return
         return Trajectory(name=name, trajectory_meta=meta,
                           p=self.__linearize(p),
@@ -84,7 +99,10 @@ class TrajectoryDataset(data.Dataset):
                           q_noiseless=self.__linearize(q_noiseless),
                           masses=masses,
                           edge_index=edge_index,
-                          vertices=vertices)
+                          vertices=vertices,
+                          fixed_mask_p=self.__linearize(fixed_mask_p),
+                          fixed_mask_q=self.__linearize(fixed_mask_q),
+                          )
 
     def __len__(self):
         return len(self._trajectory_meta)
@@ -175,7 +193,8 @@ class NavierStokesSnapshotDataset(data.Dataset):
 Snapshot = namedtuple("Snapshot", ["name", "p", "q", "dp_dt", "dq_dt",
                                    "t", "trajectory_meta",
                                    "p_noiseless", "q_noiseless",
-                                   "masses", "edge_index", "vertices"])
+                                   "masses", "edge_index", "vertices",
+                                   "fixed_mask_p", "fixed_mask_q"])
 
 class SnapshotDataset(data.Dataset):
 
@@ -199,6 +218,8 @@ class SnapshotDataset(data.Dataset):
         masses = []
         edge_indices = []
         vertices = []
+        fixed_mask_p = []
+        fixed_mask_q = []
 
         for traj_i in range(len(self._traj_dataset)):
             traj = self._traj_dataset[traj_i]
@@ -216,6 +237,9 @@ class SnapshotDataset(data.Dataset):
             masses.extend([traj.masses] * traj_num_steps)
             edge_indices.extend([traj.edge_index] * traj_num_steps)
             vertices.extend([traj.vertices] * traj_num_steps)
+            # Remove fake time dimension added above
+            fixed_mask_p.extend([traj.fixed_mask_p[0]] * traj_num_steps)
+            fixed_mask_q.extend([traj.fixed_mask_q[0]] * traj_num_steps)
 
         # Load each trajectory and join the components
         self._name = name
@@ -230,6 +254,8 @@ class SnapshotDataset(data.Dataset):
         self._masses = masses
         self._edge_indices = edge_indices
         self._vertices = vertices
+        self._fixed_mask_p = fixed_mask_p
+        self._fixed_mask_q = fixed_mask_q
 
     def __getitem__(self, idx):
         return Snapshot(name=self._name[idx],
@@ -241,7 +267,10 @@ class SnapshotDataset(data.Dataset):
                         q_noiseless=self._q_noiseless[idx],
                         masses=self._masses[idx],
                         edge_index=self._edge_indices[idx],
-                        vertices=self._vertices[idx])
+                        vertices=self._vertices[idx],
+                        fixed_mask_p=self._fixed_mask_p[idx],
+                        fixed_mask_q=self._fixed_mask_q[idx],
+                        )
 
     def __len__(self):
         return len(self._traj_meta)
@@ -253,7 +282,8 @@ StepSnapshot = namedtuple("StepSnapshot",
                            "p_step", "q_step",
                            "t", "trajectory_meta",
                            "p_noiseless", "q_noiseless",
-                           "masses", "edge_index", "vertices"])
+                           "masses", "edge_index", "vertices",
+                           "fixed_mask_p", "fixed_mask_q"])
 
 
 class StepSnapshotDataset(data.Dataset):
@@ -279,6 +309,8 @@ class StepSnapshotDataset(data.Dataset):
         masses = []
         edge_indices = []
         vertices = []
+        fixed_mask_p = []
+        fixed_mask_q = []
 
         for traj_i in range(len(self._traj_dataset)):
             traj = self._traj_dataset[traj_i]
@@ -296,6 +328,9 @@ class StepSnapshotDataset(data.Dataset):
             masses.extend([traj.masses] * traj_num_steps)
             edge_indices.extend([traj.edge_index] * traj_num_steps)
             vertices.extend([traj.vertices] * traj_num_steps)
+            # Remove fake time dimension added above
+            fixed_mask_p.extend([traj.fixed_mask_p[0]] * traj_num_steps)
+            fixed_mask_q.extend([traj.fixed_mask_q[0]] * traj_num_steps)
             # Check length computation
             assert p[-1].shape[0] == traj_num_steps
 
@@ -312,6 +347,8 @@ class StepSnapshotDataset(data.Dataset):
         self._masses = masses
         self._edge_indices = edge_indices
         self._vertices = vertices
+        self._fixed_mask_p = fixed_mask_p
+        self._fixed_mask_q = fixed_mask_q
 
     def __getitem__(self, idx):
         p_step = self._dp_dt[idx]
@@ -326,7 +363,10 @@ class StepSnapshotDataset(data.Dataset):
                         q_noiseless=self._q_noiseless[idx],
                         masses=self._masses[idx],
                         edge_index=self._edge_indices[idx],
-                        vertices=self._vertices[idx])
+                        vertices=self._vertices[idx],
+                        fixed_mask_p=self._fixed_mask_p[idx],
+                        fixed_mask_q=self._fixed_mask_q[idx],
+                        )
 
     def __len__(self):
         return len(self._traj_meta)
