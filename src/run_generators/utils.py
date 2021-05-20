@@ -1439,6 +1439,7 @@ class CNN(TrainedNetwork):
                  scheduler="none", scheduler_step="epoch", scheduler_args={},
                  batch_size=750, epochs=1000, validation_set=None,
                  noise_type="none", noise_variance=0, predict_type="deriv",
+                 padding_mode="zeros",
                  step_time_skew=1, step_subsample=1):
         if training_set.system == "spring-mesh":
             base_num_chans = 5
@@ -1472,6 +1473,7 @@ class CNN(TrainedNetwork):
         self.predict_type = predict_type
         self.step_time_skew = step_time_skew
         self.step_subsample = step_subsample
+        self.padding_mode = padding_mode
         assert predict_type in {"deriv", "step"}
 
         self.conv_dim = 1
@@ -1489,6 +1491,7 @@ class CNN(TrainedNetwork):
                         "layer_defs": self.layer_defs,
                         "dim": self.conv_dim,
                         "spatial_reshape": self.spatial_reshape,
+                        "padding_mode": self.padding_mode,
                     },
                 },
                 "training": {
