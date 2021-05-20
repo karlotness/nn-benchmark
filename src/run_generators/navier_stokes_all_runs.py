@@ -160,7 +160,7 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
                                     validation_set=val_set, epochs=EPOCHS)
         general_int_nets.append(mlp_deriv_train)
     # CNNs
-    for mlp_arch in [
+    for cnn_arch in [
             [(None, 32, 5), (32, 32, 5), (32, 32, 5), (32, None, 5)],
             [(None, 32, 9), (32, 32, 9), (32, 32, 9), (32, None, 9)],
             [(None, 64, 9), (64, 64, 9), (64, 64, 9), (64, None, 9)],
@@ -168,7 +168,7 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
         cnn_deriv_train = utils.CNN(experiment=experiment_deriv,
                                     training_set=train_set,
                                     batch_size=375,
-                                    chans_inout_kenel=mlp_arch,
+                                    chans_inout_kenel=cnn_arch,
                                     learning_rate=(1e-3/50),
                                     predict_type="deriv",
                                     validation_set=val_set, epochs=EPOCHS)
@@ -211,7 +211,7 @@ for coarse, train_set, _repeat in itertools.product(COARSE_LEVELS, train_sets, r
         general_int_nets.append(mlp_step_train)
 
     # CNNs
-    for mlp_arch in [
+    for cnn_arch in [
             [(None, 32, 5), (32, 32, 5), (32, 32, 5), (32, None, 5)],
             [(None, 32, 9), (32, 32, 9), (32, 32, 9), (32, None, 9)],
             [(None, 64, 9), (64, 64, 9), (64, 64, 9), (64, None, 9)],
@@ -219,7 +219,7 @@ for coarse, train_set, _repeat in itertools.product(COARSE_LEVELS, train_sets, r
         cnn_step_train = utils.CNN(experiment=experiment_step,
                                    training_set=train_set,
                                    batch_size=375,
-                                   chans_inout_kenel=mlp_arch,
+                                   chans_inout_kenel=cnn_arch,
                                    learning_rate=(1e-3/50),
                                    predict_type="step",
                                    step_time_skew=coarse, step_subsample=1,
