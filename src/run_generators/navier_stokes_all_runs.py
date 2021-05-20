@@ -224,6 +224,7 @@ for coarse, train_set, _repeat in itertools.product(COARSE_LEVELS, train_sets, r
                                    predict_type="step",
                                    step_time_skew=coarse, step_subsample=1,
                                    validation_set=val_set, epochs=EPOCHS)
+        cnn_step_train.name_tag = f"cors{coarse}"
         general_int_nets.append(cnn_step_train)
 
     writable_objects.extend(general_int_nets)
