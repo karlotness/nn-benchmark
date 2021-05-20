@@ -416,6 +416,12 @@ def train_gn(net, batch, loss_fn, train_type_args, tensor_converter):
     accel_pred = net(graph_batch.pos, graph_batch.x, graph_batch.edge_index)
     accel = graph_batch.y
 
+    if torch.is_tensor(graph_batch.fixed_mask_y):
+        fm_y = graph_batch.fixed_mask_y.to(device=tensor_converter.device)
+        mask = torch.logical_not(fm_y)
+        accel = torch.masked_select(accel, mask)
+        accel_pred = torch.masked_select(accel_pred, mask)
+
     loss = loss_fn(accel_pred, accel)
     return TrainLossResult(loss=loss,
                            total_loss_denom_incr=shape_product(accel.shape))
