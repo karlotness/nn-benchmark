@@ -140,6 +140,7 @@ class NavierStokesSystem(System):
             pressures = []
             grads = []
             pressures_grads = []
+            ts = []
             for i in range(subsample, num_time_steps + 1, subsample):
                 i_next = i + 1
                 grids.append(np.loadtxt(tmp_dir / f"step_{i}.vtu_grid.txt"))
@@ -150,6 +151,7 @@ class NavierStokesSystem(System):
                 _press_grad = (1/time_step_size) * (np.loadtxt(tmp_dir / f"step_{i_next}.vtu_p_sol.txt") - np.loadtxt(tmp_dir / f"step_{i}.vtu_p_sol.txt"))
                 grads.append(_grad)
                 pressures_grads.append(_press_grad)
+                ts.append(i * time_step_size)
 
         grids = np.stack(grids)
         solutions = np.stack(solutions)
@@ -160,7 +162,7 @@ class NavierStokesSystem(System):
         fixed_mask = np.any(np.isnan(solutions[0]), axis=1)
 
         # Repackage results
-        t = orig_time_step_size * np.arange(orig_num_time_steps)
+        t = np.array(ts)
         return NavierStokesTrajectoryResult(
             grids=grids,
             solutions=self._replace_nan(solutions),
