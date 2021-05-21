@@ -21,7 +21,7 @@ NS_STEPS = math.ceil(NS_END_TIME / NS_DT)
 NS_SUBSAMPLE = 1
 EVAL_INTEGRATORS = ["leapfrog", "euler", "rk4"]
 
-COARSE_LEVELS = [1, 4, 16, 64]  # Used for time skew parameter for training & validation
+COARSE_LEVELS = [1, 4, 16]  # Used for time skew parameter for training & validation
 TRAIN_SET_SIZES = [75] # [12, 25, 50]
 
 writable_objects = []
@@ -69,7 +69,7 @@ for source, num_traj, type_key, step_multiplier in [
         ]:
     for coarse in COARSE_LEVELS:
         _ns_dt = NS_DT * coarse
-        _ns_steps = math.ceil(NS_END_TIME / _ns_dt)
+        _ns_steps = round(NS_END_TIME / _ns_dt)
         _ns_subsample = NS_SUBSAMPLE * coarse
         _eval_set = utils.NavierStokesDataset(experiment=experiment_general,
                                               initial_cond_source=eval_source,
