@@ -22,6 +22,7 @@ def euler(q0, p0, dt, func, bc_func, out_q, out_p, t0):
         q = q + dt * dq
         p = p + dt * dp
         t += dt
+        q, p = bc_func(q, p, t)
 
 
 @numba.jit(nopython=True)
