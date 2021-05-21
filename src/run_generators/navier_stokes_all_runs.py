@@ -11,18 +11,18 @@ parser.add_argument("base_dir", type=str,
 args = parser.parse_args()
 base_dir = pathlib.Path(args.base_dir)
 
-EPOCHS = 400
+EPOCHS = 800
 GN_EPOCHS = 75
 NUM_REPEATS = 1
 # Navier-Stokes base parameters
 NS_END_TIME = 0.08 * 65
-NS_DT = 0.08 / 4
+NS_DT = 0.08
 NS_STEPS = math.ceil(NS_END_TIME / NS_DT)
 NS_SUBSAMPLE = 1
 EVAL_INTEGRATORS = ["leapfrog", "euler", "rk4"]
 
 COARSE_LEVELS = [1, 4, 16, 64]  # Used for time skew parameter for training & validation
-TRAIN_SET_SIZES = [50] # [12, 25, 50]
+TRAIN_SET_SIZES = [75] # [12, 25, 50]
 
 writable_objects = []
 
@@ -114,66 +114,69 @@ for coarse, train_set in itertools.product(COARSE_LEVELS, train_sets):
 # Next, KNN regressors
 for train_set, integrator in itertools.product(train_sets, EVAL_INTEGRATORS):
     for eval_set in eval_sets[1]:
-        knn_reg =  utils.KNNRegressorOneshot(experiment_deriv,
-                                             training_set=train_set,
-                                             eval_set=eval_set,
-                                             integrator=integrator)
-        writable_objects.append(knn_reg)
+        pass
+        # knn_reg =  utils.KNNRegressorOneshot(experiment_deriv,
+        #                                      training_set=train_set,
+        #                                      eval_set=eval_set,
+        #                                      integrator=integrator)
+        # writable_objects.append(knn_reg)
 
 
 # DERIVATIVE: Emit MLP, GN, NNkernel runs
 for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
     # NO GN SUPPORT YET
     # GN runs
-    # gn_train = utils.GN(experiment=experiment_deriv,
-    #                     training_set=train_set,
-    #                     validation_set=val_set,
-    #                     batch_size=3,
-    #                     epochs=GN_EPOCHS)
-    # writable_objects.append(gn_train)
-    # for eval_set in eval_sets[1]:
-    #     gn_eval = utils.NetworkEvaluation(experiment=experiment_deriv,
-    #                                       network=gn_train,
-    #                                       eval_set=eval_set,
-    #                                       integrator="null")
-    #     writable_objects.append(gn_eval)
+    gn_train = utils.GN(experiment=experiment_deriv,
+                        training_set=train_set,
+                        validation_set=val_set,
+                        batch_size=3,
+                        epochs=GN_EPOCHS)
+    writable_objects.append(gn_train)
+    for eval_set in eval_sets[1]:
+        gn_eval = utils.NetworkEvaluation(experiment=experiment_deriv,
+                                          network=gn_train,
+                                          eval_set=eval_set,
+                                          integrator="null")
+        writable_objects.append(gn_eval)
     # Other networks work for all integrators
     general_int_nets = []
     # NN Kernel
-    nn_kernel = utils.NNKernel(experiment=experiment_deriv,
-                               training_set=train_set,
-                               learning_rate=0.001, weight_decay=0.0001,
-                               hidden_dim=32768*2, train_dtype="float",
-                               optimizer="sgd",
-                               predict_type="deriv",
-                               batch_size=375, epochs=EPOCHS, validation_set=val_set,
-                               nonlinearity="relu")
-    general_int_nets.append(nn_kernel)
+    # nn_kernel = utils.NNKernel(experiment=experiment_deriv,
+    #                            training_set=train_set,
+    #                            learning_rate=0.001, weight_decay=0.0001,
+    #                            hidden_dim=32768*2, train_dtype="float",
+    #                            optimizer="sgd",
+    #                            predict_type="deriv",
+    #                            batch_size=375, epochs=EPOCHS, validation_set=val_set,
+    #                            nonlinearity="relu")
+    # general_int_nets.append(nn_kernel)
     # MLPs
     for width, depth in [(2048, 2), (4096, 4)]:
-        mlp_deriv_train = utils.MLP(experiment=experiment_deriv,
-                                    training_set=train_set,
-                                    batch_size=375,
-                                    hidden_dim=width, depth=depth,
-                                    learning_rate=(1e-3/50),
-                                    predict_type="deriv",
-                                    validation_set=val_set, epochs=EPOCHS)
-        general_int_nets.append(mlp_deriv_train)
+        pass
+        # mlp_deriv_train = utils.MLP(experiment=experiment_deriv,
+        #                             training_set=train_set,
+        #                             batch_size=375,
+        #                             hidden_dim=width, depth=depth,
+        #                             learning_rate=(1e-3/50),
+        #                             predict_type="deriv",
+        #                             validation_set=val_set, epochs=EPOCHS)
+        # general_int_nets.append(mlp_deriv_train)
     # CNNs
     for cnn_arch in [
             [(None, 32, 5), (32, 32, 5), (32, 32, 5), (32, None, 5)],
             [(None, 32, 9), (32, 32, 9), (32, 32, 9), (32, None, 9)],
             [(None, 64, 9), (64, 64, 9), (64, 64, 9), (64, None, 9)],
     ]:
-        cnn_deriv_train = utils.CNN(experiment=experiment_deriv,
-                                    training_set=train_set,
-                                    batch_size=375,
-                                    chans_inout_kenel=cnn_arch,
-                                    learning_rate=(1e-3/50),
-                                    predict_type="deriv",
-                                    padding_mode="replicate",
-                                    validation_set=val_set, epochs=EPOCHS)
-        general_int_nets.append(cnn_deriv_train)
+        pass
+        # cnn_deriv_train = utils.CNN(experiment=experiment_deriv,
+        #                             training_set=train_set,
+        #                             batch_size=375,
+        #                             chans_inout_kenel=cnn_arch,
+        #                             learning_rate=(1e-3/50),
+        #                             predict_type="deriv",
+        #                             padding_mode="replicate",
+        #                             validation_set=val_set, epochs=EPOCHS)
+        # general_int_nets.append(cnn_deriv_train)
     # Eval runs
     writable_objects.extend(general_int_nets)
     for trained_net, eval_set, integrator in itertools.product(general_int_nets, eval_sets[1], EVAL_INTEGRATORS):
@@ -187,29 +190,30 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
 # STEP: Emit MLP, NNkernel runs
 for coarse, train_set, _repeat in itertools.product(COARSE_LEVELS, train_sets, range(NUM_REPEATS)):
     general_int_nets = []
-    nn_kernel = utils.NNKernel(experiment=experiment_step,
-                               training_set=train_set,
-                               learning_rate=0.001, weight_decay=0.0001,
-                               hidden_dim=32768*2, train_dtype="float",
-                               optimizer="sgd",
-                               predict_type="step",
-                               step_time_skew=coarse, step_subsample=1,
-                               batch_size=375, epochs=EPOCHS, validation_set=val_set,
-                               nonlinearity="relu")
-    nn_kernel.name_tag = f"cors{coarse}"
-    general_int_nets.append(nn_kernel)
+    # nn_kernel = utils.NNKernel(experiment=experiment_step,
+    #                            training_set=train_set,
+    #                            learning_rate=0.001, weight_decay=0.0001,
+    #                            hidden_dim=32768*2, train_dtype="float",
+    #                            optimizer="sgd",
+    #                            predict_type="step",
+    #                            step_time_skew=coarse, step_subsample=1,
+    #                            batch_size=375, epochs=EPOCHS, validation_set=val_set,
+    #                            nonlinearity="relu")
+    # nn_kernel.name_tag = f"cors{coarse}"
+    # general_int_nets.append(nn_kernel)
 
     for width, depth in [(2048, 2), (4096, 4)]:
-        mlp_step_train = utils.MLP(experiment=experiment_step,
-                                    training_set=train_set,
-                                    batch_size=375,
-                                    hidden_dim=width, depth=depth,
-                                    learning_rate=(1e-3/50),
-                                    predict_type="step",
-                                    step_time_skew=coarse, step_subsample=1,
-                                    validation_set=val_set, epochs=EPOCHS)
-        mlp_step_train.name_tag = f"cors{coarse}"
-        general_int_nets.append(mlp_step_train)
+        pass
+        # mlp_step_train = utils.MLP(experiment=experiment_step,
+        #                             training_set=train_set,
+        #                             batch_size=375,
+        #                             hidden_dim=width, depth=depth,
+        #                             learning_rate=(1e-3/50),
+        #                             predict_type="step",
+        #                             step_time_skew=coarse, step_subsample=1,
+        #                             validation_set=val_set, epochs=EPOCHS)
+        # mlp_step_train.name_tag = f"cors{coarse}"
+        # general_int_nets.append(mlp_step_train)
 
     # CNNs
     for cnn_arch in [
@@ -221,7 +225,7 @@ for coarse, train_set, _repeat in itertools.product(COARSE_LEVELS, train_sets, r
                                    training_set=train_set,
                                    batch_size=375,
                                    chans_inout_kenel=cnn_arch,
-                                   learning_rate=(1e-3/50),
+                                   learning_rate=(1e-3/25),
                                    predict_type="step",
                                    step_time_skew=coarse, step_subsample=1,
                                    padding_mode="replicate",
