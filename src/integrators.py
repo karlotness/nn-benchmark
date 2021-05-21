@@ -6,6 +6,8 @@ IntegrationResult = namedtuple("IntegrationResult", ["q", "p"])
 
 @numba.jit(nopython=True)
 def no_boundary_condition(q, p, t):
+    q = q.copy()
+    p = p.copy()
     return q, p
 
 @numba.jit(nopython=True)

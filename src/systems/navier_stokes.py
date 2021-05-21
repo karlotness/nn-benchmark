@@ -211,6 +211,8 @@ def make_enforce_boundary_function(in_velocity, vertex_coords, fixed_mask_soluti
     @jit(nopython=True)
     def ns_boundary_condition(q, p, t):
         left_boundary = np.expand_dims(get_left_boundary(t), axis=0)
+        q = q.copy()
+        p = p.copy()
         q[:, fixed_mask_pressures] = 0
         p[:, fixed_mask_solutions] = 0
         p[:, left_boundary_indexing] = left_boundary
