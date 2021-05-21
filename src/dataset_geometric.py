@@ -104,8 +104,8 @@ def package_data(data_set, package_args, system):
         dp_dt = batch.dp_dt
         dq_dt = batch.dq_dt
         masses = batch.masses
-        fixed_mask_p = batch.fixed_mask_p
-        fixed_mask_q = batch.fixed_mask_q
+        fixed_mask_p = getattr(batch, "fixed_mask_p", None)
+        fixed_mask_q = getattr(batch, "fixed_mask_q", None)
         proc_part = particle_process_func(p=p, q=q,
                                           dp_dt=dp_dt, dq_dt=dq_dt,
                                           masses=masses,
