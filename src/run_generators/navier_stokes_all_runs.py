@@ -22,7 +22,7 @@ NS_SUBSAMPLE = 1
 EVAL_INTEGRATORS = ["leapfrog", "euler", "rk4"]
 
 COARSE_LEVELS = [1, 4, 16]  # Used for time skew parameter for training & validation
-TRAIN_SET_SIZES = [75] # [12, 25, 50]
+TRAIN_SET_SIZES = [12, 75] # [12, 25, 50]
 
 writable_objects = []
 
@@ -115,11 +115,11 @@ for coarse, train_set in itertools.product(COARSE_LEVELS, train_sets):
 for train_set, integrator in itertools.product(train_sets, EVAL_INTEGRATORS):
     for eval_set in eval_sets[1]:
         pass
-        # knn_reg =  utils.KNNRegressorOneshot(experiment_deriv,
-        #                                      training_set=train_set,
-        #                                      eval_set=eval_set,
-        #                                      integrator=integrator)
-        # writable_objects.append(knn_reg)
+        knn_reg =  utils.KNNRegressorOneshot(experiment_deriv,
+                                             training_set=train_set,
+                                             eval_set=eval_set,
+                                             integrator=integrator)
+        writable_objects.append(knn_reg)
 
 
 # DERIVATIVE: Emit MLP, GN, NNkernel runs
@@ -151,32 +151,30 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
     #                            nonlinearity="relu")
     # general_int_nets.append(nn_kernel)
     # MLPs
-    for width, depth in [(2048, 2), (4096, 4)]:
-        pass
-        # mlp_deriv_train = utils.MLP(experiment=experiment_deriv,
-        #                             training_set=train_set,
-        #                             batch_size=375,
-        #                             hidden_dim=width, depth=depth,
-        #                             learning_rate=(1e-3/50),
-        #                             predict_type="deriv",
-        #                             validation_set=val_set, epochs=EPOCHS)
-        # general_int_nets.append(mlp_deriv_train)
+    for width, depth in [(2048, 2), (4096, 4), (2048, 5)]:
+        mlp_deriv_train = utils.MLP(experiment=experiment_deriv,
+                                    training_set=train_set,
+                                    batch_size=375,
+                                    hidden_dim=width, depth=depth,
+                                    learning_rate=(1e-4),
+                                    predict_type="deriv",
+                                    validation_set=val_set, epochs=EPOCHS)
+        general_int_nets.append(mlp_deriv_train)
     # CNNs
     for cnn_arch in [
             [(None, 32, 5), (32, 32, 5), (32, 32, 5), (32, None, 5)],
             [(None, 32, 9), (32, 32, 9), (32, 32, 9), (32, None, 9)],
             [(None, 64, 9), (64, 64, 9), (64, 64, 9), (64, None, 9)],
     ]:
-        pass
-        # cnn_deriv_train = utils.CNN(experiment=experiment_deriv,
-        #                             training_set=train_set,
-        #                             batch_size=375,
-        #                             chans_inout_kenel=cnn_arch,
-        #                             learning_rate=(1e-3/50),
-        #                             predict_type="deriv",
-        #                             padding_mode="replicate",
-        #                             validation_set=val_set, epochs=EPOCHS)
-        # general_int_nets.append(cnn_deriv_train)
+        cnn_deriv_train = utils.CNN(experiment=experiment_deriv,
+                                    training_set=train_set,
+                                    batch_size=375,
+                                    chans_inout_kenel=cnn_arch,
+                                    learning_rate=(1e-4),
+                                    predict_type="deriv",
+                                    padding_mode="replicate",
+                                    validation_set=val_set, epochs=EPOCHS)
+        general_int_nets.append(cnn_deriv_train)
     # Eval runs
     writable_objects.extend(general_int_nets)
     for trained_net, eval_set, integrator in itertools.product(general_int_nets, eval_sets[1], EVAL_INTEGRATORS):
@@ -202,18 +200,17 @@ for coarse, train_set, _repeat in itertools.product(COARSE_LEVELS, train_sets, r
     # nn_kernel.name_tag = f"cors{coarse}"
     # general_int_nets.append(nn_kernel)
 
-    for width, depth in [(2048, 2), (4096, 4)]:
-        pass
-        # mlp_step_train = utils.MLP(experiment=experiment_step,
-        #                             training_set=train_set,
-        #                             batch_size=375,
-        #                             hidden_dim=width, depth=depth,
-        #                             learning_rate=(1e-3/50),
-        #                             predict_type="step",
-        #                             step_time_skew=coarse, step_subsample=1,
-        #                             validation_set=val_set, epochs=EPOCHS)
-        # mlp_step_train.name_tag = f"cors{coarse}"
-        # general_int_nets.append(mlp_step_train)
+    for width, depth in [(2048, 2), (4096, 4), (2048, 5)]:
+        mlp_step_train = utils.MLP(experiment=experiment_step,
+                                    training_set=train_set,
+                                    batch_size=375,
+                                    hidden_dim=width, depth=depth,
+                                    learning_rate=(1e-4),
+                                    predict_type="step",
+                                    step_time_skew=coarse, step_subsample=1,
+                                    validation_set=val_set, epochs=EPOCHS)
+        mlp_step_train.name_tag = f"cors{coarse}"
+        general_int_nets.append(mlp_step_train)
 
     # CNNs
     for cnn_arch in [
@@ -225,7 +222,7 @@ for coarse, train_set, _repeat in itertools.product(COARSE_LEVELS, train_sets, r
                                    training_set=train_set,
                                    batch_size=375,
                                    chans_inout_kenel=cnn_arch,
-                                   learning_rate=(1e-3/25),
+                                   learning_rate=(1e-4),
                                    predict_type="step",
                                    step_time_skew=coarse, step_subsample=1,
                                    padding_mode="replicate",
