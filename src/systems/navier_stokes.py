@@ -12,6 +12,7 @@ from collections import namedtuple
 from .defs import System, SystemCache, SystemResult
 import numpy as np
 import concurrent.futures
+from numba import jit
 
 
 IN_MESH_PATH = pathlib.Path(__file__).parent / "resources" / "mesh.obj.xz"
@@ -192,19 +193,30 @@ class NavierStokesSystem(System):
         )
 
 
-def generate_boundary_condition_function(in_velocity, vertices, boundary_mask_solution, boundary_mask_pressure):
-        def boundary_condition_function(t, p, q):
-            reset_p = p.copy()
-            reset_q = q.copy()
+def make_enforce_boundary_function(in_velocity, vertex_coords, fixed_mask_solutions, fixed_mask_pressures):
+    vertex_y = vertex_coords.reshape((MESH_SIZE + (2, )))[0, :, 1]
+    vertex_y.setflags(write=False)
+    fixed_mask_solutions = fixed_mask_solutions.reshape((-1, ))
+    fixed_mask_pressures = fixed_mask_pressures.reshape((-1, ))
 
-            solution_boundary = np.zeros_like(p)
-            y = vertices[0, :, 1]
-            solution_boundary[0, :] = inv_velocity * 4 * y * (0.41 - y) / (0.41 * 0.41) * (1 - np.exp(-5 * t))
-            reset_p[boundary_mask_solution[np.newaxis, ...].repeat(p.shape[0], axis=0)] = solution_boundary
-            reset_q[boundary_mask_pressure[np.newaxis, ...].repeat(q.shape[0], axis=0)] = 0
+    left_boundary_indexing = np.zeros(MESH_SIZE + (2, ), dtype=bool)
+    left_boundary_indexing[0, :, 0] = True
+    left_boundary_indexing = left_boundary_indexing.reshape((-1, ))
+    left_boundary_indexing.setflags(write=False)
 
-            return p, q
-        return boundary_condition_function
+    @jit(nopython=True)
+    def get_left_boundary(t):
+        return in_velocity * 4 * vertex_y * (0.41 - vertex_y) / (0.41 * 0.41) * (1 - np.exp(-5 * t))
+
+    @jit(nopython=True)
+    def ns_boundary_condition(q, p, t):
+        left_boundary = np.expand_dims(get_left_boundary(t), axis=0)
+        q[:, fixed_mask_pressures] = 0
+        p[:, fixed_mask_solutions] = 0
+        p[:, left_boundary_indexing] = left_boundary
+        return q, p
+
+    return ns_boundary_condition
 
 
 def compute_edge_indices(vtx_coords):

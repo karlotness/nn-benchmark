@@ -446,7 +446,7 @@ def run_phase(base_dir, out_dir, phase_args):
         time_step_size = trajectory.trajectory_meta["time_step_size"][0]
         edges = None
         vertices = None
-        boundary_cond_func = lambda t, p, q: (p, q)
+        boundary_cond_func = None
 
         # Compute hamiltonians
         # Construct systems
@@ -490,11 +490,20 @@ def run_phase(base_dir, out_dir, phase_args):
             in_velocity = trajectory.trajectory_meta["in_velocity"][0].item()
             viscosity = trajectory.trajectory_meta["viscosity"][0].item()
             vertices = eval_dataset[0].vertices.tolist()
+            vertices_array = eval_dataset[0].vertices
+            vertices_array.setflags(write=False)
             edges = eval_dataset[0].edge_index.tolist()
             system = navier_stokes.system_from_records(grid_resolution=grid_resolution, viscosity=viscosity)
-            boundary_mask_solutions = eval_dataset._npz_file["fixed_mask_solutions"]
-            boundary_mask_pressures = eval_dataset._npz_file["fixed_mask_pressures"]
-            bound_cond_func = navier_stokes.generate_boundary_condition_function(in_velocity, np.array(vertices), boundary_mask_solutions, boundary_mask_pressures)
+            fixed_mask_solutions = eval_dataset._npz_file["fixed_mask_solutions"]
+            fixed_mask_solutions.setflags(write=False)
+            fixed_mask_pressures = eval_dataset._npz_file["fixed_mask_pressures"]
+            fixed_mask_pressures.setflags(write=False)
+            boundary_cond_func = navier_stokes.make_enforce_boundary_function(
+                in_velocity=in_velocity,
+                vertex_coords=vertices_array,
+                fixed_mask_solutions=fixed_mask_solutions,
+                fixed_mask_pressures=fixed_mask_pressures,
+            )
         else:
             raise ValueError(f"Unknown system type {eval_dataset.system}")
 
@@ -516,6 +525,7 @@ def run_phase(base_dir, out_dir, phase_args):
 
         p0 = p[:, 0].detach().cpu().numpy()
         q0 = q[:, 0].detach().cpu().numpy()
+        t0 = trajectory.t[0, 0].item()
         eval_decorator = make_eval_decorator(integrator=integrator_type)
         q0, p0 = eval_decorator.decorate_initial_cond(q0, p0)
         wrapped_time_deriv_func = eval_decorator.decorate_deriv_func(time_deriv_func)
@@ -527,10 +537,11 @@ def run_phase(base_dir, out_dir, phase_args):
             integrator=integrator_type,
             q0=q0,
             p0=p0,
+            t0=t0,
             num_steps=int(num_time_steps.detach().cpu().item()),
             dt=float(time_step_size.detach().cpu().item()),
             deriv_func=wrapped_time_deriv_func,
-            bound_cond_func=boundary_cond_func,
+            boundary_cond_func=boundary_cond_func,
             system=system)
         int_res_raw = eval_decorator.process_results(int_res_raw)
 
