@@ -311,9 +311,10 @@ def run_phase(base_dir, out_dir, phase_args):
         # Use the time_derivative
         KNNDerivative = namedtuple("KNNDerivative", ["dq_dt", "dp_dt"])
         def model_time_deriv(q, p, dt=1.0, t=0):
+            p_len = p.shape[-1]
             x = np.concatenate([p, q], axis=-1)
             ret = net.predict(x)
-            dpdt, dqdt = np.split(ret, 2, axis=-1)
+            dpdt, dqdt = np.split(ret, [p_len], axis=-1)
             return KNNDerivative(dq_dt=dqdt, dp_dt=dpdt)
         time_deriv_func = model_time_deriv
     elif eval_type in {"knn-predictor", "knn-predictor-oneshot"}:
