@@ -74,6 +74,7 @@ class UNet(torch.nn.Module):
         if self.predict_system == "navier-stokes":
             self.in_channels = 4
             self.out_channels = 3
+            self.upsampler = torch.nn.Upsample(size=(256, 256), mode="bilinear")
         else:
             raise ValueError(f"Unsupported system {self.predict_system}")
 
@@ -138,8 +139,56 @@ class UNet(torch.nn.Module):
         target_shape = (n_batch, ) + self.spatial_reshape + (t.shape[2: ] or (1, ))
         return t.view(target_shape)
 
+    def _apply_ops(self, x):
+        skip_connections = []
+        # Encoder ops
+        for op in self.input_ops:
+            x = op(x)
+            skip_connections.append(x)
+        # Decoder ops
+        x = skip_connections.pop()
+        for op in self.output_ops:
+            x = op(x)
+            if skip_connections:
+                x = torch.cat([x, skip_connections.pop()], dim=1)
+        return x
+
     def forward(self, q, p, extra_data=None):
-        pass
+        # Preprocess inputs for shape
+        orig_q_shape = q.shape
+        orig_p_shape = p.shape
+
+        # For Navier-Stokes: q=pressures, p=solutions
+        if self.predict_system == "navier-stokes":
+            # For Navier-Stokes: q=pressures, p=solutions
+            # We only use p as input and require extra data
+            p = self._spatial_reshape(p)
+            extra_data = self._spatial_reshape(extra_data)
+            split_size = [q.shape[-1], p.shape[-1]]
+            x = torch.cat((p, extra_data), dim=-1)
+            x = torch.movedim(x, -1, 1)
+
+        # Apply operations
+        orig_x_shape = x.shape[-2:]
+        x = self.upsampler(x)
+        y = self._apply_ops(x)
+        y = torch.nn.functional.interpolate(y, size=orig_x_shape, mode="bilinear")
+        y = torch.movedim(y, 1, -1)
+
+        # Package output
+        dq, dp = torch.split(y, split_size, dim=-1)
+        dq = dq.view(orig_q_shape)
+        dp = dp.view(orig_p_shape)
+
+        # Package result value
+        if self.predict_type == "deriv":
+            result = TimeDerivative(dq_dt=dq, dp_dt=dp)
+        elif self.predict_type == "step":
+            result = StepPrediction(q=dq, p=dp)
+        else:
+            raise ValueError(f"Invalid predict type {self.predict_type}")
+
+        return result
 
 
 def build_network(arch_args, predict_type):
