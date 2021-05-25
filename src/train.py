@@ -117,6 +117,16 @@ def create_optimizer(net, optimizer, optim_args, base_logger=None):
         raise ValueError(f"Invalid optimizer {optimizer}")
 
 
+def create_loss_fn(loss_type, device):
+    if loss_type == "mse":
+        loss_fn = torch.nn.MSELoss()
+    elif loss_type == "l1":
+        loss_fn = torch.nn.L1Loss()
+    else:
+        raise ValueError(f"Unknown loss type {loss_type}")
+    return loss_fn.to(device)
+
+
 class SchedulerWrapper:
     def __init__(self, scheduler, step_period, logger):
         self.scheduler = scheduler
@@ -534,7 +544,7 @@ def run_phase(base_dir, out_dir, phase_args):
         net = torch_converter(net)
 
         # Declare loss and training functions
-        loss_fn = torch.nn.MSELoss()
+        loss_fn = create_loss_fn(training_args.get("loss_type", "mse"), device=device)
         try:
             train_fn = TRAIN_FUNCTIONS[train_type]
         except KeyError as exc:
