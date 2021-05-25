@@ -230,6 +230,22 @@ for coarse, train_set, _repeat in itertools.product(COARSE_LEVELS, train_sets, r
         cnn_step_train.name_tag = f"cors{coarse}"
         general_int_nets.append(cnn_step_train)
 
+    # U-Net
+    unet_step_train = utils.UNet(
+        experiment=experiment_step,
+        training_set=train_set,
+        learning_rate=0.0004,
+        train_dtype="float",
+        batch_size=375,
+        epochs=EPOCHS,
+        validation_set=val_set,
+        predict_type="step",
+        step_time_skew=coarse,
+        step_subsample=1
+    )
+    unet_step_train.name_tag = f"cors{coarse}"
+    general_int_nets.append(unet_step_train)
+
     writable_objects.extend(general_int_nets)
     for trained_net, eval_set  in itertools.product(general_int_nets, eval_sets[coarse]):
         eval_run = utils.NetworkEvaluation(experiment=experiment_step,
