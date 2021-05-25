@@ -224,8 +224,8 @@ def create_dataset(base_dir, data_args):
 
 def add_auxiliary_data(trajectory_dataset, network_args):
     if trajectory_dataset.system == "navier-stokes":
-        network_args["arch_args"]["mesh_coords"] = trajectory_dataset[0].vertices.tolist()
-        network_args["arch_args"]["static_nodes"] = trajectory_dataset._traj_dataset._npz_file["fixed_mask"].tolist()
+        network_args["arch_args"]["static_nodes"] = trajectory_dataset._traj_dataset._npz_file["enumerated_fixed_mask"].flatten().tolist()
+        network_args["arch_args"]["mesh_coords"] = None
     else:
         pass
 

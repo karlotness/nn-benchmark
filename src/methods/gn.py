@@ -37,7 +37,7 @@ def package_batch(system, p, q, dp_dt, dq_dt, masses, edge_index, boundary_verti
         if dp_dt is not None:
             dp_dt = np.concatenate((dp_dt, dq_dt[:, np.newaxis]), axis=-1)
         if fixed_mask_p is not None and dp_dt is not None:
-            fixed_mask_y = np.concatenate((fixed_mask_p, fixed_mask_q[:, np.newaxis]), axis=-1).reshape(dp_dt.shape)
+            fixed_mask_y = np.concatenate((fixed_mask_p, fixed_mask_q[:, np.newaxis]), axis=-1)
     else:
         raise ValueError(f"Invalid system {system}")
 
@@ -179,7 +179,7 @@ class CustomMetaLayer(torch.nn.Module):
 
 class GN(torch.nn.Module):
     def __init__(self, v_features, e_features, mesh_coords,
-                 static_nodes, constant_vertex_features=None, hidden=128,
+                 static_nodes, num_mask_layers, constant_vertex_features=None, hidden=128,
                  layer_norm=False):
         super().__init__()
 
@@ -190,8 +190,7 @@ class GN(torch.nn.Module):
             v_features_out = v_features
 
         self.mesh_coords = mesh_coords
-        self.static_nodes = torch.nn.functional.one_hot(static_nodes,
-                                                        2).float()
+        self.static_nodes = torch.nn.functional.one_hot(static_nodes, num_mask_layers).float()
         self.constant_vertex_features = constant_vertex_features
 
         self.vertex_encode_mlp = Seq(Lin(v_features_in, hidden), ReLU(), Lin(hidden, hidden))
@@ -200,7 +199,7 @@ class GN(torch.nn.Module):
             EdgeModel(hidden, layer_norm),
             NodeModel(hidden, layer_norm),
             None)
-        self.decode = Seq(Lin(hidden, hidden), ReLU(), Lin(hidden, v_features_out - self.static_nodes.shape[-1]))
+        self.decode = Seq(Lin(hidden, hidden), ReLU(), Lin(hidden, v_features_out))
         if layer_norm:
             self.layer_norm = torch.nn.LayerNorm(hidden)
         else:
@@ -209,7 +208,8 @@ class GN(torch.nn.Module):
     def _apply(self, fn):
         super()._apply(fn)
 
-        self.mesh_coords = fn(self.mesh_coords)
+        if self.mesh_coords is not None:
+            self.mesh_coords = fn(self.mesh_coords)
         self.static_nodes = fn(self.static_nodes)
         if self.constant_vertex_features is not None:
             self.constant_vertex_features = fn(self.constant_vertex_features)
@@ -218,8 +218,7 @@ class GN(torch.nn.Module):
 
     def encode(self, world_coords, vertex_features, edge_index):
         static_nodes_batch = torch.unsqueeze(self.static_nodes, 0).repeat(world_coords.shape[0], 1, 1)
-        vertices = torch.cat([static_nodes_batch,
-                              vertex_features], dim=-1)
+        vertices = torch.cat([static_nodes_batch, vertex_features], dim=-1)
         if self.constant_vertex_features is not None:
             vertices = torch.cat([vertices, self.constant_vertex_features],
                                  dim=-1)
@@ -265,11 +264,14 @@ def build_network(arch_args):
     v_features = arch_args["v_features"]
     e_features = arch_args["e_features"]
     hidden_dim = arch_args["hidden_dim"]
-    mesh_coords = torch.tensor(arch_args["mesh_coords"])
+    mesh_coords = arch_args["mesh_coords"]
+    if mesh_coords is not None:
+        mesh_coords = torch.tensor(mesh_coords)
     static_nodes = torch.tensor(arch_args["static_nodes"]).long()
     layer_norm = arch_args["layer_norm"]
+    num_mask_layers = arch_args["num_mask_layers"]
 
     net = GN(v_features=v_features, e_features=e_features,
              hidden=hidden_dim, mesh_coords=mesh_coords,
-             static_nodes=static_nodes)
+             static_nodes=static_nodes, num_mask_layers=num_mask_layers)
     return net

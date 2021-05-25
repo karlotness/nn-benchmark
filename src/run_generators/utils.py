@@ -20,10 +20,11 @@ def generate_packing_args(instance, system, dataset):
             "boundary_vertices": [[-1., 0.], [1., 0.]],
             "dimension": dim,
             }
-        instance.v_features = 4
+        instance.v_features = [4, 2]
         instance.e_features = 6
         instance.mesh_coords = [[-1., 0.], [0., 0.], [1., 0.]]
         instance.static_nodes = [1, 0, 1]
+        instance.num_mask_layers = 2
     elif system == "wave":
         dim = dataset.input_size() // 2
         instance.particle_process_type = "one-dim"
@@ -33,10 +34,11 @@ def generate_packing_args(instance, system, dataset):
             "boundary_vertices": None,
             "dimension": dim,
             }
-        instance.v_features = 4
+        instance.v_features = [4, 2]
         instance.e_features = 6
         instance.mesh_coords = [[x, 0] for x in np.linspace(0, 1, dim)]
         instance.static_nodes = [0 for i in np.arange(dim)]
+        instance.num_mask_layers = 2
     elif system == "spring-mesh":
         dim = dataset.input_size() // 2
         instance.particle_process_type = "identity"
@@ -46,10 +48,11 @@ def generate_packing_args(instance, system, dataset):
             "boundary_vertices": None,
             "dimension": dim,
             }
-        instance.v_features = 4
+        instance.v_features = [4, 2]
         instance.e_features = 6
         instance.mesh_coords = [list(map(float, p["position"])) for p in dataset.initial_cond_source.particle_properties()]
         instance.static_nodes = [1 if p["is_fixed"] else 0 for p in dataset.initial_cond_source.particle_properties()]
+        instance.num_mask_layers = 2
     elif system == "taylor-green":
         dim = dataset.input_size() // 2
         instance.particle_process_type = "identity"
@@ -63,6 +66,7 @@ def generate_packing_args(instance, system, dataset):
         instance.e_features = 6
         instance.mesh_coords = [list(map(float, p)) for p in dataset.initial_cond_source.vertices]
         instance.static_nodes = [1 for p in dataset.initial_cond_source.vertices]
+        instance.num_mask_layers = 2
     elif system == "navier-stokes":
         dim = dataset.input_size() // 2
         instance.particle_process_type = "identity"
@@ -72,10 +76,11 @@ def generate_packing_args(instance, system, dataset):
             "boundary_vertices": None,
             "dimension": dim,
             }
-        instance.v_features = [4, 5]
-        instance.e_features = 6
+        instance.v_features = [6, 3]
+        instance.e_features = 3
         instance.mesh_coords = None
         instance.static_nodes = None
+        instance.num_mask_layers = 4
     else:
         raise ValueError(f"Invalid system {system}")
 
@@ -1286,6 +1291,7 @@ class GN(TrainedNetwork):
                         "mesh_coords": self.mesh_coords,
                         "static_nodes": self.static_nodes,
                         "layer_norm": self.layer_norm,
+                        "num_mask_layers": self.num_mask_layers,
                     },
                 },
                 "training": {

@@ -27,7 +27,8 @@ NavierStokesTrajectoryResult = namedtuple("NavierStokesTrajectoryResult",
                                            "fixed_mask",
                                            "fixed_mask_pressures",
                                            "fixed_mask_solutions",
-                                           "extra_fixed_mask"])
+                                           "extra_fixed_mask",
+                                           "enumerated_fixed_mask"])
 
 MESH_SIZE = (221, 42)
 
@@ -176,6 +177,11 @@ class NavierStokesSystem(System):
         fixed_mask_solutions = np.tile(np.expand_dims(fixed_mask, axis=-1), (1, 1, 2)).reshape(solutions.shape[1:])
         fixed_mask = fixed_mask.reshape(obstacle_mask.shape)
         extra_fixed_mask = np.stack([fixed_mask, obstacle_mask], axis=-1)
+        enumerated_fixed_mask = obstacle_mask.copy().reshape(MESH_SIZE).astype(np.int32)
+        enumerated_fixed_mask[:, 0] = 1
+        enumerated_fixed_mask[:, -1] = 1
+        enumerated_fixed_mask[0, :] = 2
+        enumerated_fixed_mask[-1, :] = 3
 
         # Repackage results
         t = np.array(ts)
@@ -190,6 +196,7 @@ class NavierStokesSystem(System):
             fixed_mask_pressures=fixed_mask_pressures,
             fixed_mask_solutions=fixed_mask_solutions,
             extra_fixed_mask=extra_fixed_mask,
+            enumerated_fixed_mask=enumerated_fixed_mask,
         )
 
 
@@ -369,6 +376,8 @@ def generate_data(system_args, base_logger=None):
                 trajectories["fixed_mask_solutions"] = traj_result.fixed_mask_solutions
             if "fixed_mask_pressures" not in trajectories:
                 trajectories["fixed_mask_pressures"] = traj_result.fixed_mask_pressures
+            if "enumerated_fixed_mask" not in trajectories:
+                trajectories["enumerated_fixed_mask"] = traj_result.enumerated_fixed_mask
 
             # Store per-trajectory metadata
             trajectory_metadata.append(
@@ -402,6 +411,7 @@ def generate_data(system_args, base_logger=None):
                       "extra_fixed_mask": "extra_fixed_mask",
                       "fixed_mask_solutions": "fixed_mask_solutions",
                       "fixed_mask_pressures": "fixed_mask_pressures",
+                      "enumerated_fixed_mask": "enumerated_fixed_mask",
                   },
                   "timing": {
                       "traj_gen_time": traj_gen_elapsed
