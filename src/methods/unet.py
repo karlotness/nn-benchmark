@@ -192,4 +192,13 @@ class UNet(torch.nn.Module):
 
 
 def build_network(arch_args, predict_type):
-    pass
+    predict_system = arch_args["predict_system"]
+    spatial_reshape = None
+    if "spatial_reshape" in arch_args:
+        spatial_reshape = tuple(arch_args["spatial_reshape"])
+    unet = UNet(
+        predict_system=predict_system,
+        predict_type=predict_type,
+        spatial_reshape=spatial_reshape
+    )
+    return unet
