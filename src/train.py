@@ -11,6 +11,7 @@ import integrators
 import numpy as np
 from collections import namedtuple
 import copy
+import functools
 
 
 TRAIN_DTYPES = {
@@ -430,12 +431,12 @@ def train_gn(net, batch, loss_fn, train_type_args, tensor_converter):
 TRAIN_FUNCTIONS = {
     "hnn": train_hnn,
     "srnn": train_srnn,
-    "mlp-deriv": lambda *args, **kwargs: train_mlp(*args, **kwargs, predict_type="deriv"),
-    "mlp-step": lambda *args, **kwargs: train_mlp(*args, **kwargs, predict_type="step"),
-    "nn-kernel-deriv": lambda *args, **kwargs: train_mlp(*args, **kwargs, predict_type="deriv"),
-    "nn-kernel-step": lambda *args, **kwargs: train_mlp(*args, **kwargs, predict_type="step"),
-    "cnn-deriv": lambda *args, **kwargs: train_cnn(*args, **kwargs, predict_type="deriv"),
-    "cnn-step": lambda *args, **kwargs: train_cnn(*args, **kwargs, predict_type="step"),
+    "mlp-deriv": functools.partial(train_mlp, predict_type="deriv"),
+    "mlp-step": functools.partial(train_mlp, predict_type="step"),
+    "nn-kernel-deriv": functools.partial(train_mlp, predict_type="deriv"),
+    "nn-kernel-step": functools.partial(train_mlp, predict_type="step"),
+    "cnn-deriv": functools.partial(train_cnn, predict_type="deriv"),
+    "cnn-step": functools.partial(train_cnn, predict_type="step"),
     "hogn": train_hogn,
     "gn": train_gn,
 }
