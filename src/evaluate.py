@@ -245,7 +245,7 @@ def run_phase(base_dir, out_dir, phase_args):
         time_deriv_func = model_next_step
         if integrator_type != "null":
             raise ValueError(f"mlp-step predictions do not work with integrator {integrator_type}")
-    elif eval_type == "cnn-deriv":
+    elif eval_type in {"cnn-deriv", "unet-deriv"}:
 
         p_full_shape = (1, ) + eval_dataset[0].p[0].shape
         q_full_shape = (1, ) + eval_dataset[0].q[0].shape
@@ -275,7 +275,7 @@ def run_phase(base_dir, out_dir, phase_args):
                 return CNNDerivative(dq_dt=dq_dt, dp_dt=dp_dt)
 
         time_deriv_func = cnn_time_deriv
-    elif eval_type == "cnn-step":
+    elif eval_type in {"cnn-step", "unet-step"}:
 
         p_full_shape = (1, ) + eval_dataset[0].p[0].shape
         q_full_shape = (1, ) + eval_dataset[0].q[0].shape
