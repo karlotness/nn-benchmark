@@ -1,5 +1,5 @@
 from sklearn import neighbors
-from . import hnn, srnn, mlp, nn_kernel, cnn
+from . import hnn, srnn, mlp, nn_kernel, cnn, unet
 
 def build_network(net_args):
     arch = net_args["arch"]
@@ -16,6 +16,10 @@ def build_network(net_args):
         return cnn.build_network(arch_args, predict_type="deriv")
     elif arch == "cnn-step":
         return cnn.build_network(arch_args, predict_type="step")
+    elif arch == "unet-deriv":
+        return unet.build_network(arch_args, predict_type="deriv")
+    elif arch == "unet-step":
+        return unet.build_network(arch_args, predict_type="step")
     elif arch in {"knn-regressor", "knn-predictor",
                   "knn-regressor-oneshot", "knn-predictor-oneshot"}:
         return neighbors.KNeighborsRegressor(n_neighbors=1)
