@@ -449,6 +449,8 @@ TRAIN_FUNCTIONS = {
     "cnn-step": functools.partial(train_cnn, predict_type="step"),
     "hogn": train_hogn,
     "gn": train_gn,
+    "unet-deriv": functools.partial(train_cnn, predict_type="deriv"),
+    "unet-step": functools.partial(train_cnn, predict_type="step"),
 }
 
 
