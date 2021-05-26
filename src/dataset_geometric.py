@@ -76,13 +76,14 @@ def particle_type_identity(p, q, dp_dt, dq_dt, masses):
 
 
 class GeometricPackagingDataset(torch.utils.data.Dataset):
-    def __init__(self, data_set, system, particle_process_func, package_func, boundary_vertices):
+    def __init__(self, data_set, system, particle_process_func, package_func, boundary_vertices, edge_index):
         super().__init__()
         self.data_set = data_set
         self.system = system
         self.particle_process_func = particle_process_func
         self.package_func = package_func
         self.boundary_vertices = boundary_vertices
+        self.edge_index = edge_index
 
     def __len__(self):
         return len(self.data_set)
@@ -106,9 +107,11 @@ class GeometricPackagingDataset(torch.utils.data.Dataset):
         if not torch.is_tensor(fixed_mask_p) and not isinstance(fixed_mask_p, np.ndarray):
             fixed_mask_p = None
             fixed_mask_q = None
-        if edge_index is None:
+        if self.edge_index is None:
             # Pull directly from batch
             edge_index = torch.tensor(batch.edge_index).long()
+        else:
+            edge_index = self.edge_index
         vertices = torch.tensor(batch.vertices).long() if self.system in {"taylor-green", "navier-stokes"} else None
         packaged = self.package_func(
             p=proc_part.p,
@@ -153,4 +156,5 @@ def package_data(data_set, package_args, system):
         particle_process_func=particle_process_func,
         package_func=package_func,
         boundary_vertices=boundary_vertices,
+        edge_index=edge_index,
     )
