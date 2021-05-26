@@ -20,54 +20,68 @@ TRAIN_DTYPES = {
 }
 
 
-class NoNoise:
-    def __init__(self):
-        pass
+class NoiseInjector(torch.utils.data.Dataset):
+    def __init__(self, data_set):
+        super().__init__()
+        self.__dataset = data_set
 
-    def process_batch(self, batch):
-        return batch
+    def inject_noise(self, batch):
+        raise NotImplementedError("Subclass to implement")
+
+    def __getattr__(self, name):
+        return getattr(self.__dataset, name)
+
+    def __len__(self):
+        return len(self.__dataset)
+
+    def __getitem__(self, idx):
+        return self.inject_noise(self.__dataset[idx])
 
 
-class RandomCorrectedNoise:
-    NoiseBatch = namedtuple("NoiseBatch", ["name", "p", "q", "dp_dt", "dq_dt",
-                                           "t", "trajectory_meta",
-                                           "p_noiseless", "q_noiseless",
-                                           "masses", "edge_index"])
-
-    def __init__(self, variance, gamma=0.1):
+class StepSnapshotNoiseInjector(NoiseInjector):
+    def __init__(self, data_set, variance):
+        super().__init__(data_set=data_set)
         self.variance = variance
-        self.gamma = gamma
+        self.noise_sigma = np.sqrt(self.variance)
 
-    def process_batch(self, batch):
-        noise_sigma = np.sqrt(self.variance)
-        if hasattr(batch, "dp_dt"):
-            noise_p = noise_sigma * torch.randn(*batch.p.shape,
-                                                dtype=batch.p.dtype,
-                                                device=batch.p.device)
-            noise_q = noise_sigma * torch.randn(*batch.q.shape,
-                                                dtype=batch.q.dtype,
-                                                device=batch.q.device)
-            return self.NoiseBatch(
-                name=batch.name,
-                p=batch.p + noise_p,
-                q=batch.q + noise_q,
-                dp_dt=batch.dp_dt - noise_p,
-                dq_dt=batch.dq_dt - noise_q,
-                t=batch.t,
-                trajectory_meta=batch.trajectory_meta,
-                p_noiseless=batch.p_noiseless,
-                q_noiseless=batch.q_noiseless,
-                masses=batch.masses,
-                edge_index=batch.edge_index)
-        else:
-            noise_pos = noise_sigma * torch.randn(*batch.pos.shape,
-                                                  dtype=batch.pos.dtype,
-                                                  device=batch.pos.device)
-            batch.pos += noise_pos
-            batch.x += noise_pos
-            batch.y -= (self.gamma * (2 * noise_pos)) + (
-                (1 - self.gamma) * noise_pos)
-            return batch
+    def __apply_noise(self, t, fixed_mask):
+        noise = self.noise_sigma * np.random.randn(*t.shape)
+        noise[fixed_mask] = 0
+        return t + noise
+
+    def inject_noise(self, batch):
+        # We need to inject noise into the input q, p (and not on the boundary)
+        # Assume these are namedtuples
+        q = self.__apply_noise(batch.q, batch.fixed_mask_q)
+        p = self.__apply_noise(batch.p, batch.fixed_mask_p)
+        return batch._replace(q=q, p=p)
+
+
+class SnapshotCorrectedNoiseInjector(NoiseInjector):
+    def __init__(self, data_set, variance):
+        super().__init__(data_set=data_set)
+        self.variance = variance
+        self.noise_sigma = np.sqrt(self.variance)
+
+    def __generate_noise_mask(self, t, fixed_mask):
+        noise = self.noise_sigma * np.random.randn(*t.shape)
+        noise[fixed_mask] = 0
+        return noise
+
+    def inject_noise(self, batch):
+        # We need to apply noise to q, p. And subtract it from dq, dp scaled by gamma
+        q_noise = self.__generate_noise_mask(batch.q, batch.fixed_mask_q)
+        p_noise = self.__generate_noise_mask(batch.p, batch.fixed_mask_p)
+        new_q = batch.q + q_noise
+        new_p = batch.p + p_noise
+        new_dq = batch.dq_dt - q_noise
+        new_dp = batch.dp_dt - p_noise
+        return batch._replace(
+            q=new_q,
+            p=new_p,
+            dq_dt=new_dq,
+            dp_dt=new_dp,
+        )
 
 
 def create_live_noise(noise_args, base_logger):
@@ -75,11 +89,17 @@ def create_live_noise(noise_args, base_logger):
     noise_type = noise_args.get("type", "none")
     if noise_type == "none":
         logger.info("No noise added during training")
-        return NoNoise()
-    elif noise_type == "gn-corrected":
+        return None
+    elif noise_type == "deriv-corrected":
         variance = noise_args["variance"]
-        logger.info(f"Adding GN-style corrected noise variance={variance}")
-        return RandomCorrectedNoise(variance=variance)
+        logger.info(f"Adding GN-style derivative corrected noise with variance={variance}")
+        return functools.partial(SnapshotCorrectedNoiseInjector, variance=variance)
+    elif noise_type == "step-corrected":
+        variance = noise_args["variance"]
+        logger.info(f"Adding noise to input steps with variance={variance}")
+        return functools.partial(StepSnapshotNoiseInjector, variance=variance)
+    else:
+        raise ValueError(f"Unknown live training noise type {noise_type}")
 
 
 def save_network(net, network_args, train_type, out_dir, base_logger,
@@ -164,8 +184,8 @@ def create_scheduler(optimizer, scheduler_type, scheduler_step, scheduler_args,
                             logger=logger)
 
 
-def create_dataset(base_dir, data_args):
-    def _create_dataset_inner(data_dir, base_dir, data_args):
+def create_dataset(base_dir, data_args, train_noise_wrapper=None):
+    def _create_dataset_inner(data_dir, base_dir, data_args, noise_wrapper):
         linearize = data_args.get("linearize", False)
         base_data_set = dataset.TrajectoryDataset(data_dir=data_dir,
                                                   linearize=linearize)
@@ -186,6 +206,9 @@ def create_dataset(base_dir, data_args):
                                                    rollout_length=rollout_length)
         else:
             raise ValueError(f"Invalid dataset type {dataset_type}")
+
+        if noise_wrapper is not None:
+            data_set = noise_wrapper(data_set)
 
         loader_args = data_args["loader"]
         loader_type = loader_args.get("type", "pytorch")
@@ -213,10 +236,10 @@ def create_dataset(base_dir, data_args):
         return data_set, loader
     # End of inner dataset
     data_dir = base_dir / data_args["data_dir"]
-    train_data_set, train_loader = _create_dataset_inner(data_dir, base_dir, data_args)
+    train_data_set, train_loader = _create_dataset_inner(data_dir, base_dir, data_args, noise_wrapper=train_noise_wrapper)
     if "val_data_dir" in data_args and data_args["val_data_dir"] is not None:
         val_data_dir = base_dir / data_args["val_data_dir"]
-        val_data_set, val_loader = _create_dataset_inner(val_data_dir, base_dir, data_args)
+        val_data_set, val_loader = _create_dataset_inner(val_data_dir, base_dir, data_args, noise_wrapper=None)
     else:
         val_data_set, val_loader = None, None
     return train_data_set, train_loader, val_data_set, val_loader
@@ -460,9 +483,14 @@ def run_phase(base_dir, out_dir, phase_args):
     out_dir = pathlib.Path(out_dir)
     training_args = phase_args["training"]
 
+    # Set up noise injection
+    noise_wrapper = create_live_noise(
+        noise_args=training_args.get("noise", {}),
+        base_logger=logger)
+
     # Load the data
     logger.info("Constructing dataset")
-    train_dataset, train_loader, val_dataset, val_loader = create_dataset(base_dir, phase_args["train_data"])
+    train_dataset, train_loader, val_dataset, val_loader = create_dataset(base_dir, phase_args["train_data"], train_noise_wrapper=noise_wrapper)
     add_auxiliary_data(train_dataset, phase_args["network"])
     network_args = phase_args["network"]
 
@@ -477,11 +505,6 @@ def run_phase(base_dir, out_dir, phase_args):
     logger.info(f"Training in dtype {train_dtype}")
     train_type = training_args["train_type"]
     train_type_args = training_args["train_type_args"]
-
-    # Set up noise injection
-    noise_injector = create_live_noise(
-        noise_args=training_args.get("noise", {}),
-        base_logger=logger)
 
     # If training a knn, this is all we need.
     if train_type == "knn-regressor":
@@ -569,8 +592,6 @@ def run_phase(base_dir, out_dir, phase_args):
             # Do training
             net.train()
             for batch_num, batch in enumerate(train_loader):
-                batch = noise_injector.process_batch(batch)
-
                 optim.zero_grad()
                 time_forward_start = time.perf_counter()
                 train_result = train_fn(net=net, batch=batch, loss_fn=loss_fn,
