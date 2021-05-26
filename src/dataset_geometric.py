@@ -3,6 +3,7 @@ import numpy as np
 import torch
 from scipy.linalg import circulant
 from methods import hogn, gn
+import functools
 
 
 ProcessedParticles = namedtuple("ProcessedParticles", ["p", "q", "dp_dt", "dq_dt", "masses"])
@@ -84,7 +85,7 @@ def package_data(data_set, package_args, system):
         package_func = hogn.package_batch
         boundary_vertices = None
     elif package_type == "gn":
-        package_func = lambda *args, **kwargs: gn.package_batch(system, *args, **kwargs)
+        package_func = functools.partial(gn.package_batch, system)
         boundary_vertices = adjacency_args["boundary_vertices"]
     else:
         raise ValueError(f"Unknown package type {package_type}")
