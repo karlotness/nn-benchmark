@@ -491,10 +491,11 @@ def run_phase(base_dir, out_dir, phase_args):
     # Load the data
     logger.info("Constructing dataset")
     train_dataset, train_loader, val_dataset, val_loader = create_dataset(base_dir, phase_args["train_data"], train_noise_wrapper=noise_wrapper)
-    add_auxiliary_data(train_dataset, phase_args["network"])
-    network_args = phase_args["network"]
 
     # Construct the network
+    network_args = phase_args["network"]
+    if network_args["arch"] == "gn":
+        add_auxiliary_data(train_dataset, phase_args["network"])
     logger.info("Building network")
     net = methods.build_network(network_args)
 
