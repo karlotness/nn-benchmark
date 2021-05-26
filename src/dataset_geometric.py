@@ -75,6 +75,56 @@ def particle_type_identity(p, q, dp_dt, dq_dt, masses):
         masses=masses.reshape((-1, 1)))
 
 
+class GeometricPackagingDataset(torch.utils.data.Dataset):
+    def __init__(self, data_set, system, particle_process_func, package_func, boundary_vertices):
+        super().__init__()
+        self.data_set = data_set
+        self.system = system
+        self.particle_process_func = particle_process_func
+        self.package_func = package_func
+        self.boundary_vertices = boundary_vertices
+
+    def __len__(self):
+        return len(self.data_set)
+
+    def __getitem__(self, idx):
+        batch = self.data_set[idx]
+        # Extract batch components
+        p = batch.p
+        q = batch.q
+        dp_dt = batch.dp_dt
+        dq_dt = batch.dq_dt
+        masses = batch.masses
+        fixed_mask_p = getattr(batch, "fixed_mask_p", None)
+        fixed_mask_q = getattr(batch, "fixed_mask_q", None)
+        # Process the particles
+        proc_part = self.particle_process_func(
+            p=p, q=q,
+            dp_dt=dp_dt, dq_dt=dq_dt,
+            masses=masses,
+        )
+        if not torch.is_tensor(fixed_mask_p) and not isinstance(fixed_mask_p, np.ndarray):
+            fixed_mask_p = None
+            fixed_mask_q = None
+        if edge_index is None:
+            # Pull directly from batch
+            edge_index = torch.tensor(batch.edge_index).long()
+        vertices = torch.tensor(batch.vertices).long() if self.system in {"taylor-green", "navier-stokes"} else None
+        packaged = self.package_func(
+            p=proc_part.p,
+            q=proc_part.q,
+            dp_dt=proc_part.dp_dt,
+            dq_dt=proc_part.dq_dt,
+            masses=proc_part.masses,
+            edge_index=edge_index,
+            boundary_vertices=self.boundary_vertices,
+            vertices=vertices,
+            fixed_mask_p=fixed_mask_p,
+            fixed_mask_q=fixed_mask_q,
+        )
+        return packaged
+
+
 def package_data(data_set, package_args, system):
     particle_process_type = package_args["particle_processing"]
     package_type = package_args["package_type"]
@@ -97,34 +147,10 @@ def package_data(data_set, package_args, system):
     else:
         raise ValueError(f"Unknown particle processing type {particle_process_type}")
 
-    data_elems = []
-
-    for batch in data_set:
-        p = batch.p
-        q = batch.q
-        dp_dt = batch.dp_dt
-        dq_dt = batch.dq_dt
-        masses = batch.masses
-        fixed_mask_p = getattr(batch, "fixed_mask_p", None)
-        fixed_mask_q = getattr(batch, "fixed_mask_q", None)
-        proc_part = particle_process_func(p=p, q=q,
-                                          dp_dt=dp_dt, dq_dt=dq_dt,
-                                          masses=masses,
-                                          )
-
-        if not torch.is_tensor(fixed_mask_p) and not isinstance(fixed_mask_p, np.ndarray):
-            fixed_mask_p = None
-            fixed_mask_q = None
-
-        if edge_index is None:
-            # Pull directly from batch
-            edge_index = torch.tensor(batch.edge_index).long()
-        vertices = torch.tensor(batch.vertices).long() if system in {"taylor-green", "navier-stokes"} else None
-        packaged = package_func(p=proc_part.p, q=proc_part.q,
-                                dp_dt=proc_part.dp_dt, dq_dt=proc_part.dq_dt,
-                                masses=proc_part.masses, edge_index=edge_index,
-                                boundary_vertices=boundary_vertices, vertices=vertices,
-                                fixed_mask_p=fixed_mask_p, fixed_mask_q=fixed_mask_q)
-        data_elems.append(packaged)
-
-    return data_elems
+    return GeometricPackagingDataset(
+        data_set=data_set,
+        system=system,
+        particle_process_func=particle_process_func,
+        package_func=package_func,
+        boundary_vertices=boundary_vertices,
+    )
