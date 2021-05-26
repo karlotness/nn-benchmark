@@ -13,9 +13,12 @@ from .defs import System, SystemCache, SystemResult
 import numpy as np
 import concurrent.futures
 from numba import jit
+import triangle
+import dataclasses
 
 
 IN_MESH_PATH = pathlib.Path(__file__).parent / "resources" / "mesh.obj.xz"
+OBSTACLE_STEPS = 18
 navier_stokes_cache = SystemCache()
 NavierStokesTrajectoryResult = namedtuple("NavierStokesTrajectoryResult",
                                           ["grids",
@@ -29,6 +32,7 @@ NavierStokesTrajectoryResult = namedtuple("NavierStokesTrajectoryResult",
                                            "fixed_mask_solutions",
                                            "extra_fixed_mask",
                                            "enumerated_fixed_mask"])
+MeshDefinition = dataclasses.make_dataclass("MeshDefinition", ["radius", "center"])
 
 MESH_SIZE = (221, 42)
 
@@ -85,7 +89,41 @@ class NavierStokesSystem(System):
         mat[np.isnan(mat)] = 0.0
         return mat
 
-    def generate_trajectory(self, num_time_steps, time_step_size, in_velocity, subsample=1, logger_override=None):
+    def _generate_obstacle(self, pos, r, n_steps, trafo=None):
+        if trafo is None:
+            trafo = np.eye(2)
+        return (np.array([ [np.cos(2*np.pi*i/n_steps), np.sin(2*np.pi*i/n_steps)] for i in range(n_steps)])*r@trafo + pos,
+                np.array([ [i+4, (i+1)%n_steps+4] for i in range(n_steps)]))
+
+    def _generate_mesh(self, mesh_args):
+        if mesh_args is None:
+            # Use the old static mesh
+            with lzma.open(IN_MESH_PATH, "r", encoding="utf8") as in_mesh_file:
+                return in_mesh_file.read()
+        # Generate a dynamic mesh according to the input parameters
+        # Generate the boundary points and edges
+        square = np.array([[0, 0], [2.2, 0], [2.2, 0.41], [0, 0.41]], dtype=np.float64)
+        square_e = np.array([[0, 1], [1, 2], [2, 3], [3, 0]], dtype=np.int64)
+        # Generate obstacle points and edges
+        center = np.array(mesh_args.center).reshape((1, 2))
+        radius = mesh_args.radius
+        obst, obst_e = self._generate_obstacle(pos=center, r=radius, n_steps=OBSTACLE_STEPS, trafo=None)
+        # Combine obstacle with boundary
+        pts = np.append(square, obst, axis=0)
+        edges = np.append(square_e, obst_e, axis=0)
+        # Triangulate
+        t = triangle.triangulate({"vertices": pts, "segments": edges, "holes": center}, "qpa0.0003")
+        v = t['vertices']
+        f = t['triangles']
+        # Produce mesh string
+        str_segments = []
+        for p in v:
+            str_segments.append(f"v {p[0]} {p[1]} 0\n")
+        for t in f:
+            str_segments.append(f"f {t[0] + 1} {t[1] + 1} {t[2] + 1}\n")
+        return "".join(str_segments)
+
+    def generate_trajectory(self, num_time_steps, time_step_size, in_velocity, subsample=1, logger_override=None, mesh_args=None):
         orig_time_step_size = time_step_size
         orig_num_time_steps = num_time_steps
 
@@ -103,9 +141,8 @@ class NavierStokesSystem(System):
             tmp_dir = pathlib.Path(_tmp_dir)
 
             # Write the mesh file
-            with open(tmp_dir / "mesh.obj", "wb") as mesh_file:
-                with lzma.open(IN_MESH_PATH, "r") as in_mesh_file:
-                    mesh_file.write(in_mesh_file.read())
+            with open(tmp_dir / "mesh.obj", "w", encoding="utf8") as mesh_file:
+                    mesh_file.write(self._generate_mesh(mesh_args))
 
             # Write the config file
             with open(tmp_dir / "config.json", "w", encoding="utf8") as config_file:
@@ -295,7 +332,8 @@ def generate_data(system_args, base_logger=None):
             time_step_size=metadata["time_step_size"],
             in_velocity=metadata["in_velocity"],
             subsample=metadata["subsample"],
-            logger_override=logger.getChild(metadata["traj_name"])
+            logger_override=logger.getChild(metadata["traj_name"]),
+            mesh_args=metadata["mesh_args"],
         )
         traj_gen_elapsed = time.perf_counter() - traj_gen_start
         metadata["traj_result"] = traj_result
@@ -321,6 +359,14 @@ def generate_data(system_args, base_logger=None):
             viscosity = traj_def.get("viscosity", 0.001)
             subsample = int(traj_def.get("subsample", 1))
 
+            if "mesh" in traj_def:
+                mesh_args = MeshDefinition(
+                    radius=traj_def["mesh"]["radius"],
+                    center=tuple(traj_def["mesh"]["center"]),
+                )
+            else:
+                mesh_args = None
+
             # Create system
             system = navier_stokes_cache.find(grid_resolution=grid_resolution, viscosity=viscosity, base_logger=logger)
             if system is None:
@@ -335,6 +381,7 @@ def generate_data(system_args, base_logger=None):
                 "in_velocity": in_velocity,
                 "viscosity": viscosity,
                 "subsample": subsample,
+                "mesh_args": mesh_args,
             }
 
             futures.append(executor.submit(generate_trajectory, system=system, metadata=metadata))
@@ -361,6 +408,12 @@ def generate_data(system_args, base_logger=None):
                 f"{traj_name}_pressures": traj_result.pressures,
                 f"{traj_name}_pressures_grads": traj_result.pressures_grads,
                 f"{traj_name}_t": traj_result.t,
+                # Fixed masks
+                f"{traj_name}_fixed_mask": traj_result.fixed_mask,
+                f"{traj_name}_extra_fixed_mask": traj_result.extra_fixed_mask,
+                f"{traj_name}_fixed_mask_solutions": traj_result.fixed_mask_solutions,
+                f"{traj_name}_fixed_mask_pressures": traj_result.fixed_mask_pressures,
+                f"{traj_name}_enumerated_fixed_mask": traj_result.enumerated_fixed_mask,
             })
 
             # Store one copy of each fixed result
@@ -368,16 +421,6 @@ def generate_data(system_args, base_logger=None):
                 trajectories["edge_indices"] = compute_edge_indices(traj_result.grids[0])
             if "vertices" not in trajectories:
                 trajectories["vertices"] = traj_result.grids[0]
-            if "fixed_mask" not in trajectories:
-                trajectories["fixed_mask"] = traj_result.fixed_mask
-            if "extra_fixed_mask" not in trajectories:
-                trajectories["extra_fixed_mask"] = traj_result.extra_fixed_mask
-            if "fixed_mask_solutions" not in trajectories:
-                trajectories["fixed_mask_solutions"] = traj_result.fixed_mask_solutions
-            if "fixed_mask_pressures" not in trajectories:
-                trajectories["fixed_mask_pressures"] = traj_result.fixed_mask_pressures
-            if "enumerated_fixed_mask" not in trajectories:
-                trajectories["enumerated_fixed_mask"] = traj_result.enumerated_fixed_mask
 
             # Store per-trajectory metadata
             trajectory_metadata.append(
@@ -402,16 +445,17 @@ def generate_data(system_args, base_logger=None):
                       "t": f"{traj_name}_t",
                       "p_noiseless": f"{traj_name}_solutions",
                       "q_noiseless": f"{traj_name}_pressures",
-                      "fixed_mask_p": "fixed_mask_solutions",
-                      "fixed_mask_q": "fixed_mask_pressures",
+                      "fixed_mask_p": f"{traj_name}_fixed_mask_solutions",
+                      "fixed_mask_q": f"{traj_name}_fixed_mask_pressures",
                       # Grid information (fixed)
                       "edge_indices": "edge_indices",
                       "vertices": "vertices",
-                      "fixed_mask": "fixed_mask",
-                      "extra_fixed_mask": "extra_fixed_mask",
-                      "fixed_mask_solutions": "fixed_mask_solutions",
-                      "fixed_mask_pressures": "fixed_mask_pressures",
-                      "enumerated_fixed_mask": "enumerated_fixed_mask",
+                      # Fixed masks
+                      "fixed_mask": f"{traj_name}_fixed_mask",
+                      "extra_fixed_mask": f"{traj_name}_extra_fixed_mask",
+                      "fixed_mask_solutions": f"{traj_name}_fixed_mask_solutions",
+                      "fixed_mask_pressures": f"{traj_name}_fixed_mask_pressures",
+                      "enumerated_fixed_mask": f"{traj_name}_enumerated_fixed_mask",
                   },
                   "timing": {
                       "traj_gen_time": traj_gen_elapsed
