@@ -1553,7 +1553,7 @@ class UNet(TrainedNetwork):
                  train_dtype="float",
                  scheduler="none", scheduler_step="epoch", scheduler_args={},
                  batch_size=750, epochs=1000, validation_set=None,
-                 noise_type="none", noise_variance=0, predict_type="deriv",
+                 noise_variance=0, predict_type="deriv",
                  loss_type="l1",
                  step_time_skew=1, step_subsample=1):
         super().__init__(experiment=experiment,
@@ -1571,7 +1571,6 @@ class UNet(TrainedNetwork):
         self.scheduler_step = scheduler_step
         self.scheduler_args = {}
         self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
-        self.noise_type = noise_type
         self.noise_variance = noise_variance
         self.predict_type = predict_type
         self.step_time_skew = step_time_skew
@@ -1579,6 +1578,14 @@ class UNet(TrainedNetwork):
         self.loss_type = loss_type
         assert predict_type in {"deriv", "step"}
         assert self._predict_system == "navier-stokes"
+
+        if self.noise_variance == 0:
+            self.noise_type = "none"
+        elif self.predict_type == "step":
+            self.noise_type = "step-corrected"
+        elif self.predict_type == "deriv":
+            self.noise_type = "deriv-corrected"
+
 
         self.spatial_reshape = getattr(self.training_set, "spatial_reshape", None)
 
@@ -1631,7 +1638,7 @@ class UNet(TrainedNetwork):
         if self.noise_type != "none":
             template["phase_args"]["training"]["noise"] = {
                 "type": self.noise_type,
-                "variance": self.noise_variance
+                "variance": self.noise_variance,
             }
         if self.predict_type == "step":
              template["phase_args"]["train_data"]["dataset_args"].update({
