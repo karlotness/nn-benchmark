@@ -99,7 +99,7 @@ class NavierStokesSystem(System):
     def _generate_mesh(self, mesh_args):
         if mesh_args is None:
             # Use the old static mesh
-            with lzma.open(IN_MESH_PATH, "r", encoding="utf8") as in_mesh_file:
+            with lzma.open(IN_MESH_PATH, "rt", encoding="utf8") as in_mesh_file:
                 return in_mesh_file.read()
         # Generate a dynamic mesh according to the input parameters
         # Generate the boundary points and edges
