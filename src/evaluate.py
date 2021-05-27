@@ -495,9 +495,12 @@ def run_phase(base_dir, out_dir, phase_args):
             vertices_array.setflags(write=False)
             edges = eval_dataset[0].edge_index.tolist()
             system = navier_stokes.system_from_records(grid_resolution=grid_resolution, viscosity=viscosity)
-            fixed_mask_solutions = eval_dataset._npz_file["fixed_mask_solutions"]
+
+            fixed_mask_sol_name = eval_dataset._trajectory_meta[0]["field_keys"]["fixed_mask_solutions"]
+            fixed_mask_press_name = eval_dataset._trajectory_meta[0]["field_keys"]["fixed_mask_pressures"]
+            fixed_mask_solutions = eval_dataset._npz_file[fixed_mask_sol_name]
             fixed_mask_solutions.setflags(write=False)
-            fixed_mask_pressures = eval_dataset._npz_file["fixed_mask_pressures"]
+            fixed_mask_pressures = eval_dataset._npz_file[fixed_mask_press_name]
             fixed_mask_pressures.setflags(write=False)
             boundary_cond_func = navier_stokes.make_enforce_boundary_function(
                 in_velocity=in_velocity,
