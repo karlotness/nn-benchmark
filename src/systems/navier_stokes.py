@@ -59,6 +59,7 @@ class NavierStokesSystem(System):
         return {
             "mesh": mesh_file,
             "normalize_mesh": False,
+            "has_neumann": True,
             "discr_order": 2,
             "pressure_discr_order": 1,
             "BDF_order": 3,
