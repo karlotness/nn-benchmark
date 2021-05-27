@@ -142,7 +142,7 @@ class NavierStokesSystem(System):
 
             # Write the mesh file
             with open(tmp_dir / "mesh.obj", "w", encoding="utf8") as mesh_file:
-                    mesh_file.write(self._generate_mesh(mesh_args))
+                mesh_file.write(self._generate_mesh(mesh_args))
 
             # Write the config file
             with open(tmp_dir / "config.json", "w", encoding="utf8") as config_file:
