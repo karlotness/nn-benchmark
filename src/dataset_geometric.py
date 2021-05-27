@@ -112,7 +112,7 @@ class GeometricPackagingDataset(torch.utils.data.Dataset):
             edge_index = torch.tensor(batch.edge_index).long()
         else:
             edge_index = self.edge_index
-        vertices = torch.tensor(batch.vertices).long() if self.system in {"taylor-green", "navier-stokes"} else None
+        vertices = torch.tensor(batch.vertices) if self.system in {"taylor-green", "navier-stokes"} else None
         packaged = self.package_func(
             p=proc_part.p,
             q=proc_part.q,
