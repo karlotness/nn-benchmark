@@ -384,11 +384,8 @@ def train_cnn(net, batch, loss_fn, train_type_args, tensor_converter, predict_ty
     p = _ensure_cnn_dims(tensor_converter(batch.p))
     q = _ensure_cnn_dims(tensor_converter(batch.q))
     if extra_data is not None:
-        if not torch.is_tensor(extra_data):
-            extra_data = torch.from_numpy(extra_data)
         # Ensure we have a batch dimension
-        repeat_sizes = tuple([p.shape[0]] + [1 for _ in range(extra_data.ndim)])
-        extra_data = _ensure_cnn_dims(tensor_converter(extra_data).unsqueeze(0).repeat(*repeat_sizes))
+        extra_data = _ensure_cnn_dims(tensor_converter(extra_data))
 
     # Perform training
     # Assume snapshot dataset (shape [batch_size, n_grid])
@@ -560,13 +557,6 @@ def run_phase(base_dir, out_dir, phase_args):
                                  base_logger=logger)
         torch_converter = TorchTypeConverter(device=device, dtype=train_dtype)
 
-        extra_train_args = {}
-        if train_type in {"cnn-step", "cnn-deriv", "cnn", "unet-step", "unet-deriv"} and (getattr(train_dataset, "extra_fixed_mask", None) is not None):
-            logger.info("Providing fixed mask as extra data")
-            _extra_data = torch_converter(torch.from_numpy(train_dataset.extra_fixed_mask))
-            _extra_data.requires_grad = False
-            extra_train_args = {"extra_data": _extra_data}
-
         # Move network to device and convert to dtype
         net = torch_converter(net)
 
@@ -594,6 +584,16 @@ def run_phase(base_dir, out_dir, phase_args):
             # Do training
             net.train()
             for batch_num, batch in enumerate(train_loader):
+
+                extra_train_args = {}
+                if train_type in {"cnn-step", "cnn-deriv", "cnn", "unet-step", "unet-deriv"} and torch.is_tensor(batch.extra_fixed_mask):
+                    if epoch == 0 and batch_num == 0:
+                        logger.info("Providing fixed mask as extra data")
+                    _extra_data = torch_converter(batch.extra_fixed_mask)
+                    _extra_data.requires_grad = False
+                    extra_train_args = {"extra_data": _extra_data}
+
+
                 optim.zero_grad()
                 time_forward_start = time.perf_counter()
                 train_result = train_fn(net=net, batch=batch, loss_fn=loss_fn,
@@ -637,10 +637,16 @@ def run_phase(base_dir, out_dir, phase_args):
                 net.eval()
                 with torch.no_grad():
                     for val_batch_num, val_batch in enumerate(val_loader):
+                        extra_val_args = {}
+                        if train_type in {"cnn-step", "cnn-deriv", "cnn", "unet-step", "unet-deriv"} and torch.is_tensor(val_batch.extra_fixed_mask):
+                            _val_extra_data = torch_converter(val_batch.extra_fixed_mask)
+                            _val_extra_data.requires_grad = False
+                            extra_val_args = {"extra_data": _val_extra_data}
+                        # Run validation batch
                         val_result = train_fn(net=net, batch=val_batch,
                                               loss_fn=loss_fn,
                                               train_type_args=train_type_args,
-                                              tensor_converter=torch_converter, **extra_train_args)
+                                              tensor_converter=torch_converter, **extra_val_args)
                         val_loss = val_result.loss
                         val_total_loss_denom += val_result.total_loss_denom_incr
                         val_total_loss += val_loss.item() * val_result.total_loss_denom_incr

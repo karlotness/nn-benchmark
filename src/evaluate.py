@@ -246,67 +246,76 @@ def run_phase(base_dir, out_dir, phase_args):
         if integrator_type != "null":
             raise ValueError(f"mlp-step predictions do not work with integrator {integrator_type}")
     elif eval_type in {"cnn-deriv", "unet-deriv"}:
+        def cnn_time_deriv_func(batch):
+            CNNDerivative = namedtuple("CNNDerivative", ["dq_dt", "dp_dt"])
 
-        p_full_shape = (1, ) + eval_dataset[0].p[0].shape
-        q_full_shape = (1, ) + eval_dataset[0].q[0].shape
+            p_full_shape = (1, ) + batch.p[0, 0].shape
+            q_full_shape = (1, ) + batch.q[0, 0].shape
 
-        if len(q_full_shape) < 3:
-            q_full_shape = q_full_shape + (1, )
-        if len(p_full_shape) < 3:
-            p_full_shape = p_full_shape + (1, )
+            if len(q_full_shape) < 3:
+                q_full_shape = q_full_shape + (1, )
+            if len(p_full_shape) < 3:
+                p_full_shape = p_full_shape + (1, )
 
-        extra_data = getattr(eval_dataset, "extra_fixed_mask", None)
-        if extra_data is not None:
-            extra_data = torch.from_numpy(extra_data).to(device, dtype=eval_dtype).unsqueeze(0)
-            if extra_data.ndim < 3:
-                extra_data = extra_data.unsqueeze(-1)
-            extra_data.requires_grad = False
+            extra_data = batch.extra_fixed_mask
+            if torch.is_tensor(extra_data):
+                extra_data = extra_data[0].to(device, dtype=eval_dtype)
+                if extra_data.ndim < 3:
+                    extra_data = extra_data.unsqueeze(-1)
+                extra_data.requires_grad = False
+            else:
+                extra_data = None
 
-        CNNDerivative = namedtuple("CNNDerivative", ["dq_dt", "dp_dt"])
-        def cnn_time_deriv(q, p, dt=1.0, t=0):
-            with torch.no_grad():
-                q_orig_shape = q.shape
-                p_orig_shape = p.shape
-                q = torch.from_numpy(q).to(device, dtype=eval_dtype).reshape(q_full_shape)
-                p = torch.from_numpy(p).to(device, dtype=eval_dtype).reshape(p_full_shape)
-                res = net(p=p, q=q, extra_data=extra_data)
-                dq_dt = res.dq_dt.reshape(q_orig_shape).cpu().numpy()
-                dp_dt = res.dp_dt.reshape(p_orig_shape).cpu().numpy()
-                return CNNDerivative(dq_dt=dq_dt, dp_dt=dp_dt)
+            def cnn_time_deriv(q, p, dt=1.0, t=0):
+                with torch.no_grad():
+                    q_orig_shape = q.shape
+                    p_orig_shape = p.shape
+                    q = torch.from_numpy(q).to(device, dtype=eval_dtype).reshape(q_full_shape)
+                    p = torch.from_numpy(p).to(device, dtype=eval_dtype).reshape(p_full_shape)
+                    res = net(p=p, q=q, extra_data=extra_data)
+                    dq_dt = res.dq_dt.reshape(q_orig_shape).cpu().numpy()
+                    dp_dt = res.dp_dt.reshape(p_orig_shape).cpu().numpy()
+                    return CNNDerivative(dq_dt=dq_dt, dp_dt=dp_dt)
 
-        time_deriv_func = cnn_time_deriv
+            return cnn_time_deriv
+
     elif eval_type in {"cnn-step", "unet-step"}:
+        def cnn_time_deriv_func(batch):
+            CNNPrediction = namedtuple("CNNPrediction", ["q", "p"])
 
-        p_full_shape = (1, ) + eval_dataset[0].p[0].shape
-        q_full_shape = (1, ) + eval_dataset[0].q[0].shape
+            p_full_shape = (1, ) + batch.p[0, 0].shape
+            q_full_shape = (1, ) + batch.q[0, 0].shape
 
-        if len(q_full_shape) < 3:
-            q_full_shape = q_full_shape + (1, )
-        if len(p_full_shape) < 3:
-            p_full_shape = p_full_shape + (1, )
+            if len(q_full_shape) < 3:
+                q_full_shape = q_full_shape + (1, )
+            if len(p_full_shape) < 3:
+                p_full_shape = p_full_shape + (1, )
 
-        extra_data = getattr(eval_dataset, "extra_fixed_mask", None)
-        if extra_data is not None:
-            extra_data = torch.from_numpy(extra_data).to(device, dtype=eval_dtype).unsqueeze(0)
-            if extra_data.ndim < 3:
-                extra_data = extra_data.unsqueeze(-1)
-            extra_data.requires_grad = False
+            extra_data = batch.extra_fixed_mask
+            if torch.is_tensor(extra_data):
+                extra_data = extra_data[0].to(device, dtype=eval_dtype)
+                if extra_data.ndim < 3:
+                    extra_data = extra_data.unsqueeze(-1)
+                extra_data.requires_grad = False
+            else:
+                extra_data = None
 
-        CNNPrediction = namedtuple("CNNPrediction", ["q", "p"])
-        def model_next_step(q, p, dt=1.0, t=0):
-            with torch.no_grad():
-                q_orig_shape = q.shape
-                p_orig_shape = p.shape
-                q = torch.from_numpy(q).to(device, dtype=eval_dtype).reshape(q_full_shape)
-                p = torch.from_numpy(p).to(device, dtype=eval_dtype).reshape(p_full_shape)
-                res = net(p=p, q=q, extra_data=extra_data)
-                q_next = res.q.reshape(q_orig_shape).cpu().numpy()
-                p_next = res.p.reshape(p_orig_shape).cpu().numpy()
-                return CNNPrediction(q=q_next, p=p_next)
+            def model_next_step(q, p, dt=1.0, t=0):
+                with torch.no_grad():
+                    q_orig_shape = q.shape
+                    p_orig_shape = p.shape
+                    q = torch.from_numpy(q).to(device, dtype=eval_dtype).reshape(q_full_shape)
+                    p = torch.from_numpy(p).to(device, dtype=eval_dtype).reshape(p_full_shape)
+                    res = net(p=p, q=q, extra_data=extra_data)
+                    q_next = res.q.reshape(q_orig_shape).cpu().numpy()
+                    p_next = res.p.reshape(p_orig_shape).cpu().numpy()
+                    return CNNPrediction(q=q_next, p=p_next)
 
-        time_deriv_func = model_next_step
+            return model_next_step
+
         if integrator_type != "null":
             raise ValueError(f"cnn-step predictions do not work with integrator {integrator_type}")
+
     elif eval_type in {"knn-regressor", "knn-regressor-oneshot"}:
         # Use the time_derivative
         KNNDerivative = namedtuple("KNNDerivative", ["dq_dt", "dp_dt"])
@@ -526,6 +535,8 @@ def run_phase(base_dir, out_dir, phase_args):
             q = q.reshape((num_traj, traj_steps, -1))
             p_noiseless = p_noiseless.reshape((num_traj, traj_steps, -1))
             q_noiseless = q_noiseless.reshape((num_traj, traj_steps, -1))
+        elif eval_type in {"cnn-step", "cnn-deriv", "unet-step", "unet-deriv"}:
+            time_deriv_func = cnn_time_deriv_func(batch=trajectory)
 
         p0 = p[:, 0].detach().cpu().numpy()
         q0 = q[:, 0].detach().cpu().numpy()
