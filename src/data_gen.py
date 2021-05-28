@@ -1,7 +1,6 @@
 import logging
 import pathlib
 import numpy as np
-from systems import spring, wave, particle, spring_mesh, taylor_green, navier_stokes
 import json
 
 
@@ -14,21 +13,27 @@ def run_phase(base_dir, out_dir, phase_args):
     system = phase_args["system"]
     system_args = phase_args["system_args"]
     if system == "spring":
+        from systems import spring
         sys_result = spring.generate_data(system_args=system_args,
                                           base_logger=logger)
     elif system == "wave":
+        from systems import wave
         sys_result = wave.generate_data(system_args=system_args,
                                         base_logger=logger)
     elif system == "particle":
+        from systems import particle
         sys_result = particle.generate_data(system_args=system_args,
                                             base_logger=logger)
     elif system == "spring-mesh":
+        from systems import spring_mesh
         sys_result = spring_mesh.generate_data(system_args=system_args,
                                                base_logger=logger)
     elif system == "taylor-green":
+        from systems import taylor_green
         sys_result = taylor_green.generate_data(system_args=system_args,
                                                 base_logger=logger)
     elif system == "navier-stokes":
+        from systems import navier_stokes
         sys_result = navier_stokes.generate_data(system_args=system_args,
                                                  base_logger=logger)
     else:

@@ -11,10 +11,6 @@ import time
 import dataclasses
 import sys
 
-import data_gen
-import train
-import evaluate
-
 
 parser = argparse.ArgumentParser(description="Run from JSON descriptions")
 parser.add_argument("run_description", type=str,
@@ -67,12 +63,15 @@ if __name__ == "__main__":
     phase_args = run_description["phase_args"]
     try:
         if phase == "data_gen":
+            import data_gen
             data_gen.run_phase(base_dir=base_dir, out_dir=out_dir,
                                phase_args=phase_args)
         elif phase == "train":
+            import train
             train.run_phase(base_dir=base_dir, out_dir=out_dir,
                             phase_args=phase_args)
         elif phase == "eval":
+            import evaluate
             evaluate.run_phase(base_dir=base_dir, out_dir=out_dir,
                                phase_args=phase_args)
         else:
