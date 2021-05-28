@@ -10,7 +10,7 @@ from collections import namedtuple
 TimeDerivative = namedtuple("TimeDerivative", ["dq_dt", "dp_dt"])
 
 
-def package_batch(system, p, q, dp_dt, dq_dt, masses, edge_index, boundary_vertices, vertices=None, fixed_mask_p=None, fixed_mask_q=None):
+def package_batch(system, p, q, dp_dt, dq_dt, masses, edge_index, boundary_vertices, vertices=None, fixed_mask_p=None, fixed_mask_q=None, static_nodes=None):
     if vertices is None:
         vertices = torch.unsqueeze(torch.linspace(0, 1, p.shape[1]), 0).repeat(p.shape[0], p.shape[1])
 
@@ -57,6 +57,7 @@ def package_batch(system, p, q, dp_dt, dq_dt, masses, edge_index, boundary_verti
     # v = torch.from_numpy(np.concatenate((np.zeros_like(v), v), axis=-1))
     ret = data.Data(x=v, edge_index=edge_index, pos=x, y=acceleration)
     ret.fixed_mask_y = fixed_mask_y
+    ret.static_nodes = static_nodes
     return ret
 
 
@@ -190,7 +191,10 @@ class GN(torch.nn.Module):
             v_features_out = v_features
 
         self.mesh_coords = mesh_coords
-        self.static_nodes = torch.nn.functional.one_hot(static_nodes, num_mask_layers).float()
+        self.num_mask_layers = num_mask_layers
+        if static_nodes is not None:
+            static_nodes = torch.nn.functional.one_hot(static_nodes, num_mask_layers).float()
+        self.static_nodes = static_nodes
         self.constant_vertex_features = constant_vertex_features
 
         self.vertex_encode_mlp = Seq(Lin(v_features_in, hidden), ReLU(), Lin(hidden, hidden))
@@ -210,15 +214,21 @@ class GN(torch.nn.Module):
 
         if self.mesh_coords is not None:
             self.mesh_coords = fn(self.mesh_coords)
-        self.static_nodes = fn(self.static_nodes)
+        if self.static_nodes is not None:
+            self.static_nodes = fn(self.static_nodes)
         if self.constant_vertex_features is not None:
             self.constant_vertex_features = fn(self.constant_vertex_features)
 
         return self
 
-    def encode(self, world_coords, vertex_features, edge_index):
-        static_nodes_batch = torch.unsqueeze(self.static_nodes, 0).repeat(world_coords.shape[0], 1, 1)
+    def encode(self, world_coords, vertex_features, edge_index, static_nodes_batch):
+        if static_nodes_batch is None:
+            static_nodes_batch = torch.unsqueeze(self.static_nodes, 0).repeat(world_coords.shape[0], 1, 1)
+        else:
+            static_nodes_batch = torch.nn.functional.one_hot(static_nodes_batch, self.num_mask_layers).float()
+
         vertices = torch.cat([static_nodes_batch, vertex_features], dim=-1)
+
         if self.constant_vertex_features is not None:
             vertices = torch.cat([vertices, self.constant_vertex_features],
                                  dim=-1)
@@ -244,10 +254,10 @@ class GN(torch.nn.Module):
 
         return vertices, edge_attr
 
-    def forward(self, world_coords, vertex_features, edge_index):
+    def forward(self, world_coords, vertex_features, edge_index, static_nodes_batch=None):
         # x is [n, n_f]
         vertices, edge_attr = self.encode(world_coords, vertex_features,
-                                          edge_index)
+                                          edge_index, static_nodes_batch)
         L = 15
         for i in range(L):
             vertices, edge_attr, _ = self.process(vertices, edge_index,
@@ -265,9 +275,11 @@ def build_network(arch_args):
     e_features = arch_args["e_features"]
     hidden_dim = arch_args["hidden_dim"]
     mesh_coords = arch_args["mesh_coords"]
+    static_nodes = arch_args["static_nodes"]
     if mesh_coords is not None:
         mesh_coords = torch.tensor(mesh_coords)
-    static_nodes = torch.tensor(arch_args["static_nodes"]).long()
+    if static_nodes is not None:
+        static_nodes = torch.tensor(static_nodes).long()
     layer_norm = arch_args["layer_norm"]
     num_mask_layers = arch_args["num_mask_layers"]
 

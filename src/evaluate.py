@@ -396,7 +396,7 @@ def run_phase(base_dir, out_dir, phase_args):
         import dataset_geometric
 
         package_args = eval_args["package_args"]
-        GnMockDataset = namedtuple("GnMockDataset", ["p", "q", "dp_dt", "dq_dt", "masses", "edge_index", "vertices"])
+        GnMockDataset = namedtuple("GnMockDataset", ["p", "q", "dp_dt", "dq_dt", "masses", "edge_index", "vertices", "static_nodes"])
 
         GNPrediction = namedtuple("GNPrediction", ["q", "p"])
         def gn_time_deriv_func(masses, edges, n_particles, vertices):
@@ -410,13 +410,14 @@ def run_phase(base_dir, out_dir, phase_args):
                     p = p.reshape((n_particles, -1))
                     q = q.reshape((n_particles, -1))
                     mocked = GnMockDataset(p=p, q=q,
-                        masses=masses, dp_dt=None, dq_dt=None, edge_index=edges, vertices=vertices)
+                        masses=masses, dp_dt=None, dq_dt=None, edge_index=edges, vertices=vertices, static_nodes=static_nodes)
                     bundled = dataset_geometric.package_data([mocked],
                         package_args=package_args, system=eval_dataset.system)[0]
 
                     accel = net(torch.unsqueeze(bundled.pos, 0),
                         torch.unsqueeze(bundled.x, 0),
-                        torch.unsqueeze(bundled.edge_index, 0))
+                        torch.unsqueeze(bundled.edge_index, 0),
+                        torch.unsqueeze(bundled.static_nodes, 0) if bundled.static_nodes is not None else None)
                     accel = gn.unpack_results(accel, eval_dataset.system)
 
                     # Prediction for Taylor Green
@@ -457,6 +458,7 @@ def run_phase(base_dir, out_dir, phase_args):
         edges = None
         vertices = None
         boundary_cond_func = None
+        static_nodes = None
 
         # Compute hamiltonians
         # Construct systems
@@ -517,6 +519,7 @@ def run_phase(base_dir, out_dir, phase_args):
                 fixed_mask_solutions=fixed_mask_solutions,
                 fixed_mask_pressures=fixed_mask_pressures,
             )
+            static_nodes = trajectory.static_nodes.numpy().squeeze()
         else:
             raise ValueError(f"Unknown system type {eval_dataset.system}")
 
@@ -525,7 +528,7 @@ def run_phase(base_dir, out_dir, phase_args):
             time_deriv_func = hogn_time_deriv_func(masses=masses)
             hamiltonian_func = hogn_hamiltonian_func(masses=masses)
         elif eval_type == "gn":
-            n_particles = net.static_nodes.shape[0]
+            n_particles = net.static_nodes.shape[0] if net.static_nodes is not None else static_nodes.shape[0]
             if eval_dataset.system == "spring":
                 n_particles = 1
             time_deriv_func = gn_time_deriv_func(masses=masses, edges=edges, n_particles=n_particles, vertices=vertices)

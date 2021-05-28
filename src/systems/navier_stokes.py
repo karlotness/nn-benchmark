@@ -206,6 +206,7 @@ class NavierStokesSystem(System):
         enumerated_fixed_mask[:, -1] = 1
         enumerated_fixed_mask[0, :] = 2
         enumerated_fixed_mask[-1, :] = 3
+        enumerated_fixed_mask = enumerated_fixed_mask.reshape(obstacle_mask.shape)
 
         # Repackage results
         t = np.array(ts)

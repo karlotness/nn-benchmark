@@ -444,8 +444,9 @@ def train_gn(net, batch, loss_fn, train_type_args, tensor_converter):
     graph_batch.pos = tensor_converter(graph_batch.pos)
     graph_batch.y = tensor_converter(graph_batch.y)
     graph_batch.edge_index = graph_batch.edge_index.to(tensor_converter.device)
+    graph_batch.static_nodes = graph_batch.static_nodes.to(tensor_converter.device) if graph_batch.static_nodes is not None else None
 
-    accel_pred = net(graph_batch.pos, graph_batch.x, graph_batch.edge_index)
+    accel_pred = net(graph_batch.pos, graph_batch.x, graph_batch.edge_index, graph_batch.static_nodes)
     accel = graph_batch.y
 
     if torch.is_tensor(graph_batch.fixed_mask_y):
@@ -492,8 +493,6 @@ def run_phase(base_dir, out_dir, phase_args):
 
     # Construct the network
     network_args = phase_args["network"]
-    if network_args["arch"] == "gn":
-        add_auxiliary_data(train_dataset, phase_args["network"])
     logger.info("Building network")
     net = methods.build_network(network_args)
 
