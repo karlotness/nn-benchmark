@@ -225,7 +225,7 @@ Snapshot = namedtuple("Snapshot", ["name", "p", "q", "dp_dt", "dq_dt",
                                    "p_noiseless", "q_noiseless",
                                    "masses", "edge_index", "vertices",
                                    "fixed_mask_p", "fixed_mask_q",
-                                   "extra_fixed_mask", "enumerated_fixed_mask",
+                                   "extra_fixed_mask", "static_nodes",
                                    ])
 
 class SnapshotDataset(data.Dataset):
@@ -252,7 +252,7 @@ class SnapshotDataset(data.Dataset):
         fixed_mask_p = []
         fixed_mask_q = []
         extra_fixed_mask = []
-        enumerated_fixed_mask = []
+        static_nodes = []
 
         for traj_i in range(len(self._traj_dataset)):
             traj = self._traj_dataset[traj_i]
@@ -274,7 +274,7 @@ class SnapshotDataset(data.Dataset):
             fixed_mask_p.extend([traj.fixed_mask_p[0]] * traj_num_steps)
             fixed_mask_q.extend([traj.fixed_mask_q[0]] * traj_num_steps)
             extra_fixed_mask.extend([traj.extra_fixed_mask[0]] * traj_num_steps)
-            enumerated_fixed_mask.extend([traj.enumerated_fixed_mask[0]] * traj_num_steps)
+            static_nodes.extend([traj.static_nodes[0]] * traj_num_steps)
 
         # Load each trajectory and join the components
         self._name = name
@@ -292,7 +292,7 @@ class SnapshotDataset(data.Dataset):
         self._fixed_mask_p = fixed_mask_p
         self._fixed_mask_q = fixed_mask_q
         self._extra_fixed_mask = extra_fixed_mask
-        self._enumerated_fixed_mask = enumerated_fixed_mask
+        self._static_nodes = static_nodes
 
     def __getitem__(self, idx):
         return Snapshot(name=self._name[idx],
@@ -308,7 +308,7 @@ class SnapshotDataset(data.Dataset):
                         fixed_mask_p=self._fixed_mask_p[idx],
                         fixed_mask_q=self._fixed_mask_q[idx],
                         extra_fixed_mask=self._extra_fixed_mask[idx],
-                        enumerated_fixed_mask=self._enumerated_fixed_mask[idx],
+                        static_nodes=self._static_nodes[idx],
                         )
 
     def __len__(self):
@@ -323,7 +323,7 @@ StepSnapshot = namedtuple("StepSnapshot",
                            "p_noiseless", "q_noiseless",
                            "masses", "edge_index", "vertices",
                            "fixed_mask_p", "fixed_mask_q",
-                           "extra_fixed_mask", "enumerated_fixed_mask",
+                           "extra_fixed_mask", "static_nodes",
                            ])
 
 
@@ -352,7 +352,7 @@ class StepSnapshotDataset(data.Dataset):
         fixed_mask_p = []
         fixed_mask_q = []
         extra_fixed_mask = []
-        enumerated_fixed_mask = []
+        static_nodes = []
 
         for traj_i in range(len(self._traj_dataset)):
             traj = self._traj_dataset[traj_i]
@@ -374,7 +374,7 @@ class StepSnapshotDataset(data.Dataset):
             fixed_mask_p.extend([traj.fixed_mask_p[0]] * traj_num_steps)
             fixed_mask_q.extend([traj.fixed_mask_q[0]] * traj_num_steps)
             extra_fixed_mask.extend([traj.extra_fixed_mask[0]] * traj_num_steps)
-            enumerated_fixed_mask.extend([traj.enumerated_fixed_mask[0]] * traj_num_steps)
+            static_nodes.extend([traj.static_nodes[0]] * traj_num_steps)
             # Check length computation
             assert p[-1].shape[0] == traj_num_steps
 
@@ -394,7 +394,7 @@ class StepSnapshotDataset(data.Dataset):
         self._fixed_mask_p = fixed_mask_p
         self._fixed_mask_q = fixed_mask_q
         self._extra_fixed_mask = extra_fixed_mask
-        self._enumerated_fixed_mask = enumerated_fixed_mask
+        self._static_nodes = static_nodes
 
     def __getitem__(self, idx):
         p_step = self._dp_dt[idx]
@@ -413,7 +413,7 @@ class StepSnapshotDataset(data.Dataset):
                         fixed_mask_p=self._fixed_mask_p[idx],
                         fixed_mask_q=self._fixed_mask_q[idx],
                         extra_fixed_mask=self._extra_fixed_mask[idx],
-                        enumerated_fixed_mask=self._enumerated_fixed_mask[idx],
+                        static_nodes=self._static_nodes[idx],
                         )
 
     def __len__(self):
