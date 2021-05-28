@@ -15,6 +15,8 @@ import concurrent.futures
 from numba import jit
 import triangle
 import dataclasses
+import tarfile
+import io
 
 
 IN_MESH_PATH = pathlib.Path(__file__).parent / "resources" / "mesh.obj.xz"
@@ -31,23 +33,21 @@ NavierStokesTrajectoryResult = namedtuple("NavierStokesTrajectoryResult",
                                            "fixed_mask_pressures",
                                            "fixed_mask_solutions",
                                            "extra_fixed_mask",
-                                           "enumerated_fixed_mask"])
+                                           "enumerated_fixed_mask",
+                                           "log_compressed",
+                                           ])
 MeshDefinition = dataclasses.make_dataclass("MeshDefinition", ["radius", "center"])
 
 MESH_SIZE = (221, 42)
 
 
 class NavierStokesSystem(System):
-    def __init__(self, grid_resolution=0.01, viscosity=0.001, base_logger=None):
+    def __init__(self, grid_resolution=0.01, viscosity=0.001):
         super().__init__()
         self.grid_resolution = grid_resolution
         self.viscosity = viscosity
-        if base_logger:
-            self.logger = base_logger.getChild("ns-system")
-        else:
-            self.logger = logging.getLogger("ns-system")
 
-    def _args_compatible(self, grid_resolution, viscosity, base_logger=None):
+    def _args_compatible(self, grid_resolution, viscosity):
         return (self.grid_resolution == grid_resolution and
                 self.viscosity == viscosity)
 
@@ -124,21 +124,15 @@ class NavierStokesSystem(System):
             str_segments.append(f"f {t[0] + 1} {t[1] + 1} {t[2] + 1}\n")
         return "".join(str_segments)
 
-    def generate_trajectory(self, num_time_steps, time_step_size, in_velocity, subsample=1, logger_override=None, mesh_args=None):
+    def generate_trajectory(self, num_time_steps, time_step_size, in_velocity, subsample=1, mesh_args=None, traj_name=""):
         orig_time_step_size = time_step_size
         orig_num_time_steps = num_time_steps
 
         time_step_size = time_step_size / subsample
         num_time_steps = num_time_steps * subsample
 
-        if logger_override is not None:
-            logger = logger_override.getChild("ns-system")
-        else:
-            logger = self.logger
-
         # Create temporary directory
-        with tempfile.TemporaryDirectory(prefix="polyfem-") as _tmp_dir:
-            logger.info(f"Generating trajectory in {_tmp_dir}")
+        with tempfile.TemporaryDirectory(prefix=f"polyfem-{traj_name}-") as _tmp_dir:
             tmp_dir = pathlib.Path(_tmp_dir)
 
             # Write the mesh file
@@ -156,7 +150,6 @@ class NavierStokesSystem(System):
                 json.dump(config, config_file)
 
             # Run PolyFEM
-            polyfem_logger = logger.getChild("polyfem")
             prog = shutil.which(str(pathlib.Path(os.environ.get("POLYFEM_BIN_DIR", "")) / "PolyFEM_bin"))
             if not prog:
                 raise ValueError("Cannot find PolyFEM; please install and set POLYFEM_BIN_DIR")
@@ -164,20 +157,13 @@ class NavierStokesSystem(System):
             new_env = dict(os.environ)
             if "OMP_NUM_THREADS" not in new_env:
                 new_env["OMP_NUM_THREADS"] = "2"
-            logger.info(f"Launching PolyFEM: {cmdline}")
-            with subprocess.Popen(cmdline, stdout=subprocess.PIPE, env=new_env, cwd=tmp_dir) as proc:
-                for line in proc.stdout:
-                    level = logging.DEBUG
-                    str_line = codecs.decode(line, encoding="utf-8").strip()
-                    if "[info]" in str_line:
-                        # Crop the line before logging
-                        str_line = str_line[str_line.index("[info]") + 7:]
-                        level = logging.INFO
-                    polyfem_logger.log(level, str_line)
-            if proc.returncode != 0:
-                raise RuntimeError(f"PolyFEM failed: {proc.returncode}")
-            else:
-                logger.info("PolyFEM finished")
+            polyfem_log_path = tmp_dir / "polyfem_run.log"
+            with open(polyfem_log_path, "wb") as polyfem_log_file:
+                proc = subprocess.run(cmdline, stdout=polyfem_log_file, env=new_env, cwd=tmp_dir, check=True)
+
+            # Load log text
+            with open(polyfem_log_path, "rb") as polyfem_log_file:
+                log_compressed = lzma.compress(polyfem_log_file.read())
 
             # Gather results
             grids = []
@@ -235,6 +221,7 @@ class NavierStokesSystem(System):
             fixed_mask_solutions=fixed_mask_solutions,
             extra_fixed_mask=extra_fixed_mask,
             enumerated_fixed_mask=enumerated_fixed_mask,
+            log_compressed=log_compressed,
         )
 
 
@@ -295,11 +282,10 @@ def compute_edge_indices(vtx_coords):
     return edges.T
 
 
-def system_from_records(grid_resolution, viscosity, base_logger=None):
+def system_from_records(grid_resolution, viscosity):
     cached_sys = navier_stokes_cache.find(
         grid_resolution=grid_resolution,
         viscosity=viscosity,
-        base_logger=base_logger
     )
     if cached_sys is not None:
         return cached_sys
@@ -307,13 +293,110 @@ def system_from_records(grid_resolution, viscosity, base_logger=None):
         new_sys = NavierStokesSystem(
             grid_resolution=grid_resolution,
             viscosity=viscosity,
-            base_logger=base_logger
         )
         navier_stokes_cache.insert(new_sys)
         return new_sys
 
 
-def generate_data(system_args, base_logger=None):
+def _generate_data_worker(i, traj_def, grid_resolution):
+    traj_name = f"traj_{i:05}"
+    base_logger = logging.getLogger("navier-stokes")
+    base_logger.info(f"Generating trajectory {traj_name}")
+
+    # Get trajectory definitions
+    num_time_steps = traj_def["num_time_steps"]
+    time_step_size = traj_def["time_step_size"]
+    in_velocity = traj_def["in_velocity"]
+    viscosity = traj_def.get("viscosity", 0.001)
+    subsample = int(traj_def.get("subsample", 1))
+
+    if "mesh" in traj_def:
+        mesh_args = MeshDefinition(
+            radius=traj_def["mesh"]["radius"],
+            center=tuple(traj_def["mesh"]["center"]),
+        )
+    else:
+        mesh_args = None
+
+    # Create system
+    system = navier_stokes_cache.find(grid_resolution=grid_resolution, viscosity=viscosity)
+    if system is None:
+        system = NavierStokesSystem(grid_resolution=grid_resolution, viscosity=viscosity)
+        navier_stokes_cache.insert(system)
+
+    traj_gen_start = time.perf_counter()
+    traj_result = system.generate_trajectory(
+        num_time_steps=num_time_steps,
+        time_step_size=time_step_size,
+        in_velocity=in_velocity,
+        subsample=subsample,
+        mesh_args=mesh_args,
+        traj_name=traj_name,
+    )
+    traj_gen_elapsed = time.perf_counter() - traj_gen_start
+    base_logger.info(f"Generated {traj_name} in {traj_gen_elapsed} sec")
+
+    trajectories_update = {
+        f"{traj_name}_solutions": traj_result.solutions,
+        f"{traj_name}_grads": traj_result.grads,
+        f"{traj_name}_pressures": traj_result.pressures,
+        f"{traj_name}_pressures_grads": traj_result.pressures_grads,
+        f"{traj_name}_t": traj_result.t,
+        # Fixed masks
+        f"{traj_name}_fixed_mask": traj_result.fixed_mask,
+        f"{traj_name}_extra_fixed_mask": traj_result.extra_fixed_mask,
+        f"{traj_name}_fixed_mask_solutions": traj_result.fixed_mask_solutions,
+        f"{traj_name}_fixed_mask_pressures": traj_result.fixed_mask_pressures,
+        f"{traj_name}_enumerated_fixed_mask": traj_result.enumerated_fixed_mask,
+    }
+
+    one_time_results = {
+        "vertices": traj_result.grids[0],
+    }
+
+    trajectory_metadata = {
+        "name": traj_name,
+        "num_time_steps": num_time_steps,
+        "time_step_size": time_step_size,
+        "in_velocity": in_velocity,
+        "viscosity": viscosity,
+        "noise_sigma": 0,
+        "field_keys": {
+            # Plain names
+            "solutions": f"{traj_name}_solutions",
+            "grads": f"{traj_name}_grads",
+            "pressures": f"{traj_name}_pressures",
+            "pressures_grads": f"{traj_name}_pressures_grads",
+            # Mapped names
+            "p": f"{traj_name}_solutions",
+            "q": f"{traj_name}_pressures",
+            "dpdt": f"{traj_name}_grads",
+            "dqdt": f"{traj_name}_pressures_grads",
+            "t": f"{traj_name}_t",
+            "p_noiseless": f"{traj_name}_solutions",
+            "q_noiseless": f"{traj_name}_pressures",
+            "fixed_mask_p": f"{traj_name}_fixed_mask_solutions",
+            "fixed_mask_q": f"{traj_name}_fixed_mask_pressures",
+            # Grid information (fixed)
+            "edge_indices": "edge_indices",
+            "vertices": "vertices",
+            # Fixed masks
+            "fixed_mask": f"{traj_name}_fixed_mask",
+            "extra_fixed_mask": f"{traj_name}_extra_fixed_mask",
+            "fixed_mask_solutions": f"{traj_name}_fixed_mask_solutions",
+            "fixed_mask_pressures": f"{traj_name}_fixed_mask_pressures",
+            "enumerated_fixed_mask": f"{traj_name}_enumerated_fixed_mask",
+        },
+        "timing": {
+            "traj_gen_time": traj_gen_elapsed
+        }
+    }
+
+    return trajectories_update, one_time_results, (i, trajectory_metadata), traj_result.log_compressed
+
+
+
+def generate_data(system_args, out_dir, base_logger=None):
     if base_logger:
         logger = base_logger.getChild("navier-stokes")
     else:
@@ -325,147 +408,36 @@ def generate_data(system_args, base_logger=None):
     grid_resolution = system_args.get("grid_resolution", 0.01)
     trajectory_defs = system_args["trajectory_defs"]
 
-    def generate_trajectory(system, metadata):
-        # Generate trajectory
-        traj_gen_start = time.perf_counter()
-        traj_result = system.generate_trajectory(
-            num_time_steps=metadata["num_time_steps"],
-            time_step_size=metadata["time_step_size"],
-            in_velocity=metadata["in_velocity"],
-            subsample=metadata["subsample"],
-            logger_override=logger.getChild(metadata["traj_name"]),
-            mesh_args=metadata["mesh_args"],
-        )
-        traj_gen_elapsed = time.perf_counter() - traj_gen_start
-        metadata["traj_result"] = traj_result
-        metadata["traj_gen_elapsed"] = traj_gen_elapsed
-
-        return metadata
-
     # Determine number of cores accessible from this job
     num_cores = int(os.environ.get("SLURM_JOB_CPUS_PER_NODE",
                                    len(os.sched_getaffinity(0))))
     # Limit workers to at most the number of trajectories
     num_tasks = min(num_cores, len(trajectory_defs))
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=num_tasks) as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_tasks) as executor:
         futures = []
         for i, traj_def in enumerate(trajectory_defs):
-            traj_name = f"traj_{i:05}"
-            logger.info(f"Generating trajectory {traj_name}")
+            futures.append(executor.submit(_generate_data_worker, i=i, traj_def=traj_def, grid_resolution=grid_resolution))
+        with tarfile.open(out_dir / "polyfem_logs.tar", "w") as log_output_tar:
+            for future in concurrent.futures.as_completed(futures):
+                trajectories_update, one_time_results, traj_meta_update, log_compressed = future.result()
+                # Write logs
+                tinfo = tarfile.TarInfo(name=traj_meta_update[1]["name"] + ".log.xz")
+                tinfo.size = len(log_compressed)
+                log_output_tar.addfile(tinfo, fileobj=io.BytesIO(log_compressed))
+                trajectories.update(trajectories_update)
+                trajectory_metadata.append(traj_meta_update)
+                # Process one-time results
+                if "edge_indices" not in trajectories or "vertices" not in trajectories:
+                    trajectories["edge_indices"] = compute_edge_indices(one_time_results["vertices"])
+                    trajectories["vertices"] = one_time_results["vertices"]
 
-            num_time_steps = traj_def["num_time_steps"]
-            time_step_size = traj_def["time_step_size"]
-            in_velocity = traj_def["in_velocity"]
-            viscosity = traj_def.get("viscosity", 0.001)
-            subsample = int(traj_def.get("subsample", 1))
-
-            if "mesh" in traj_def:
-                mesh_args = MeshDefinition(
-                    radius=traj_def["mesh"]["radius"],
-                    center=tuple(traj_def["mesh"]["center"]),
-                )
-            else:
-                mesh_args = None
-
-            # Create system
-            system = navier_stokes_cache.find(grid_resolution=grid_resolution, viscosity=viscosity, base_logger=logger)
-            if system is None:
-                system = NavierStokesSystem(grid_resolution=grid_resolution, viscosity=viscosity, base_logger=logger)
-                navier_stokes_cache.insert(system)
-
-            metadata = {
-                "traj_name": traj_name,
-                "traj_num": i,
-                "num_time_steps": num_time_steps,
-                "time_step_size": time_step_size,
-                "in_velocity": in_velocity,
-                "viscosity": viscosity,
-                "subsample": subsample,
-                "mesh_args": mesh_args,
-            }
-
-            futures.append(executor.submit(generate_trajectory, system=system, metadata=metadata))
-
-        for future in concurrent.futures.as_completed(futures):
-            result = future.result()
-
-            traj_num = result["traj_num"]
-            traj_name = result["traj_name"]
-            num_time_steps = result["num_time_steps"]
-            time_step_size = result["time_step_size"]
-            in_velocity = result["in_velocity"]
-            viscosity = result["viscosity"]
-            subsample = result["subsample"]
-            traj_result = result["traj_result"]
-            traj_gen_elapsed = result["traj_gen_elapsed"]
-
-            logger.info(f"Generated {traj_name} in {traj_gen_elapsed} sec")
-
-            # Store trajectory data
-            trajectories.update({
-                f"{traj_name}_solutions": traj_result.solutions,
-                f"{traj_name}_grads": traj_result.grads,
-                f"{traj_name}_pressures": traj_result.pressures,
-                f"{traj_name}_pressures_grads": traj_result.pressures_grads,
-                f"{traj_name}_t": traj_result.t,
-                # Fixed masks
-                f"{traj_name}_fixed_mask": traj_result.fixed_mask,
-                f"{traj_name}_extra_fixed_mask": traj_result.extra_fixed_mask,
-                f"{traj_name}_fixed_mask_solutions": traj_result.fixed_mask_solutions,
-                f"{traj_name}_fixed_mask_pressures": traj_result.fixed_mask_pressures,
-                f"{traj_name}_enumerated_fixed_mask": traj_result.enumerated_fixed_mask,
-            })
-
-            # Store one copy of each fixed result
-            if "edge_indices" not in trajectories:
-                trajectories["edge_indices"] = compute_edge_indices(traj_result.grids[0])
-            if "vertices" not in trajectories:
-                trajectories["vertices"] = traj_result.grids[0]
-
-            # Store per-trajectory metadata
-            trajectory_metadata.append(
-                (traj_num,
-                 {"name": traj_name,
-                  "num_time_steps": num_time_steps,
-                  "time_step_size": time_step_size,
-                  "in_velocity": in_velocity,
-                  "viscosity": viscosity,
-                  "noise_sigma": 0,
-                  "field_keys": {
-                      # Plain names
-                      "solutions": f"{traj_name}_solutions",
-                      "grads": f"{traj_name}_grads",
-                      "pressures": f"{traj_name}_pressures",
-                      "pressures_grads": f"{traj_name}_pressures_grads",
-                      # Mapped names
-                      "p": f"{traj_name}_solutions",
-                      "q": f"{traj_name}_pressures",
-                      "dpdt": f"{traj_name}_grads",
-                      "dqdt": f"{traj_name}_pressures_grads",
-                      "t": f"{traj_name}_t",
-                      "p_noiseless": f"{traj_name}_solutions",
-                      "q_noiseless": f"{traj_name}_pressures",
-                      "fixed_mask_p": f"{traj_name}_fixed_mask_solutions",
-                      "fixed_mask_q": f"{traj_name}_fixed_mask_pressures",
-                      # Grid information (fixed)
-                      "edge_indices": "edge_indices",
-                      "vertices": "vertices",
-                      # Fixed masks
-                      "fixed_mask": f"{traj_name}_fixed_mask",
-                      "extra_fixed_mask": f"{traj_name}_extra_fixed_mask",
-                      "fixed_mask_solutions": f"{traj_name}_fixed_mask_solutions",
-                      "fixed_mask_pressures": f"{traj_name}_fixed_mask_pressures",
-                      "enumerated_fixed_mask": f"{traj_name}_enumerated_fixed_mask",
-                  },
-                  "timing": {
-                      "traj_gen_time": traj_gen_elapsed
-                  }}))
-
+    # Perform final processing of output
     logger.info("Done generating trajectories")
-
     trajectory_metadata.sort()
     trajectory_metadata = [d for _i, d in trajectory_metadata]
+
+    viscosity = trajectory_defs[0].get("viscosity", 0.001)
 
     return SystemResult(
         trajectories=trajectories,

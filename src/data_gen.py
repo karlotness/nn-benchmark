@@ -35,6 +35,7 @@ def run_phase(base_dir, out_dir, phase_args):
     elif system == "navier-stokes":
         from systems import navier_stokes
         sys_result = navier_stokes.generate_data(system_args=system_args,
+                                                 out_dir=out_dir,
                                                  base_logger=logger)
     else:
         raise ValueError(f"Invalid system: {system}")
