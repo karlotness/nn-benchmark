@@ -10,7 +10,9 @@ Trajectory = namedtuple("Trajectory", ["name", "p", "q", "dp_dt", "dq_dt",
                                        "t", "trajectory_meta",
                                        "p_noiseless", "q_noiseless",
                                        "masses", "edge_index", "vertices",
-                                       "fixed_mask_p", "fixed_mask_q"])
+                                       "fixed_mask_p", "fixed_mask_q",
+                                       "extra_fixed_mask", "enumerated_fixed_mask",
+                                       ])
 
 
 class TrajectoryDataset(data.Dataset):
@@ -83,6 +85,14 @@ class TrajectoryDataset(data.Dataset):
             fixed_mask_q = np.expand_dims(self._npz_file[meta["field_keys"]["fixed_mask_q"]], 0)
         else:
             fixed_mask_q = [[]]
+        if "extra_fixed_mask" in meta["field_keys"]:
+            extra_fixed_mask = np.expand_dims(self._npz_file[meta["field_keys"]["extra_fixed_mask"]], 0)
+        else:
+            extra_fixed_mask = [[]]
+        if "enumerated_fixed_mask" in meta["field_keys"]:
+            enumerated_fixed_mask = np.expand_dims(self._npz_file[meta["field_keys"]["enumerated_fixed_mask"]], 0)
+        else:
+            enumerated_fixed_mask = [[]]
 
         # Package and return
         return Trajectory(name=name, trajectory_meta=meta,
@@ -98,6 +108,8 @@ class TrajectoryDataset(data.Dataset):
                           vertices=vertices,
                           fixed_mask_p=self.__linearize(fixed_mask_p),
                           fixed_mask_q=self.__linearize(fixed_mask_q),
+                          extra_fixed_mask=self.__linearize(extra_fixed_mask),
+                          enumerated_fixed_mask=self.__linearize(enumerated_fixed_mask),
                           )
 
     def __len__(self):
@@ -108,7 +120,9 @@ NavierStokesSnapshot = namedtuple("NavierStokesSnapshot", ["name", "p", "q", "dp
                                                          "t", "trajectory_meta",
                                                          "p_noiseless", "q_noiseless",
                                                          "masses", "edge_index", "vertices",
-                                                         "fixed_mask_p", "fixed_mask_q"])
+                                                         "fixed_mask_p", "fixed_mask_q",
+                                                         "extra_fixed_mask", "enumerated_fixed_mask",
+                                                         ])
 
 
 class NavierStokesSnapshotDataset(data.Dataset):
@@ -135,6 +149,8 @@ class NavierStokesSnapshotDataset(data.Dataset):
         vertices = []
         fixed_mask_p = []
         fixed_mask_q = []
+        extra_fixed_mask = []
+        enumerated_fixed_mask = []
 
         for traj_i in range(len(self._traj_dataset)):
             traj = self._traj_dataset[traj_i]
@@ -162,6 +178,8 @@ class NavierStokesSnapshotDataset(data.Dataset):
             # Remove fake time dimension added above
             fixed_mask_p.extend([traj.fixed_mask_p[0]] * traj_num_steps)
             fixed_mask_q.extend([traj.fixed_mask_q[0]] * traj_num_steps)
+            extra_fixed_mask.extend([traj.extra_fixed_mask[0]] * traj_num_steps)
+            enumerated_fixed_mask.extend([traj.enumerated_fixed_mask[0]] * traj_num_steps)
 
         # Load each trajectory and join the components
         self._name = name
@@ -178,6 +196,8 @@ class NavierStokesSnapshotDataset(data.Dataset):
         self._vertices = vertices
         self._fixed_mask_p = fixed_mask_p
         self._fixed_mask_q = fixed_mask_q
+        self._extra_fixed_mask = extra_fixed_mask
+        self._enumerated_fixed_mask = enumerated_fixed_mask
 
     def __getitem__(self, idx):
         return NavierStokesSnapshot(name=self._name[idx],
@@ -192,6 +212,8 @@ class NavierStokesSnapshotDataset(data.Dataset):
                                    vertices=self._vertices[idx],
                                    fixed_mask_p=self._fixed_mask_p[idx],
                                    fixed_mask_q=self._fixed_mask_q[idx],
+                                   extra_fixed_mask=self._extra_fixed_mask[idx],
+                                   enumerated_fixed_mask=self._enumerated_fixed_mask[idx],
                                 )
 
     def __len__(self):
@@ -202,7 +224,9 @@ Snapshot = namedtuple("Snapshot", ["name", "p", "q", "dp_dt", "dq_dt",
                                    "t", "trajectory_meta",
                                    "p_noiseless", "q_noiseless",
                                    "masses", "edge_index", "vertices",
-                                   "fixed_mask_p", "fixed_mask_q"])
+                                   "fixed_mask_p", "fixed_mask_q",
+                                   "extra_fixed_mask", "enumerated_fixed_mask",
+                                   ])
 
 class SnapshotDataset(data.Dataset):
 
@@ -227,6 +251,8 @@ class SnapshotDataset(data.Dataset):
         vertices = []
         fixed_mask_p = []
         fixed_mask_q = []
+        extra_fixed_mask = []
+        enumerated_fixed_mask = []
 
         for traj_i in range(len(self._traj_dataset)):
             traj = self._traj_dataset[traj_i]
@@ -247,6 +273,8 @@ class SnapshotDataset(data.Dataset):
             # Remove fake time dimension added above
             fixed_mask_p.extend([traj.fixed_mask_p[0]] * traj_num_steps)
             fixed_mask_q.extend([traj.fixed_mask_q[0]] * traj_num_steps)
+            extra_fixed_mask.extend([traj.extra_fixed_mask[0]] * traj_num_steps)
+            enumerated_fixed_mask.extend([traj.enumerated_fixed_mask[0]] * traj_num_steps)
 
         # Load each trajectory and join the components
         self._name = name
@@ -263,6 +291,8 @@ class SnapshotDataset(data.Dataset):
         self._vertices = vertices
         self._fixed_mask_p = fixed_mask_p
         self._fixed_mask_q = fixed_mask_q
+        self._extra_fixed_mask = extra_fixed_mask
+        self._enumerated_fixed_mask = enumerated_fixed_mask
 
     def __getitem__(self, idx):
         return Snapshot(name=self._name[idx],
@@ -277,6 +307,8 @@ class SnapshotDataset(data.Dataset):
                         vertices=self._vertices[idx],
                         fixed_mask_p=self._fixed_mask_p[idx],
                         fixed_mask_q=self._fixed_mask_q[idx],
+                        extra_fixed_mask=self._extra_fixed_mask[idx],
+                        enumerated_fixed_mask=self._enumerated_fixed_mask[idx],
                         )
 
     def __len__(self):
@@ -290,7 +322,9 @@ StepSnapshot = namedtuple("StepSnapshot",
                            "t", "trajectory_meta",
                            "p_noiseless", "q_noiseless",
                            "masses", "edge_index", "vertices",
-                           "fixed_mask_p", "fixed_mask_q"])
+                           "fixed_mask_p", "fixed_mask_q",
+                           "extra_fixed_mask", "enumerated_fixed_mask",
+                           ])
 
 
 class StepSnapshotDataset(data.Dataset):
@@ -317,6 +351,8 @@ class StepSnapshotDataset(data.Dataset):
         vertices = []
         fixed_mask_p = []
         fixed_mask_q = []
+        extra_fixed_mask = []
+        enumerated_fixed_mask = []
 
         for traj_i in range(len(self._traj_dataset)):
             traj = self._traj_dataset[traj_i]
@@ -337,6 +373,8 @@ class StepSnapshotDataset(data.Dataset):
             # Remove fake time dimension added above
             fixed_mask_p.extend([traj.fixed_mask_p[0]] * traj_num_steps)
             fixed_mask_q.extend([traj.fixed_mask_q[0]] * traj_num_steps)
+            extra_fixed_mask.extend([traj.extra_fixed_mask[0]] * traj_num_steps)
+            enumerated_fixed_mask.extend([traj.enumerated_fixed_mask[0]] * traj_num_steps)
             # Check length computation
             assert p[-1].shape[0] == traj_num_steps
 
@@ -355,6 +393,8 @@ class StepSnapshotDataset(data.Dataset):
         self._vertices = vertices
         self._fixed_mask_p = fixed_mask_p
         self._fixed_mask_q = fixed_mask_q
+        self._extra_fixed_mask = extra_fixed_mask
+        self._enumerated_fixed_mask = enumerated_fixed_mask
 
     def __getitem__(self, idx):
         p_step = self._dp_dt[idx]
@@ -372,6 +412,8 @@ class StepSnapshotDataset(data.Dataset):
                         vertices=self._vertices[idx],
                         fixed_mask_p=self._fixed_mask_p[idx],
                         fixed_mask_q=self._fixed_mask_q[idx],
+                        extra_fixed_mask=self._extra_fixed_mask[idx],
+                        enumerated_fixed_mask=self._enumerated_fixed_mask[idx],
                         )
 
     def __len__(self):
