@@ -1381,7 +1381,7 @@ class MLP(TrainedNetwork):
                  hidden_dim=2048, depth=2, train_dtype="float",
                  scheduler="none", scheduler_step="epoch", end_lr=None,
                  batch_size=750, epochs=1000, validation_set=None,
-                 noise_type="none", noise_variance=0, predict_type="deriv",
+                 noise_variance=0, predict_type="deriv",
                  step_time_skew=1, step_subsample=1):
         super().__init__(experiment=experiment,
                          method="-".join(["mlp", predict_type]),
@@ -1398,13 +1398,19 @@ class MLP(TrainedNetwork):
         self.scheduler = scheduler
         self.scheduler_step = scheduler_step
         self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
-        self.noise_type = noise_type
         self.noise_variance = noise_variance
         self.predict_type = predict_type
         self.step_time_skew = step_time_skew
         self.step_subsample = step_subsample
         generate_scheduler_args(self, end_lr)
         assert predict_type in {"deriv", "step"}
+
+        if self.noise_variance == 0:
+            self.noise_type = "none"
+        elif self.predict_type == "step":
+            self.noise_type = "step-corrected"
+        elif self.predict_type == "deriv":
+            self.noise_type = "deriv-corrected"
 
     def description(self):
         dataset_type = "snapshot"
@@ -1476,7 +1482,7 @@ class CNN(TrainedNetwork):
                  train_dtype="float",
                  scheduler="none", scheduler_step="epoch", scheduler_args={},
                  batch_size=750, epochs=1000, validation_set=None,
-                 noise_type="none", noise_variance=0, predict_type="deriv",
+                 noise_variance=0, predict_type="deriv",
                  padding_mode="zeros",
                  step_time_skew=1, step_subsample=1):
         if training_set.system == "spring-mesh":
@@ -1505,7 +1511,6 @@ class CNN(TrainedNetwork):
         self.scheduler_step = scheduler_step
         self.scheduler_args = {}
         self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
-        self.noise_type = noise_type
         self.noise_variance = noise_variance
         self.layer_defs = chan_records
         self.predict_type = predict_type
@@ -1513,6 +1518,13 @@ class CNN(TrainedNetwork):
         self.step_subsample = step_subsample
         self.padding_mode = padding_mode
         assert predict_type in {"deriv", "step"}
+
+        if self.noise_variance == 0:
+            self.noise_type = "none"
+        elif self.predict_type == "step":
+            self.noise_type = "step-corrected"
+        elif self.predict_type == "deriv":
+            self.noise_type = "deriv-corrected"
 
         self.conv_dim = 1
         if training_set.system in {"navier-stokes", "taylor-green", "spring-mesh"}:
