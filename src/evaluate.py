@@ -222,27 +222,44 @@ def run_phase(base_dir, out_dir, phase_args):
         time_deriv_func = hnn_model_time_deriv
         hamiltonian_func = model_hamiltonian
     elif eval_type in {"mlp-deriv", "nn-kernel-deriv"}:
-        MLPDerivative = namedtuple("MLPDerivative", ["dq_dt", "dp_dt"])
-        def net_no_grad(q, p, dt=1.0, t=0):
-            with torch.no_grad():
-                q = torch.from_numpy(q).to(device, dtype=eval_dtype)
-                p = torch.from_numpy(p).to(device, dtype=eval_dtype)
-                ret = net(q=q, p=p)
-                dq = ret.dq_dt.detach().cpu().numpy()
-                dp = ret.dp_dt.detach().cpu().numpy()
-                return MLPDerivative(dq_dt=dq, dp_dt=dp)
-        time_deriv_func = net_no_grad
+        def mlp_time_deriv_func(batch):
+            MLPDerivative = namedtuple("MLPDerivative", ["dq_dt", "dp_dt"])
+
+            extra_data = batch.extra_fixed_mask
+            if torch.is_tensor(extra_data):
+                extra_data = extra_data[0].to(device, dtype=eval_dtype)
+                extra_data.requires_grad = False
+
+            def net_no_grad(q, p, dt=1.0, t=0):
+                with torch.no_grad():
+                    q = torch.from_numpy(q).to(device, dtype=eval_dtype)
+                    p = torch.from_numpy(p).to(device, dtype=eval_dtype)
+                    ret = net(q=q, p=p, extra_data=extra_data)
+                    dq = ret.dq_dt.detach().cpu().numpy()
+                    dp = ret.dp_dt.detach().cpu().numpy()
+                    return MLPDerivative(dq_dt=dq, dp_dt=dp)
+
+            return net_no_grad
+
     elif eval_type in {"mlp-step", "nn-kernel-step"}:
-        MLPPrediction = namedtuple("MLPPrediction", ["q", "p"])
-        def model_next_step(q, p, dt=1.0, t=0):
-            with torch.no_grad():
-                q = torch.from_numpy(q).to(device, dtype=eval_dtype)
-                p = torch.from_numpy(p).to(device, dtype=eval_dtype)
-                ret = net(q=q, p=p)
-                next_q = ret.q.detach().cpu().numpy()
-                next_p = ret.p.detach().cpu().numpy()
-                return MLPPrediction(q=next_q, p=next_p)
-        time_deriv_func = model_next_step
+        def mlp_time_deriv_func(batch):
+            MLPPrediction = namedtuple("MLPPrediction", ["q", "p"])
+
+            extra_data = batch.extra_fixed_mask
+            if torch.is_tensor(extra_data):
+                extra_data = extra_data[0].to(device, dtype=eval_dtype)
+                extra_data.requires_grad = False
+
+            def model_next_step(q, p, dt=1.0, t=0):
+                with torch.no_grad():
+                    q = torch.from_numpy(q).to(device, dtype=eval_dtype)
+                    p = torch.from_numpy(p).to(device, dtype=eval_dtype)
+                    ret = net(q=q, p=p, extra_data=extra_data)
+                    next_q = ret.q.detach().cpu().numpy()
+                    next_p = ret.p.detach().cpu().numpy()
+                    return MLPPrediction(q=next_q, p=next_p)
+
+            return model_next_step
         if integrator_type != "null":
             raise ValueError(f"mlp-step predictions do not work with integrator {integrator_type}")
     elif eval_type in {"cnn-deriv", "unet-deriv"}:
@@ -538,6 +555,8 @@ def run_phase(base_dir, out_dir, phase_args):
             q_noiseless = q_noiseless.reshape((num_traj, traj_steps, -1))
         elif eval_type in {"cnn-step", "cnn-deriv", "unet-step", "unet-deriv"}:
             time_deriv_func = cnn_time_deriv_func(batch=trajectory)
+        elif eval_type in {"mlp", "mlp-step", "mlp-deriv", "nn-kernel-step", "nn-kernel-deriv"}:
+            time_deriv_func = mlp_time_deriv_func(batch=trajectory)
 
         p0 = p[:, 0].detach().cpu().numpy()
         q0 = q[:, 0].detach().cpu().numpy()

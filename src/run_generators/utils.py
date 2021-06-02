@@ -1418,6 +1418,13 @@ class MLP(TrainedNetwork):
         elif self.predict_type == "deriv":
             self.noise_type = "deriv-corrected"
 
+        self.input_size = self.training_set.input_size()
+        self.output_size = self.training_set.input_size()
+        if self.training_set.system == "navier-stokes":
+            # Extra data support for Navier-Stokes
+            extra_dims = 2 * (self.training_set.spatial_reshape[0] * self.training_set.spatial_reshape[1])
+            self.input_size += extra_dims
+
     def description(self):
         dataset_type = "snapshot"
         if self.predict_type == "step":
@@ -1427,9 +1434,9 @@ class MLP(TrainedNetwork):
                 "network": {
                     "arch": "-".join(["mlp", self.predict_type]),
                     "arch_args": {
-                        "input_dim": self.training_set.input_size(),
+                        "input_dim": self.input_size,
                         "hidden_dim": self.hidden_dim,
-                        "output_dim": self.training_set.input_size(),
+                        "output_dim": self.output_size,
                         "depth": self.depth,
                         "nonlinearity": "tanh",
                     },

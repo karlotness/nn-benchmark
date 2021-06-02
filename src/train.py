@@ -334,11 +334,13 @@ def train_srnn(net, batch, loss_fn, train_type_args, tensor_converter):
                            total_loss_denom_incr=shape_product(p.shape))
 
 
-def train_mlp(net, batch, loss_fn, train_type_args, tensor_converter, predict_type="deriv"):
+def train_mlp(net, batch, loss_fn, train_type_args, tensor_converter, predict_type="deriv", extra_data=None):
     # Extract values from batch
     p = tensor_converter(batch.p)
     q = tensor_converter(batch.q)
-    pred = net(p=p, q=q)
+    if extra_data is not None:
+        extra_data = tensor_converter(extra_data)
+    pred = net(p=p, q=q, extra_data=extra_data)
 
     # Perform training
     # Assume snapshot dataset (shape [batch_size, n_grid])
@@ -585,7 +587,7 @@ def run_phase(base_dir, out_dir, phase_args):
             for batch_num, batch in enumerate(train_loader):
 
                 extra_train_args = {}
-                if train_type in {"cnn-step", "cnn-deriv", "cnn", "unet-step", "unet-deriv"} and torch.is_tensor(batch.extra_fixed_mask):
+                if train_type in {"cnn-step", "cnn-deriv", "cnn", "unet-step", "unet-deriv", "mlp", "mlp-deriv", "mlp-step"} and torch.is_tensor(batch.extra_fixed_mask):
                     if epoch == 0 and batch_num == 0:
                         logger.info("Providing fixed mask as extra data")
                     _extra_data = torch_converter(batch.extra_fixed_mask)
@@ -637,7 +639,7 @@ def run_phase(base_dir, out_dir, phase_args):
                 with torch.no_grad():
                     for val_batch_num, val_batch in enumerate(val_loader):
                         extra_val_args = {}
-                        if train_type in {"cnn-step", "cnn-deriv", "cnn", "unet-step", "unet-deriv"} and torch.is_tensor(val_batch.extra_fixed_mask):
+                        if train_type in {"cnn-step", "cnn-deriv", "cnn", "unet-step", "unet-deriv", "mlp", "mlp-deriv", "mlp-step"} and torch.is_tensor(val_batch.extra_fixed_mask):
                             _val_extra_data = torch_converter(val_batch.extra_fixed_mask)
                             _val_extra_data.requires_grad = False
                             extra_val_args = {"extra_data": _val_extra_data}

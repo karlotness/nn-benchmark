@@ -19,7 +19,8 @@ class NNKernel(torch.nn.Module):
                                        unfrozen_linear)
         self.predict_type = predict_type
 
-    def forward(self, q, p):
+    def forward(self, q, p, extra_data=None):
+        # Ignore extra data
         x = torch.cat([p, q], dim=-1)
         ret = self.ops(x)
         split_size = [p.shape[-1], q.shape[-1]]

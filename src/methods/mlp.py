@@ -19,8 +19,11 @@ class MLP(torch.nn.Module):
         self.ops = torch.nn.Sequential(*layers)
         self.predict_type = predict_type
 
-    def forward(self, q, p):
-        x = torch.cat([p, q], dim=-1)
+    def forward(self, q, p, extra_data=None):
+        if extra_data is not None:
+            x = torch.cat([p, q, extra_data], dim=-1)
+        else:
+            x = torch.cat([p, q], dim=-1)
         ret = self.ops(x)
         split_size = [p.shape[-1], q.shape[-1]]
         if self.predict_type == "deriv":
