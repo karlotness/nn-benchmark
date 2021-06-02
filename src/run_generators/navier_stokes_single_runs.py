@@ -12,7 +12,6 @@ args = parser.parse_args()
 base_dir = pathlib.Path(args.base_dir)
 
 EPOCHS = 800
-GN_EPOCHS = 75
 NUM_REPEATS = 1
 # Navier-Stokes base parameters
 NS_END_TIME = 0.08 * 65
@@ -21,9 +20,10 @@ NS_STEPS = math.ceil(NS_END_TIME / NS_DT)
 NS_SUBSAMPLE = 1
 EVAL_INTEGRATORS = ["leapfrog", "euler", "rk4"]
 TRAIN_NOISE_VAR = 1e-3
+N_OBSTACLES = 1
 
-COARSE_LEVELS = [1, 4]  # Used for time skew parameter for training & validation
-TRAIN_SET_SIZES = [25, 75] # [12, 25, 50]
+COARSE_LEVELS = [1, 4, 16]  # Used for time skew parameter for training & validation
+TRAIN_SET_SIZES = [25, 50, 100]
 
 writable_objects = []
 
@@ -31,10 +31,10 @@ experiment_general = utils.Experiment("ns-runs")
 experiment_step = utils.Experiment("ns-runs-step")
 experiment_deriv = utils.Experiment("ns-runs-deriv")
 
-train_source = utils.NavierStokesMeshInitialConditionSource(velocity_range=(1.0, 1.0))
-val_source = utils.NavierStokesMeshInitialConditionSource(velocity_range=(1.0, 1.0))
-eval_source = utils.NavierStokesMeshInitialConditionSource(velocity_range=(1.0, 1.0))
-#eval_outdist_source = utils.NavierStokesInitialConditionSource(velocity_range=(1.75, 2.0))
+train_source = utils.NavierStokesMeshInitialConditionSource(velocity_range=(1.0, 1.0), radius_range=(0.05, 0.1), n_obstacles=N_OBSTACLES)
+val_source = utils.NavierStokesMeshInitialConditionSource(velocity_range=(1.0, 1.0), radius_range=(0.05, 0.1), n_obstacles=N_OBSTACLES)
+eval_source = utils.NavierStokesMeshInitialConditionSource(velocity_range=(1.0, 1.0), radius_range=(0.05, 0.1), n_obstacles=N_OBSTACLES)
+eval_outdist_source = utils.NavierStokesInitialConditionSource(velocity_range=(1.0, 1.0), radius_range=(0.025, 0.05), n_obstacles=N_OBSTACLES)
 
 train_sets = []
 val_set = None
@@ -65,7 +65,7 @@ writable_objects.append(val_set)
 for source, num_traj, type_key, step_multiplier in [
         (eval_source, 5, "eval", 1),
         #(eval_source, 3, "eval-long", 3),
-        #(eval_outdist_source, 5, "eval-outdist", 1),
+        (eval_outdist_source, 5, "eval-outdist", 1),
         #(eval_outdist_source, 3, "eval-outdist-long", 3),
         ]:
     for coarse in COARSE_LEVELS:
@@ -125,32 +125,18 @@ for train_set, integrator in itertools.product(train_sets, EVAL_INTEGRATORS):
 
 # DERIVATIVE: Emit MLP, GN, NNkernel runs
 for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
-    # NO GN SUPPORT YET
-    # GN runs
-    # gn_train = utils.GN(experiment=experiment_deriv,
-    #                     training_set=train_set,
-    #                     validation_set=val_set,
-    #                     batch_size=3,
-    #                     epochs=GN_EPOCHS)
-    # writable_objects.append(gn_train)
-    # for eval_set in eval_sets[1]:
-    #     gn_eval = utils.NetworkEvaluation(experiment=experiment_deriv,
-    #                                       network=gn_train,
-    #                                       eval_set=eval_set,
-    #                                       integrator="null")
-    #     writable_objects.append(gn_eval)
     # Other networks work for all integrators
     general_int_nets = []
     # NN Kernel
-    # nn_kernel = utils.NNKernel(experiment=experiment_deriv,
-    #                            training_set=train_set,
-    #                            learning_rate=0.001, weight_decay=0.0001,
-    #                            hidden_dim=32768*2, train_dtype="float",
-    #                            optimizer="sgd",
-    #                            predict_type="deriv",
-    #                            batch_size=375, epochs=EPOCHS, validation_set=val_set,
-    #                            nonlinearity="relu")
-    # general_int_nets.append(nn_kernel)
+    nn_kernel = utils.NNKernel(experiment=experiment_deriv,
+                               training_set=train_set,
+                               learning_rate=0.001, weight_decay=0.0001,
+                               hidden_dim=32768*2, train_dtype="float",
+                               optimizer="sgd",
+                               predict_type="deriv",
+                               batch_size=375, epochs=EPOCHS, validation_set=val_set,
+                               nonlinearity="relu")
+    general_int_nets.append(nn_kernel)
     # MLPs
     for width, depth in [(4096, 4), (2048, 5)]:
         mlp_deriv_train = utils.MLP(experiment=experiment_deriv,
@@ -159,11 +145,11 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
                                     hidden_dim=width, depth=depth,
                                     learning_rate=(1e-4),
                                     predict_type="deriv",
+                                    noise_variance=TRAIN_NOISE_VAR,
                                     validation_set=val_set, epochs=EPOCHS)
         general_int_nets.append(mlp_deriv_train)
     # CNNs
     for cnn_arch in [
-            # [(None, 32, 5), (32, 32, 5), (32, 32, 5), (32, None, 5)],
             [(None, 32, 9), (32, 32, 9), (32, 32, 9), (32, None, 9)],
             [(None, 64, 9), (64, 64, 9), (64, 64, 9), (64, None, 9)],
     ]:
@@ -174,6 +160,7 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
                                     learning_rate=(1e-4),
                                     predict_type="deriv",
                                     padding_mode="replicate",
+                                    noise_variance=TRAIN_NOISE_VAR,
                                     validation_set=val_set, epochs=EPOCHS)
         general_int_nets.append(cnn_deriv_train)
 
@@ -187,7 +174,7 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
         epochs=EPOCHS,
         validation_set=val_set,
         predict_type="deriv",
-        noise_variance=0,
+        noise_variance=TRAIN_NOISE_VAR,
     )
     general_int_nets.append(unet_deriv_train)
 
@@ -204,17 +191,17 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
 # STEP: Emit MLP, NNkernel runs
 for coarse, train_set, _repeat in itertools.product(COARSE_LEVELS, train_sets, range(NUM_REPEATS)):
     general_int_nets = []
-    # nn_kernel = utils.NNKernel(experiment=experiment_step,
-    #                            training_set=train_set,
-    #                            learning_rate=0.001, weight_decay=0.0001,
-    #                            hidden_dim=32768*2, train_dtype="float",
-    #                            optimizer="sgd",
-    #                            predict_type="step",
-    #                            step_time_skew=coarse, step_subsample=1,
-    #                            batch_size=375, epochs=EPOCHS, validation_set=val_set,
-    #                            nonlinearity="relu")
-    # nn_kernel.name_tag = f"cors{coarse}"
-    # general_int_nets.append(nn_kernel)
+    nn_kernel = utils.NNKernel(experiment=experiment_step,
+                               training_set=train_set,
+                               learning_rate=0.001, weight_decay=0.0001,
+                               hidden_dim=32768*2, train_dtype="float",
+                               optimizer="sgd",
+                               predict_type="step",
+                               step_time_skew=coarse, step_subsample=1,
+                               batch_size=375, epochs=EPOCHS, validation_set=val_set,
+                               nonlinearity="relu")
+    nn_kernel.name_tag = f"cors{coarse}"
+    general_int_nets.append(nn_kernel)
 
     for width, depth in [(4096, 4), (2048, 5)]:
         mlp_step_train = utils.MLP(experiment=experiment_step,
@@ -231,7 +218,6 @@ for coarse, train_set, _repeat in itertools.product(COARSE_LEVELS, train_sets, r
 
     # CNNs
     for cnn_arch in [
-            # [(None, 32, 5), (32, 32, 5), (32, 32, 5), (32, None, 5)],
             [(None, 32, 9), (32, 32, 9), (32, 32, 9), (32, None, 9)],
             [(None, 64, 9), (64, 64, 9), (64, 64, 9), (64, None, 9)],
     ]:
