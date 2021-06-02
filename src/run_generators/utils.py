@@ -545,26 +545,42 @@ class NavierStokesMeshInitialConditionSource(NavierStokesInitialConditionSource)
             edge_margin=(0.25, 0.05),
             radius_range=(0.05, 0.1),
             n_obstacles=1,
+            pack_margin=0.05,
     ):
         super().__init__(velocity_range=velocity_range)
         self.velocity_range = velocity_range
         self.edge_margin = edge_margin
         self.radius_range = radius_range
         self.n_obstacles = n_obstacles
+        self.pack_margin = pack_margin
 
     def _generate_initial_condition(self):
         template = super()._generate_initial_condition()
         meshes = []
         # Update with mesh components
         for _obstacle in range(self.n_obstacles):
-            radius = np.random.uniform(*self.radius_range)
-            # Select coordinates
-            x_range = (0 + self.edge_margin[0] + radius, 2.2 - self.edge_margin[0] - radius)
-            y_range = (0 + self.edge_margin[1] + radius, 0.41 - self.edge_margin[1] - radius)
-            assert all(map(lambda x: 0 <= x <= 2.2, x_range))
-            assert all(map(lambda y: 0 <= y <= 0.41, y_range))
-            x = np.random.uniform(*x_range)
-            y = np.random.uniform(*y_range)
+            for _attempt in range(100):
+                radius = np.random.uniform(*self.radius_range)
+                # Select coordinates
+                x_range = (0 + self.edge_margin[0] + radius, 2.2 - self.edge_margin[0] - radius)
+                y_range = (0 + self.edge_margin[1] + radius, 0.41 - self.edge_margin[1] - radius)
+                assert all(map(lambda x: 0 <= x <= 2.2, x_range))
+                assert all(map(lambda y: 0 <= y <= 0.41, y_range))
+                x = np.random.uniform(*x_range)
+                y = np.random.uniform(*y_range)
+                # Check that obstacle is suitable
+                suitable = True
+                for other_mesh in meshes:
+                    o_x, o_y = other_mesh["center"]
+                    o_r = other_mesh["radius"]
+                    dist = np.sqrt((x - o_x)**2 + (y - o_y)**2)
+                    if dist < o_r + radius + self.pack_margin:
+                        suitable = False
+                        break
+                if suitable:
+                    break
+            else:
+                raise ValueError("Failed to generate suitable obstacles")
             meshes.append({
                 "radius": radius,
                 "center": (x, y),
