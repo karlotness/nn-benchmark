@@ -72,7 +72,7 @@ class UNet(torch.nn.Module):
         self.spatial_reshape = spatial_reshape
 
         if self.predict_system == "navier-stokes" and self.predict_type == "step":
-            self.in_channels = 4
+            self.in_channels = 5
             self.out_channels = 3
             self.upsampler = torch.nn.Upsample(size=(256, 256), mode="bilinear")
         elif self.predict_system == "navier-stokes" and self.predict_type == "deriv":
@@ -167,9 +167,10 @@ class UNet(torch.nn.Module):
             # For Navier-Stokes: q=pressures, p=solutions
             # We only use p as input and require extra data
             p = self._spatial_reshape(p)
+            q = self._spatial_reshape(q)
             extra_data = self._spatial_reshape(extra_data)
             split_size = [q.shape[-1], p.shape[-1]]
-            x = torch.cat((p, extra_data), dim=-1)
+            x = torch.cat((q, p, extra_data), dim=-1)
             x = torch.movedim(x, -1, 1)
         elif self.predict_system == "navier-stokes" and self.predict_type == "deriv":
             # For Navier-Stokes: q=pressures, p=solutions
