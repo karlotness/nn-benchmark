@@ -90,11 +90,11 @@ class NavierStokesSystem(System):
         mat[np.isnan(mat)] = 0.0
         return mat
 
-    def _generate_obstacle(self, pos, r, n_steps, trafo=None):
+    def _generate_obstacle(self, pos, r, n_steps, trafo=None, edge_skew=4):
         if trafo is None:
             trafo = np.eye(2)
         return (np.array([ [np.cos(2*np.pi*i/n_steps), np.sin(2*np.pi*i/n_steps)] for i in range(n_steps)])*r@trafo + pos,
-                np.array([ [i+4, (i+1)%n_steps+4] for i in range(n_steps)]))
+                np.array([ [i+edge_skew, (i+1)%n_steps+edge_skew] for i in range(n_steps)]))
 
     def _generate_mesh(self, mesh_args):
         if mesh_args is None:
@@ -105,13 +105,19 @@ class NavierStokesSystem(System):
         # Generate the boundary points and edges
         square = np.array([[0, 0], [2.2, 0], [2.2, 0.41], [0, 0.41]], dtype=np.float64)
         square_e = np.array([[0, 1], [1, 2], [2, 3], [3, 0]], dtype=np.int64)
+        pts = [square]
+        edges = [square_e]
         # Generate obstacle points and edges
-        center = np.array(mesh_args.center).reshape((1, 2))
-        radius = mesh_args.radius
-        obst, obst_e = self._generate_obstacle(pos=center, r=radius, n_steps=OBSTACLE_STEPS, trafo=None)
+        for mesh_arg in mesh_args:
+            edge_skew = np.max(edges[-1]) + 1
+            center = np.array(mesh_arg.center).reshape((1, 2))
+            radius = mesh_arg.radius
+            obst, obst_e = self._generate_obstacle(pos=center, r=radius, n_steps=OBSTACLE_STEPS, trafo=None, edge_skew=edge_skew)
+            pts.append(obst)
+            edges.append(obst_e)
         # Combine obstacle with boundary
-        pts = np.append(square, obst, axis=0)
-        edges = np.append(square_e, obst_e, axis=0)
+        pts = np.concatenate(pts)
+        edges = np.concatenate(edges)
         # Triangulate
         t = triangle.triangulate({"vertices": pts, "segments": edges, "holes": center}, "qpa0.0003")
         v = t['vertices']
@@ -312,10 +318,17 @@ def _generate_data_worker(i, traj_def, grid_resolution):
     subsample = int(traj_def.get("subsample", 1))
 
     if "mesh" in traj_def:
-        mesh_args = MeshDefinition(
-            radius=traj_def["mesh"]["radius"],
-            center=tuple(traj_def["mesh"]["center"]),
-        )
+        raw_mesh_args = traj_def["mesh"]
+        if not isinstance(raw_mesh_args, list):
+            raw_mesh_args = [raw_mesh_args]
+        mesh_args = []
+        for mesh_arg in raw_mesh_args:
+            mesh_args.append(
+                MeshDefinition(
+                    radius=mesh_arg["radius"],
+                    center=tuple(mesh_arg["center"]),
+                )
+            )
     else:
         mesh_args = None
 
