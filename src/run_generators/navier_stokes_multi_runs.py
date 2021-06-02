@@ -34,7 +34,7 @@ experiment_deriv = utils.Experiment("ns-runs-deriv")
 train_source = utils.NavierStokesMeshInitialConditionSource(velocity_range=(1.0, 1.0), radius_range=(0.05, 0.1), n_obstacles=N_OBSTACLES)
 val_source = utils.NavierStokesMeshInitialConditionSource(velocity_range=(1.0, 1.0), radius_range=(0.05, 0.1), n_obstacles=N_OBSTACLES)
 eval_source = utils.NavierStokesMeshInitialConditionSource(velocity_range=(1.0, 1.0), radius_range=(0.05, 0.1), n_obstacles=N_OBSTACLES)
-eval_outdist_source = utils.NavierStokesInitialConditionSource(velocity_range=(1.0, 1.0), radius_range=(0.025, 0.05), n_obstacles=N_OBSTACLES)
+eval_outdist_source = utils.NavierStokesMeshInitialConditionSource(velocity_range=(1.0, 1.0), radius_range=(0.025, 0.05), n_obstacles=N_OBSTACLES)
 
 train_sets = []
 val_set = None
