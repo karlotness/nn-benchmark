@@ -107,6 +107,7 @@ class NavierStokesSystem(System):
         square_e = np.array([[0, 1], [1, 2], [2, 3], [3, 0]], dtype=np.int64)
         pts = [square]
         edges = [square_e]
+        centers = []
         # Generate obstacle points and edges
         for mesh_arg in mesh_args:
             edge_skew = np.max(edges[-1]) + 1
@@ -115,11 +116,13 @@ class NavierStokesSystem(System):
             obst, obst_e = self._generate_obstacle(pos=center, r=radius, n_steps=OBSTACLE_STEPS, trafo=None, edge_skew=edge_skew)
             pts.append(obst)
             edges.append(obst_e)
+            centers.append(center)
         # Combine obstacle with boundary
         pts = np.concatenate(pts)
         edges = np.concatenate(edges)
+        centers = np.concatenate(centers)
         # Triangulate
-        t = triangle.triangulate({"vertices": pts, "segments": edges, "holes": center}, "qpa0.0003")
+        t = triangle.triangulate({"vertices": pts, "segments": edges, "holes": centers}, "qpa0.0003")
         v = t['vertices']
         f = t['triangles']
         # Produce mesh string
