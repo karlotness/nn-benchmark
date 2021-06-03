@@ -165,34 +165,37 @@ class SpringMeshSystem(System):
         if not _newton_iter:
             return
         jac_idx_arr = np.arange(n_particles * n_dims).reshape((n_particles, n_dims))
+
+        jac_coo_row = []
+        jac_coo_col = []
+        jac_coo_zero_mask = []
+        _fixed_lookup = np.repeat(fixed_mask, n_dims)
+        for i in range(edge_indices.shape[-1]):
+            a = edge_indices[0, i]
+            b = edge_indices[1, i]
+            new_rows = [jac_idx_arr[a][0], jac_idx_arr[a][0], jac_idx_arr[a][1], jac_idx_arr[a][1]]
+            jac_coo_row.extend(new_rows)
+            jac_coo_col.extend([jac_idx_arr[b][0], jac_idx_arr[b][1], jac_idx_arr[b][0], jac_idx_arr[b][1]])
+            jac_coo_zero_mask.extend([_fixed_lookup[i] for i in new_rows])
+        jac_coo_row = np.array(jac_coo_row, dtype=np.uint64)
+        jac_coo_col = np.array(jac_coo_col, dtype=np.uint64)
+        jac_coo_zero_mask = np.array(jac_coo_zero_mask, dtype=np.bool)
+
         arr_size = n_particles * n_dims
         eye_n_dims = np.tile(np.expand_dims(np.eye(n_dims), axis=0), (2*len(self.edges), 1, 1))
-        jac_b = - viscosity_constant * np.eye(arr_size, arr_size)
-        I = np.eye(n_dims * n_particles)
-        zeromat = np.zeros_like(I)
-        I_zero = np.block([I, zeromat])
-        zero_I = np.block([zeromat, I])
-        jac_idx_arr.setflags(write=False)
+        _jac_b_diag = np.ones(arr_size)
+        _jac_b_diag[_fixed_lookup] = 0
+        jac_b = -viscosity_constant * sparse.diags(_jac_b_diag, shape=(arr_size, arr_size))
+
+        I_zero = sparse.hstack([sparse.eye(arr_size), sparse.coo_matrix((arr_size, arr_size))])
+        zero_I = sparse.hstack([sparse.coo_matrix((arr_size, arr_size)), sparse.eye(arr_size)])
+        M_inv_spdiag = sparse.diags(M_inv, shape=(M_inv.shape[0], M_inv.shape[0]))
+
         eye_n_dims.setflags(write=False)
-        jac_b.setflags(write=False)
-        I.setflags(write=False)
-        zeromat.setflags(write=False)
-        I_zero.setflags(write=False)
-        zero_I.setflags(write=False)
 
-        @jit(nopython=True)
-        def store_jac(term_ab, jac):
-            for i in range(term_ab.shape[0]):
-                # Store term
-                a = edge_indices[0, i]
-                b = edge_indices[1, i]
-                jac[jac_idx_arr[a][0]:jac_idx_arr[a][1]+1, jac_idx_arr[b][0]:jac_idx_arr[b][1]+1] = term_ab[i]
-
-        @jit(nopython=True)
         def _force_grad(q, p):
             q = q.reshape((n_particles, n_dims))
             p = p.reshape((n_particles, n_dims))
-            jac = np.zeros((arr_size, arr_size))
 
             diff = q[edge_indices[0], :] - q[edge_indices[1], :]
             norm2 = np.sqrt((diff ** 2).sum(axis=-1))
@@ -209,10 +212,11 @@ class SpringMeshSystem(System):
             term_ab = (lead_coeffs * (batch_outer(term1_deriv_vec, term2_vec)) +
                        lead_coeffs * (term1_scalar * term2_deriv_mat))
             # Store results from term_ab
-            store_jac(term_ab, jac)
-            res = np.concatenate((jac, jac_b), axis=-1)
-            res[np.repeat(fixed_idxs, n_dims)] = 0
-            return res
+            term_ab_sparse = term_ab.reshape((-1, ))
+            term_ab_sparse[jac_coo_zero_mask] = 0
+            jac_sparse = sparse.coo_matrix((term_ab_sparse, (jac_coo_row, jac_coo_col)), shape=(arr_size, arr_size))
+            res_sparse = sparse.hstack([jac_sparse, jac_b])
+            return res_sparse
 
         @jit(nopython=True)
         def _newton_func_val(q_prev, q_dot_prev, q_next, q_dot_next, dt):
@@ -221,12 +225,11 @@ class SpringMeshSystem(System):
             q_dot_val = q_dot_next - q_dot_prev - dt * M_inv * forces
             return np.concatenate((q_val, q_dot_val), axis=-1)
 
-        @jit(nopython=True)
         def _newton_func_jac(q_prev, q_dot_prev, q_next, q_dot_next, dt):
-            minv_jf = np.diag(M_inv) @ _force_grad(q_next, q_dot_next)
+            minv_jf = M_inv_spdiag @ _force_grad(q_next, q_dot_next)
             q_rows = I_zero - dt**2 * minv_jf
             q_dot_rows = zero_I - dt * minv_jf
-            return np.concatenate((q_rows, q_dot_rows), axis=0)
+            return sparse.vstack([q_rows, q_dot_rows])
 
         @jit(nopython=True)
         def _bdf_2_func(q_prev, q_prev_prev, q_dot_prev, q_dot_prev_prev, q_next, q_dot_next, dt):
@@ -235,15 +238,13 @@ class SpringMeshSystem(System):
             q_dot_val = q_dot_next - (4 / 3) * q_dot_prev + (1 / 3) * q_dot_prev_prev - (2 / 3) * dt * M_inv * forces
             return np.concatenate((q_val, q_dot_val), axis=-1)
 
-        @jit(nopython=True)
         def _bdf_2_jac(q_prev, q_dot_prev, q_next, q_dot_next, dt):
-            minv_jf = np.diag(M_inv) @ _force_grad(q_next, q_dot_next)
+            minv_jf = M_inv_spdiag @ _force_grad(q_next, q_dot_next)
             q_rows = I_zero - ((2 / 3) * dt)**2 * minv_jf
             q_dot_rows = zero_I - (2 / 3) * dt * minv_jf
-            return np.concatenate((q_rows, q_dot_rows), axis=0)
+            return sparse.vstack([q_rows, q_dot_rows])
 
         # Do the newton iterations
-        @jit(nopython=True)
         def compute_next_step(q_prev, q_dot_prev, dt):
             split_idx = n_dims * n_particles
             q_prev = q_prev.reshape((-1, ))
@@ -255,7 +256,7 @@ class SpringMeshSystem(System):
             while np.linalg.norm(val) > 1e-12:
                 val = _newton_func_val(q_prev, q_dot_prev, q_next, q_dot_next, dt)
                 jac = _newton_func_jac(q_prev, q_dot_prev, q_next, q_dot_next, dt)
-                jac_inv_prod = np.linalg.solve(jac, val)
+                jac_inv_prod = sp_linalg.spsolve(jac, val)
                 q_incr = jac_inv_prod[:split_idx]
                 q_dot_incr = jac_inv_prod[split_idx:]
                 q_next = q_next - q_incr
@@ -266,7 +267,6 @@ class SpringMeshSystem(System):
             return q_next, q_dot_next
 
         # Do the newton iterations
-        @jit(nopython=True)
         def compute_next_step_bdf_2(q_prev, q_prev_prev, q_dot_prev, q_dot_prev_prev, dt):
             split_idx = n_dims * n_particles
             q_prev = q_prev.reshape((-1, ))
@@ -280,7 +280,7 @@ class SpringMeshSystem(System):
             while np.linalg.norm(val) > 1e-12:
                 val = _bdf_2_func(q_prev, q_prev_prev, q_dot_prev, q_dot_prev_prev, q_next, q_dot_next, dt)
                 jac = _bdf_2_jac(q_prev, q_dot_prev, q_next, q_dot_next, dt)
-                jac_inv_prod = np.linalg.solve(jac, val)
+                jac_inv_prod = sp_linalg.spsolve(jac, val)
                 q_incr = jac_inv_prod[:split_idx]
                 q_dot_incr = jac_inv_prod[split_idx:]
                 q_next = q_next - q_incr
@@ -290,7 +290,6 @@ class SpringMeshSystem(System):
                     break
             return q_next, q_dot_next
 
-        @jit(nopython=True)
         def back_euler(q0, p0, dt, out_q, out_p):
             q = q0.reshape((-1, ))
             q_dot = M_inv * p0.reshape((-1, ))
@@ -300,7 +299,6 @@ class SpringMeshSystem(System):
                 q, q_dot = compute_next_step(q, q_dot, dt)
         self.back_euler = back_euler
 
-        @jit(nopython=True)
         def bdf_2(q0, p0, dt, out_q, out_p):
             q_prev = q0.reshape((-1, ))
             q_dot_prev = M_inv * p0.reshape((-1, ))
