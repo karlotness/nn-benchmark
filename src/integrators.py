@@ -32,15 +32,18 @@ def leapfrog(q0, p0, dt, func, bc_func, out_q, out_p, t0):
     t = t0
     dqdt, dpdt = func(q, p, dt, t)
     for i in range(out_q.shape[0]):
-        p_half = p + dpdt * (dt / 2)
         out_q[i] = q
         out_p[i] = p
         t += 0.5 * dt
+        p_half = p + dpdt * (dt / 2)
+        _q, p_half = bc_func(q, p_half, t)
         dqdt, dpdt = func(q, p_half, dt, t)
         q_next = q + dqdt * dt
         t += 0.5 * dt
+        q_next, _p_half = bc_func(q_next, p_half, t)
         dqdt, dpdt = func(q_next, p_half, dt, t)
         p_next = p_half + dpdt * (dt / 2)
+        q_next, p_next = bc_func(q_next, p_next, t)
         p = p_next
         q = q_next
 
@@ -54,12 +57,29 @@ def rk4(q0, p0, dt, func, bc_func, out_q, out_p, t0):
         out_q[i] = q
         out_p[i] = p
         q_k1, p_k1 = func(q, p, dt, t)
-        q_k2, p_k2 = func(q + 0.5*dt*q_k1, p + 0.5*dt*p_k1, dt, t + 0.5*dt)
-        q_k3, p_k3 = func(q + 0.5*dt*q_k2, p + 0.5*dt*p_k2, dt, t + 0.5*dt)
-        q_k4, p_k4 = func(q + dt*q_k3, p + dt*p_k3, dt, t + dt)
+
+        qi = q + 0.5*dt*q_k1
+        pi = p + 0.5*dt*p_k1
+        ti = t + 0.5*dt
+        qi, pi = bc_func(qi, pi, ti)
+        q_k2, p_k2 = func(qi, pi, dt, ti)
+
+        qi = q + 0.5*dt*q_k2
+        pi = p + 0.5*dt*p_k2
+        ti = t + 0.5*dt
+        qi, pi = bc_func(qi, pi, ti)
+        q_k3, p_k3 = func(qi, pi, dt, ti)
+
+        qi = q + dt*q_k3
+        pi = p + dt*p_k3
+        ti = t + dt
+        qi, pi = bc_func(qi, pi, ti)
+        q_k4, p_k4 = func(qi, pi, dt, ti)
+
         p_next = p + (1./6.) * dt * (p_k1 + 2 * p_k2 + 2 * p_k3 + p_k4)
         q_next = q + (1./6.) * dt * (q_k1 + 2 * q_k2 + 2 * q_k3 + q_k4)
         t += dt
+        q_next, p_next = bc_func(q_next, p_next, t)
         p = p_next
         q = q_next
 
