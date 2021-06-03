@@ -458,8 +458,8 @@ def make_enforce_boundary_function(trajectory):
     def spring_mesh_boundary_condition(q, p, t):
         q = q.copy()
         p = p.copy()
-        q[fm_q] = base_q
-        p[fm_p] = 0
+        q[:, fm_q] = base_q
+        p[:, fm_p] = 0
         return q, p
 
     return spring_mesh_boundary_condition
