@@ -1654,7 +1654,7 @@ class UNet(TrainedNetwork):
         self.step_subsample = step_subsample
         self.loss_type = loss_type
         assert predict_type in {"deriv", "step"}
-        assert self._predict_system == "navier-stokes"
+        assert self._predict_system in {"navier-stokes", "spring-mesh"}
 
         if self.noise_variance == 0:
             self.noise_type = "none"
