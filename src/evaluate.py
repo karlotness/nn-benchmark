@@ -504,6 +504,7 @@ def run_phase(base_dir, out_dir, phase_args):
             vel_decay = eval_dataset.system_metadata["vel_decay"]
             system = spring_mesh.system_from_records(n_dim, particles, edges_dict,
                                                      vel_decay=vel_decay)
+            boundary_cond_func = spring_mesh.make_enforce_boundary_function(trajectory=trajectory)
         elif eval_dataset.system == "taylor-green":
             n_grid = eval_dataset.system_metadata["n_grid"]
             space_scale = trajectory.trajectory_meta["space_scale"][0].item()

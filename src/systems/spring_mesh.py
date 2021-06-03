@@ -447,6 +447,26 @@ def system_from_records(n_dims, particles, edges, vel_decay):
         return new_sys
 
 
+def make_enforce_boundary_function(trajectory):
+    # Prep fixed mask for enforcement
+    fm_q = trajectory.fixed_mask_q[0].cpu().numpy().reshape((-1, ))
+    fm_q.setflags(write=False)
+    base_q = trajectory.q[0, 0].cpu().numpy().reshape((-1, ))[fm_q]
+    base_q.setflags(write=False)
+    fm_p = trajectory.fixed_mask_p[0].cpu().numpy().reshape((-1, ))
+    fm_p.setflags(write=False)
+
+    @jit(nopython=True)
+    def spring_mesh_boundary_condition(q, p, t):
+        q = q.copy()
+        p = p.copy()
+        q[fm_q] = base_q
+        p[fm_p] = 0
+        return q, p
+
+    return spring_mesh_boundary_condition
+
+
 def _generate_data_worker(i, traj_def, vel_decay):
     traj_name = f"traj_{i:05}"
     base_logger = logging.getLogger("spring-mesh")
