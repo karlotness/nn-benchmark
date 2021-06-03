@@ -72,13 +72,20 @@ class UNet(torch.nn.Module):
         self.spatial_reshape = spatial_reshape
 
         if self.predict_system == "navier-stokes" and self.predict_type == "step":
+            self.outer_sample_mode = "bilinear"
             self.in_channels = 5
             self.out_channels = 3
-            self.upsampler = torch.nn.Upsample(size=(256, 256), mode="bilinear")
+            self.upsampler = torch.nn.Upsample(size=(256, 256), mode=self.outer_sample_mode)
         elif self.predict_system == "navier-stokes" and self.predict_type == "deriv":
+            self.outer_sample_mode = "bilinear"
             self.in_channels = 5
             self.out_channels = 3
-            self.upsampler = torch.nn.Upsample(size=(256, 256), mode="bilinear")
+            self.upsampler = torch.nn.Upsample(size=(256, 256), mode=self.outer_sample_mode)
+        elif self.predict_system == "spring-mesh":
+            self.outer_sample_mode = "nearest"
+            self.in_channels = 5
+            self.out_channels = 4
+            self.upsampler = torch.nn.Upsample(size=(128, 128), mode=self.outer_sample_mode)
         else:
             raise ValueError(f"Unsupported system {self.predict_system}")
 
@@ -181,12 +188,20 @@ class UNet(torch.nn.Module):
             split_size = [q.shape[-1], p.shape[-1]]
             x = torch.cat((q, p, extra_data), dim=-1)
             x = torch.movedim(x, -1, 1)
+        elif self.predict_system == "spring-mesh":
+            # We use q and p as input and require extra data
+            p = self._spatial_reshape(p)
+            q = self._spatial_reshape(q)
+            extra_data = self._spatial_reshape(extra_data)
+            split_size = [q.shape[-1], p.shape[-1]]
+            x = torch.cat((q, p, extra_data), dim=-1)
+            x = torch.movedim(x, -1, 1)
 
         # Apply operations
         orig_x_shape = x.shape[-2:]
         x = self.upsampler(x)
         y = self._apply_ops(x)
-        y = torch.nn.functional.interpolate(y, size=orig_x_shape, mode="bilinear")
+        y = torch.nn.functional.interpolate(y, size=orig_x_shape, mode=self.outer_sample_mode)
         y = torch.movedim(y, 1, -1)
 
         # Package output
