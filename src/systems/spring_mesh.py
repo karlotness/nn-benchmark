@@ -22,7 +22,8 @@ ParticleTrajectoryResult = namedtuple("ParticleTrajectoryResult",
                                        "dq_dt", "dp_dt",
                                        "t_steps",
                                        "p_noiseless", "q_noiseless",
-                                       "masses", "edge_indices", "fixed_mask"])
+                                       "masses", "edge_indices", "fixed_mask",
+                                       "fixed_mask_qp"])
 
 
 spring_mesh_cache = SystemCache()
@@ -401,6 +402,8 @@ class SpringMeshSystem(System):
         edge_indices = np.array([(e.a, e.b) for e in self.edges] +
                                 [(e.b, e.a) for e in self.edges], dtype=np.int64).T
 
+        fixed_mask_qp = np.stack([self.fixed_mask, self.fixed_mask], axis=-1)
+
         return ParticleTrajectoryResult(
             q=qs_noisy,
             p=ps_noisy,
@@ -411,7 +414,9 @@ class SpringMeshSystem(System):
             p_noiseless=ps,
             masses=self.masses,
             edge_indices=edge_indices,
-            fixed_mask=self.fixed_mask)
+            fixed_mask=self.fixed_mask,
+            fixed_mask_qp=fixed_mask_qp,
+        )
 
 
 def system_from_records(n_dims, particles, edges, vel_decay):
@@ -505,6 +510,7 @@ def _generate_data_worker(i, traj_def, vel_decay):
         f"{traj_name}_masses": traj_result.masses,
         f"{traj_name}_edge_indices": traj_result.edge_indices,
         f"{traj_name}_fixed_mask": traj_result.fixed_mask,
+        f"{traj_name}_fixed_mask_qp": traj_result.fixed_mask_qp,
     }
 
     trajectory_metadata = {
@@ -522,7 +528,11 @@ def _generate_data_worker(i, traj_def, vel_decay):
             "q_noiseless": f"{traj_name}_q_noiseless",
             "masses": f"{traj_name}_masses",
             "edge_indices": f"{traj_name}_edge_indices",
+            # Fixed masks
             "fixed_mask": f"{traj_name}_fixed_mask",
+            "fixed_mask_p": f"{traj_name}_fixed_mask_qp",
+            "fixed_mask_q": f"{traj_name}_fixed_mask_qp",
+            "extra_fixed_mask": f"{traj_name}_fixed_mask",
         },
         "timing": {
             "traj_gen_time": traj_gen_elapsed
