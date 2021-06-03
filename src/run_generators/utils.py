@@ -1440,6 +1440,10 @@ class MLP(TrainedNetwork):
             # Extra data support for Navier-Stokes
             extra_dims = 2 * (self.training_set.spatial_reshape[0] * self.training_set.spatial_reshape[1])
             self.input_size += extra_dims
+        elif self.training_set.system == "spring-mesh":
+            # Extra data support for Navier-Stokes
+            extra_dims = self.training_set.spatial_reshape[0] * self.training_set.spatial_reshape[1]
+            self.input_size += extra_dims
 
     def description(self):
         dataset_type = "snapshot"
