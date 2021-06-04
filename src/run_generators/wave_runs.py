@@ -150,7 +150,7 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
                                nonlinearity="relu")
     general_int_nets.extend([nn_kernel_small])
     # MLPs
-    for width, depth in [(200, 3), (2048, 2), (4096, 4), (2048, 5)]:
+    for width, depth in [(200, 3), (2048, 2), (2048, 5)]:
         mlp_deriv_train = utils.MLP(experiment=experiment_deriv,
                                     training_set=train_set,
                                     batch_size=375,
@@ -163,7 +163,6 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
     for cnn_arch in [
             [(None, 32, 5), (32, 32, 5), (32, 32, 5), (32, None, 5)],
             [(None, 32, 9), (32, 32, 9), (32, 32, 9), (32, None, 9)],
-            [(None, 64, 9), (64, 64, 9), (64, 64, 9), (64, None, 9)],
     ]:
         cnn_deriv_train = utils.CNN(experiment=experiment_deriv,
                                     training_set=train_set,
@@ -200,7 +199,7 @@ for coarse, train_set, _repeat in itertools.product(COARSE_LEVELS, train_sets, r
     nn_kernel_small.name_tag = f"cors{coarse}"
     general_int_nets.extend([nn_kernel_small])
 
-    for width, depth in [(200, 3), (2048, 2), (4096, 4), (2048, 5)]:
+    for width, depth in [(200, 3), (2048, 2), (2048, 5)]:
         mlp_step_train = utils.MLP(experiment=experiment_step,
                                     training_set=train_set,
                                     batch_size=375,
@@ -216,7 +215,6 @@ for coarse, train_set, _repeat in itertools.product(COARSE_LEVELS, train_sets, r
     for cnn_arch in [
             [(None, 32, 5), (32, 32, 5), (32, 32, 5), (32, None, 5)],
             [(None, 32, 9), (32, 32, 9), (32, 32, 9), (32, None, 9)],
-            [(None, 64, 9), (64, 64, 9), (64, 64, 9), (64, None, 9)],
     ]:
         cnn_step_train = utils.CNN(experiment=experiment_step,
                                    training_set=train_set,
