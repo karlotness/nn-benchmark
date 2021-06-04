@@ -105,7 +105,7 @@ def build_network(arch_args, predict_type):
     dim = int(arch_args.get("dim", 1))
     padding_mode = arch_args.get("padding_mode", "zeros")
     spatial_reshape = None
-    if "spatial_reshape" in arch_args:
+    if arch_args.get("spatial_reshape", None) is not None:
         spatial_reshape = tuple(arch_args["spatial_reshape"])
     layer_defs = []
     for record in arch_args["layer_defs"]:
