@@ -144,9 +144,15 @@ def do_scan(root_directory, delete_type):
         print("")
 
     # Report runs with error states
+    outstanding_runs = [k for k, v in run_states.items() if v == RunState.OUTSTANDING]
     incomplete_runs = [k for k, v in run_states.items() if v == RunState.INCOMPLETE]
     no_match_runs = [k for k, v in run_states.items() if v == RunState.NO_MATCH]
 
+    if outstanding_runs:
+        print("------ Outstanding Runs ------")
+        for out_run in outstanding_runs:
+            print(out_run)
+        print("")
     if incomplete_runs:
         print("------ Incomplete Runs ------")
         for ir in incomplete_runs:
