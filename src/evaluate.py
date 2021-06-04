@@ -229,6 +229,8 @@ def run_phase(base_dir, out_dir, phase_args):
             if torch.is_tensor(extra_data):
                 extra_data = extra_data[0].to(device, dtype=eval_dtype)
                 extra_data.requires_grad = False
+            else:
+                extra_data = None
 
             def net_no_grad(q, p, dt=1.0, t=0):
                 with torch.no_grad():
@@ -249,6 +251,8 @@ def run_phase(base_dir, out_dir, phase_args):
             if torch.is_tensor(extra_data):
                 extra_data = extra_data[0].to(device, dtype=eval_dtype)
                 extra_data.requires_grad = False
+            else:
+                extra_data = None
 
             def model_next_step(q, p, dt=1.0, t=0):
                 with torch.no_grad():
