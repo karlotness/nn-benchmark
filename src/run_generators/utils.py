@@ -1522,6 +1522,8 @@ class CNN(TrainedNetwork):
             base_num_chans = 5
         elif training_set.system in {"navier-stokes", "taylor-green"}:
             base_num_chans = 5
+        elif training_set.system == "wave":
+            base_num_chans = 2
         chan_records = [
             {
                 "kernel_size": ks,
