@@ -65,3 +65,7 @@ launching the next.
 Consult `manage_runs.py --help` more information on available options.
 
 [envcreate]: https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-from-an-environment-yml-file
+
+## License
+This software is made available under the terms of the MIT license.
+See `LICENSE.txt` for details.

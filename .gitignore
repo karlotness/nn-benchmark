@@ -19,3 +19,4 @@ slurm-*.out
 # Ignore Python-generated files
 __pycache__/
 .ipynb_checkpoints/
+!LICENSE.txt
