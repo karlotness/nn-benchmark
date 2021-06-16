@@ -13,6 +13,7 @@ import integrators
 from systems import spring, wave, particle, spring_mesh, taylor_green, navier_stokes
 import joblib
 from collections import namedtuple
+import math
 
 
 DecoratedIntegrationResult = namedtuple("DecoratedIntegrationResult", ["q", "p"])
@@ -178,6 +179,7 @@ def run_phase(base_dir, out_dir, phase_args):
     device = select_device(try_gpu=eval_args["try_gpu"], base_logger=logger)
     eval_type = eval_args["eval_type"]
     eval_dtype, eval_dtype_np = TRAIN_DTYPES[eval_args.get("eval_dtype", "float")]
+    baseline_stride = int(eval_args.get("coarsening", 1))
 
     # Load the network
     if eval_type in {"knn-regressor-oneshot", "knn-predictor-oneshot"}:
@@ -573,6 +575,12 @@ def run_phase(base_dir, out_dir, phase_args):
         if not getattr(eval_dataset, "_linearize", True) and eval_type != "gn":
             q0 = q0.reshape((1, -1))
             p0 = p0.reshape((1, -1))
+
+        if eval_type == "integrator-baseline" and baseline_stride != 1:
+            num_time_steps = math.ceil(num_time_steps / baseline_stride)
+            time_step_size = time_step_size * baseline_stride
+            logger.info(f"Trajectory coarsened to {time_step_size} steps")
+
         int_res_raw = integrators.numerically_integrate(
             integrator=integrator_type,
             q0=q0,
@@ -599,6 +607,10 @@ def run_phase(base_dir, out_dir, phase_args):
         # Compute errors and other statistics
         int_res = np.concatenate([int_p, int_q], axis=-1)
         true = torch.cat([p_noiseless, q_noiseless], axis=-1)[0].detach().cpu().numpy()
+
+        if eval_type == "integrator-baseline" and baseline_stride != 1:
+            true = true[::baseline_stride]
+
         raw_l2 = raw_err(approx=int_res, true=true, norm=2)
         rel_l2 = rel_err(approx=int_res, true=true, norm=2)
         mse_err = mean_square_err(approx=int_res, true=true)
