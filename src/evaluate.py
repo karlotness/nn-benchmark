@@ -611,25 +611,6 @@ def run_phase(base_dir, out_dir, phase_args):
         int_p = int_res_raw.p
         int_q = int_res_raw.q
 
-        # Compute true hamiltonians
-        additional_hamilt_args = {}
-        if isinstance(system, particle.ParticleSystem):
-            additional_hamilt_args = {
-                "masses": masses.detach().cpu().numpy(),
-            }
-        true_hamilt_true_traj = system.hamiltonian(p=p_noiseless.cpu().numpy()[0],
-                                                   q=q_noiseless.cpu().numpy()[0],
-                                                   **additional_hamilt_args).squeeze()
-        true_hamilt_net_traj = system.hamiltonian(p=int_p, q=int_q,
-                                                  **additional_hamilt_args).squeeze()
-        # Compute network hamiltonians
-        net_hamilt_true_traj, net_hamilt_net_traj = None, None
-        if eval_type in {"srnn", "hnn", "hogn"}:
-            net_hamilt_true_traj = hamiltonian_func(p=p[0], q=q[0]).sum(axis=-1).detach().cpu().numpy()
-            int_p_torch = torch.from_numpy(int_p).to(device, dtype=eval_dtype)
-            int_q_torch = torch.from_numpy(int_q).to(device, dtype=eval_dtype)
-            net_hamilt_net_traj = hamiltonian_func(p=int_p_torch, q=int_q_torch).sum(axis=-1).detach().cpu().numpy()
-
         # All combinations true/net hamiltonian on true/net trajectories
 
         int_numpy_arrays = {
@@ -639,8 +620,6 @@ def run_phase(base_dir, out_dir, phase_args):
             f"{traj_name}_mse": mse_err,
             f"{traj_name}_p": int_p,
             f"{traj_name}_q": int_q,
-            f"{traj_name}_true_hamilt_true_traj": true_hamilt_true_traj,
-            f"{traj_name}_true_hamilt_net_traj": true_hamilt_net_traj,
         }
 
         int_stats = {
@@ -652,26 +631,11 @@ def run_phase(base_dir, out_dir, phase_args):
                 "mse": f"{traj_name}_mse",
                 "p": f"{traj_name}_p",
                 "q": f"{traj_name}_q",
-                "true_hamilt_true_traj": f"{traj_name}_true_hamilt_true_traj",
-                "true_hamilt_net_traj": f"{traj_name}_true_hamilt_net_traj",
-                "net_hamilt_true_traj": None,
-                "net_hamilt_net_traj": None,
             },
             "timing": {
                 "integrate_elapsed": integrate_elapsed
             }
         }
-
-        if net_hamilt_true_traj is not None and net_hamilt_net_traj is not None:
-            # We computed neural net hamiltonians, update the arrays and metadata
-            int_numpy_arrays.update({
-                f"{traj_name}_net_hamilt_true_traj": net_hamilt_true_traj,
-                f"{traj_name}_net_hamilt_net_traj": net_hamilt_net_traj,
-            })
-            int_stats["file_names"].update({
-                "net_hamilt_true_traj": f"{traj_name}_net_hamilt_true_traj",
-                "net_hamilt_net_traj": f"{traj_name}_net_hamilt_net_traj",
-            })
 
         trajectory_results.append((traj_name, int_numpy_arrays, int_stats))
         logger.info(f"Integrated trajectory: {traj_num} ({traj_name}) in {integrate_elapsed} sec")
