@@ -474,8 +474,8 @@ def run_phase(base_dir, out_dir, phase_args):
 
         q_noiseless = trajectory.q_noiseless.to(device, dtype=eval_dtype)
         masses = trajectory.masses.to(device, dtype=eval_dtype)
-        num_time_steps = trajectory.trajectory_meta["num_time_steps"][0]
-        time_step_size = trajectory.trajectory_meta["time_step_size"][0]
+        num_time_steps = int(trajectory.trajectory_meta["num_time_steps"][0].detach().cpu().item())
+        time_step_size = float(trajectory.trajectory_meta["time_step_size"][0].detach().cpu().item())
         edges = None
         vertices = None
         boundary_cond_func = None
@@ -578,8 +578,8 @@ def run_phase(base_dir, out_dir, phase_args):
             q0=q0,
             p0=p0,
             t0=t0,
-            num_steps=int(num_time_steps.detach().cpu().item()),
-            dt=float(time_step_size.detach().cpu().item()),
+            num_steps=num_time_steps,
+            dt=time_step_size,
             deriv_func=wrapped_time_deriv_func,
             boundary_cond_func=boundary_cond_func,
             system=system)
