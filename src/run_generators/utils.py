@@ -921,38 +921,6 @@ class NavierStokesDataset(Dataset):
         return 9282 * 3
 
 
-class ExistingDataset:
-    def __init__(self, descr_path):
-        self._descr_path = pathlib.Path(descr_path)
-        # Load the data
-        with open(self._descr_path, 'r', encoding='utf8') as in_file:
-            self._descr = json.load(in_file)
-        # Extract relevant measures
-        self.system = self._descr["phase_args"]["system"]
-        self.path = self._descr["out_dir"]
-        self.name = Experiment.get_name_core(self._descr["run_name"])
-        # Handle system-specific values
-        if self.system == "spring":
-            self._input_size = 2
-        elif self.system == "wave":
-            self.n_grid = self._descr["phase_args"]["system_args"]["n_grid"]
-            self._input_size = 2 * self.n_grid
-        elif self.system == "particle":
-            # Handle particle-specific values
-            self.n_particles = self._descr["phase_args"]["system_args"]["n_particles"]
-            self.n_dim = self._descr["phase_args"]["system_args"]["n_dim"]
-            self._input_size = 2 * self.n_dim * self.n_particles
-        else:
-            raise ValueError(f"Unknown system {self.system}")
-        # Check some basic values
-        assert self._descr["phase"] == "data_gen"
-
-    def input_size(self):
-        return self._input_size
-
-    def data_dir(self):
-        return self.path
-
 
 class TrainedNetwork(WritableDescription):
     def __init__(self, experiment, method, name_tail):
@@ -1392,31 +1360,6 @@ class NNKernel(TrainedNetwork):
                  "subsample": self.step_subsample,
              })
         return template
-
-
-class ExistingNetwork:
-    def __init__(self, descr_path, root_dir=None):
-        self._descr_path = pathlib.Path(descr_path)
-        if root_dir is None:
-            root_dir = self._descr_path.parent.parent.parent
-        # Load the data
-        with open(self._descr_path, 'r', encoding='utf8') as in_file:
-            self._descr = json.load(in_file)
-        # Extract relevant measures
-        self.path = self._descr["out_dir"]
-        self.name = Experiment.get_name_core(self._descr["run_name"])
-        # Create data set
-        # Hack: get name of the description from output dir
-        train_set_path = list(pathlib.Path(self._descr["phase_args"]["train_data"]["data_dir"]).parts)
-        train_set_path[0] = "descr"
-        train_set_path[-1] = train_set_path[-1] + ".json"
-        train_set_path = pathlib.Path(*train_set_path)
-        self.training_set = ExistingDataset(root_dir / train_set_path)
-        # Handle system-specific details
-        self.method = self._descr["phase_args"]["network"]["arch"]
-        self.train_dtype = self._descr["phase_args"]["training"]["train_dtype"]
-        # Check some basic values
-        assert self._descr["phase"] == "train"
 
 
 class Evaluation(WritableDescription):
