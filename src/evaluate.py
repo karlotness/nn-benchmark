@@ -229,19 +229,7 @@ def run_phase(base_dir, out_dir, phase_args):
     logger.info("Starting evaluation")
     integrator_type = eval_args["integrator"]
 
-    if eval_type == "srnn":
-        time_deriv_func = net
-        hamiltonian_func = net
-    elif eval_type == "hnn":
-        def model_hamiltonian(q, p, dt=1.0):
-            hamilt = net(p=p, q=q)
-            return hamilt[0] + hamilt[1]
-
-        def hnn_model_time_deriv(q, p, dt=1.0, t=0):
-            return net.time_derivative(p=p, q=q, create_graph=False)
-        time_deriv_func = hnn_model_time_deriv
-        hamiltonian_func = model_hamiltonian
-    elif eval_type in {"mlp-deriv", "nn-kernel-deriv"}:
+    if eval_type in {"mlp-deriv", "nn-kernel-deriv"}:
         def mlp_time_deriv_func(batch):
             MLPDerivative = namedtuple("MLPDerivative", ["dq_dt", "dp_dt"])
 
@@ -433,41 +421,6 @@ def run_phase(base_dir, out_dir, phase_args):
                 new_press = system.pressure(t=t)
                 return SystemDerivative(dq_dt=new_press, dp_dt=d_vel)
             time_deriv_func = tg_system_derivative
-    elif eval_type == "hogn":
-        # Lazy import to avoid pytorch-geometric if possible
-        from methods import hogn
-        import dataset_geometric
-
-        package_args = eval_args["package_args"]
-        HognMockDataset = namedtuple("HognMockDataset", ["p", "q", "dp_dt", "dq_dt", "masses"])
-
-        def hogn_time_deriv_func(masses):
-            def model_time_deriv(q, p, dt=1.0, t=0):
-                mocked = HognMockDataset(p=p, q=q, masses=masses,
-                                         dp_dt=None, dq_dt=None)
-                bundled = dataset_geometric.package_data(dataset=[mocked],
-                                                         package_args=package_args)[0]
-                derivs = net.just_derivative(bundled)
-                unbundled = hogn.unpackage_time_derivative(input_data=bundled,
-                                                           deriv=derivs)
-                return unbundled
-            return model_time_deriv
-
-        def hogn_hamiltonian_func(masses):
-            def model_hamiltonian(q, p):
-                hamilts = []
-                for i in range(p.shape[0]):
-                    # Break out batches separately
-                    mocked = HognMockDataset(p=p[i], q=q[i], masses=masses[i],
-                                             dp_dt=None, dq_dt=None)
-                    bundled = dataset_geometric.package_data(dataset=[mocked],
-                                                             package_args=package_args,
-                                                             system=dataset.system)[0]
-                    h = net(bundled).sum()
-                    hamilts.append(h)
-                return np.array(hamilts)
-            return model_hamiltonian
-
     elif eval_type == "gn":
         # Lazy import to avoid pytorch-geometric if possible
         from methods import gn
@@ -601,11 +554,7 @@ def run_phase(base_dir, out_dir, phase_args):
         else:
             raise ValueError(f"Unknown system type {eval_dataset.system}")
 
-        if eval_type == "hogn":
-            # Pull out masses for HOGN
-            time_deriv_func = hogn_time_deriv_func(masses=masses)
-            hamiltonian_func = hogn_hamiltonian_func(masses=masses)
-        elif eval_type == "gn":
+        if eval_type == "gn":
             n_particles = net.static_nodes.shape[0] if net.static_nodes is not None else static_nodes.shape[0]
             if eval_dataset.system == "spring":
                 n_particles = 1

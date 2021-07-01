@@ -2,7 +2,7 @@ from collections import namedtuple
 import numpy as np
 import torch
 from scipy.linalg import circulant
-from methods import hogn, gn
+from methods import gn
 import functools
 
 
@@ -136,10 +136,7 @@ def package_data(data_set, package_args, system):
     adjacency_args = package_args["adjacency_args"]
     edge_index = get_edge_index(adjacency_args)
 
-    if package_type == "hogn":
-        package_func = hogn.package_batch
-        boundary_vertices = None
-    elif package_type == "gn":
+    if package_type == "gn":
         package_func = functools.partial(gn.package_batch, system)
         boundary_vertices = adjacency_args["boundary_vertices"]
     else:

@@ -285,55 +285,6 @@ TrainLossResult = namedtuple("TrainLossResult",
                              ["loss", "total_loss_denom_incr"])
 
 
-def train_hnn(net, batch, loss_fn, train_type_args, tensor_converter):
-    # Extract values from batch
-    p = tensor_converter(batch.p)
-    q = tensor_converter(batch.q)
-    dp_dt = tensor_converter(batch.dp_dt)
-    dq_dt = tensor_converter(batch.dq_dt)
-    # Perform training
-    # Assume snapshot dataset (shape [batch_size, n_grid])
-    deriv_pred = net.time_derivative(p=p, q=q)
-    dx_dt = torch.cat([dp_dt, dq_dt], dim=-1)
-    dx_dt_pred = torch.cat([deriv_pred.dp_dt, deriv_pred.dq_dt], dim=-1)
-    loss = loss_fn(dx_dt_pred, dx_dt)
-    return TrainLossResult(loss=loss,
-                           total_loss_denom_incr=shape_product(p.shape))
-
-
-def train_srnn(net, batch, loss_fn, train_type_args, tensor_converter):
-    # Extract values from batch
-    p = tensor_converter(batch.p)
-    q = tensor_converter(batch.q)
-    p_noiseless = tensor_converter(batch.p_noiseless)
-    q_noiseless = tensor_converter(batch.q_noiseless)
-    trajectory_meta = batch.trajectory_meta
-    # Perform training
-    # Assume rollout dataset (shape [batch_size, dataset rollout_length, n_grid])
-    training_steps = train_type_args["rollout_length"]
-    time_step_size = float(trajectory_meta["time_step_size"][0])
-    # Check that all time step sizes are equal
-    if not torch.all(trajectory_meta["time_step_size"] == time_step_size):
-        raise ValueError("Inconsistent time step sizes in batch")
-    int_res = integrators.numerically_integrate(
-        train_type_args["integrator"],
-        p_0=p[:, 0],
-        q_0=q[:, 0],
-        model=net,
-        boundary_cond_func=None,
-        method=integrators.IntegrationScheme.HAMILTONIAN,
-        T=training_steps,
-        dt=time_step_size,
-        volatile=False,
-        device=tensor_converter.device,
-        coarsening_factor=1)
-    x = torch.cat([p_noiseless, q_noiseless], dim=-1)
-    x_pred = torch.cat([int_res.p, int_res.q], dim=-1)
-    loss = loss_fn(x_pred, x)
-    return TrainLossResult(loss=loss,
-                           total_loss_denom_incr=shape_product(p.shape))
-
-
 def train_mlp(net, batch, loss_fn, train_type_args, tensor_converter, predict_type="deriv", extra_data=None):
     # Extract values from batch
     p = tensor_converter(batch.p)
@@ -426,19 +377,6 @@ def train_cnn(net, batch, loss_fn, train_type_args, tensor_converter, predict_ty
                            total_loss_denom_incr=shape_product(p.shape))
 
 
-def train_hogn(net, batch, loss_fn, train_type_args, tensor_converter):
-    # Extract values from batch
-    graph_batch = batch
-    graph_batch.x = tensor_converter(graph_batch.x)
-    graph_batch.y = tensor_converter(graph_batch.y)
-    graph_batch.edge_index = graph_batch.edge_index.to(tensor_converter.device)
-    # Perform training
-    # HOGN training with graph_batch
-    loss = net.loss(graph_batch)
-    return TrainLossResult(loss=loss,
-                           total_loss_denom_incr=graph_batch.num_graphs)
-
-
 def train_gn(net, batch, loss_fn, train_type_args, tensor_converter):
     # Extract values from batch
     graph_batch = batch
@@ -463,15 +401,12 @@ def train_gn(net, batch, loss_fn, train_type_args, tensor_converter):
 
 
 TRAIN_FUNCTIONS = {
-    "hnn": train_hnn,
-    "srnn": train_srnn,
     "mlp-deriv": functools.partial(train_mlp, predict_type="deriv"),
     "mlp-step": functools.partial(train_mlp, predict_type="step"),
     "nn-kernel-deriv": functools.partial(train_mlp, predict_type="deriv"),
     "nn-kernel-step": functools.partial(train_mlp, predict_type="step"),
     "cnn-deriv": functools.partial(train_cnn, predict_type="deriv"),
     "cnn-step": functools.partial(train_cnn, predict_type="step"),
-    "hogn": train_hogn,
     "gn": train_gn,
     "unet-deriv": functools.partial(train_cnn, predict_type="deriv"),
     "unet-step": functools.partial(train_cnn, predict_type="step"),
