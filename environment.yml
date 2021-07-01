@@ -1,27 +1,19 @@
 name: nn-benchmark
 channels:
   - pytorch
+  - nvidia
   - defaults
 dependencies:
   - python=3.8
   - scipy
-  - pytorch=1.7.1
-  - cudatoolkit=11.0
-  - matplotlib
+  - pytorch=1.9.0
+  - cudatoolkit=11.1
+  - matplotlib-base
   - jupyterlab
-  - ipywidgets
   - numpy
   - scikit-learn
-  - pandas
-  - joblib
   - numba
   - git
   - pip
   - pip:
-    - '--find-links=https://pytorch-geometric.com/whl/torch-1.7.0+cu110.html'
-    - torch-scatter
-    - torch-sparse
-    - torch-cluster
-    - torch-spline-conv
-    - torch-geometric
-    - triangle
+    - 'triangle==20200424 --hash=sha256:1ed8c0829e41e6443ff94343036c209db16273b3c878fc6adf941d6235b78298 --hash=sha256:0839001546a99d601fddeae04611518b3e46881127117d846e5f077f2c2dde4a'
