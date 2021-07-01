@@ -9,20 +9,6 @@ import itertools
 from scipy import interpolate
 
 
-
-def generate_scheduler_args(instance, end_lr):
-    def gamma_factor(initial_lr, final_lr, epochs):
-        return np.power(final_lr / initial_lr, 1. / epochs)
-
-    if end_lr is not None and instance.scheduler == "exponential":
-        instance.scheduler_args = {
-            "gamma": gamma_factor(
-                instance.learning_rate, end_lr, instance.epochs),
-        }
-    else:
-        instance.scheduler_args = None
-
-
 class Experiment:
     def __init__(self, name):
         self.name = name
@@ -921,22 +907,71 @@ class NavierStokesDataset(Dataset):
         return 9282 * 3
 
 
-
 class TrainedNetwork(WritableDescription):
-    def __init__(self, experiment, method, name_tail):
+    def __init__(
+            self, experiment, method, name_tail,
+            training_set, validation_set=None,
+            gpu=True,
+            learning_rate=1e-3, optimizer="adam", epochs=1000,
+            train_dtype="float", batch_size=750, train_type=None,
+            noise_variance=0,
+            scheduler="none", scheduler_step="epoch", scheduler_args=None,
+            predict_type="deriv",
+            step_time_skew=1, step_subsample=1,
+            flatten_input_data=True,
+    ):
         super().__init__(experiment=experiment,
                          phase="train",
                          name=f"{method}-{name_tail}")
         self.method = method
         self.eval_gpu = True
+        self.training_set = training_set
+        self.validation_set = validation_set
+        self.gpu = gpu
+        self.learning_rate = learning_rate
+        self.optimizer = optimizer
+        self.epochs = epochs
+        self.train_dtype = train_type
+        self.batch_size = batch_size
+        self.scheduler = scheduler
+        self.scheduler_step = scheduler_step
+        self.scheduler_args = (scheduler_args or {}).copy()
+        self.predict_type = predict_type
+        self.step_time_skew = step_time_skew
+        self.step_subsample = step_subsample
+        self.train_type = train_type
+        self.flatten_input_data = flatten_input_data
 
-    def _check_val_set(self, train_set, val_set):
+        assert self.predict_type in {None, "step", "deriv"}
+
+        if self.noise_variance == 0:
+            self.noise_type = "none"
+        elif self.predict_type == "step":
+            self.noise_type = "step-corrected"
+        elif self.predict_type == "deriv":
+            self.noise_type = "deriv-corrected"
+
+        # Check that the validation set is ok
+        self.__check_val_set()
+
+    def __check_val_set(self):
         if val_set is None:
             return
-        assert val_set.system == train_set.system
-        assert val_set.input_size() == train_set.input_size()
+        assert self.validation_set.system == self.training_set.system
+        assert self.validation_set.input_size() == self.training_set.input_size()
 
-    def _get_mem_requirement(self, train_set):
+    def description(self):
+        template = {
+            "phase_args": {
+                "network": self.get_network_description(),
+                "training": self.get_training_description(),
+                "train_data": self.get_data_description(),
+            },
+            "slurm_args": self.get_slurm_args(),
+        }
+        return template
+
+    def get_mem_requirement(self):
         system = train_set.system
         if system == "wave":
             if train_set.num_traj > 100 and train_set.num_time_steps > 8500:
@@ -949,42 +984,102 @@ class TrainedNetwork(WritableDescription):
             return 40
         return 35
 
+    def get_cpu_requirement(self):
+        if self.gpu:
+            return 4
+        else:
+            return 20
+
+    def get_time_requirement(self):
+        return "15:00:00"
+
+    def get_network_description(self):
+        raise NotImplementedError("Subclass this")
+
+    def get_training_description(self):
+        template = {
+            "optimizer": self.optimizer,
+            "optimizer_args": {
+                "learning_rate": self.learning_rate,
+            },
+            "max_epochs": self.epochs,
+            "try_gpu": self.gpu,
+            "train_dtype": self.train_dtype,
+            "train_type": self.train_type,
+            "train_type_args": {},
+            "scheduler": self.scheduler,
+            "scheduler_step": self.scheduler_step,
+            "scheduler_args": self.scheduler_args,
+        }
+        if self.noise_type and self.noise_type != "none":
+            template["noise"] = {
+                "type": self.noise_type,
+                "variance": self.noise_variance,
+            }
+        return template
+
+    def get_data_description(self):
+        template = {
+            "data_dir": self.training_set.path,
+            "dataset": "step-snapshot" if self.predict_type == "step" else "snapshot",
+            "linearize": self.flatten_input_data,
+            "dataset_args": {},
+            "loader": {
+                "batch_size": self.batch_size,
+                "shuffle": True,
+            }
+        }
+        if self.predict_type is not None:
+            template["predict_type"] = self.predict_type
+        if self.validation_set is not None:
+            template["val_data_dir"] = self.validation_set.path
+        if self.predict_type == "step":
+            template["dataset_args"].update({
+                "time-skew": self.step_time_skew,
+                "subsample": self.step_subsample,
+            })
+        return template
+
+    def get_slurm_args(self):
+        return {
+            "gpu": self.gpu,
+            "time": self.get_time_requirement(),
+            "cpus": self.get_cpu_requirement(),
+            "mem": self.get_mem_requirement(),
+        }
+
 
 class MLP(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, learning_rate=1e-3,
                  hidden_dim=2048, depth=2, train_dtype="float",
-                 scheduler="none", scheduler_step="epoch", end_lr=None,
+                 scheduler="none", scheduler_step="epoch",
                  batch_size=750, epochs=1000, validation_set=None,
                  noise_variance=0, predict_type="deriv",
                  step_time_skew=1, step_subsample=1):
-        super().__init__(experiment=experiment,
-                         method="-".join(["mlp", predict_type]),
-                         name_tail=f"{training_set.name}-d{depth}-h{hidden_dim}")
-        self.training_set = training_set
-        self.gpu = gpu
-        self.learning_rate = learning_rate
+        super().__init__(
+            experiment=experiment,
+            method=f"mlp-{predict_type}",
+            name_tail=f"{training_set.name}-d{depth}-h{hidden_dim}",
+            training_set=training_set,
+            validation_set=validation_set,
+            gpu=gpu,
+            learning_rate=learning_rate,
+            optimizer="adam",
+            epochs=epochs,
+            train_dtype=train_dtype,
+            batch_size=batch_size,
+            train_type=f"mlp-{predict_type}",
+            noise_variance=noise_variance,
+            scheduler=scheduler,
+            scheduler_step=scheduler_step,
+            scheduler_args=None,
+            predict_type=predict_type,
+            step_time_skew=step_time_skew,
+            step_subsample=step_subsample,
+            flatten_input_data=True,
+        )
         self.hidden_dim = hidden_dim
         self.depth = depth
-        self.train_dtype = train_dtype
-        self.batch_size = batch_size
-        self.epochs = epochs
-        self.validation_set = validation_set
-        self.scheduler = scheduler
-        self.scheduler_step = scheduler_step
-        self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
-        self.noise_variance = noise_variance
-        self.predict_type = predict_type
-        self.step_time_skew = step_time_skew
-        self.step_subsample = step_subsample
-        generate_scheduler_args(self, end_lr)
-        assert predict_type in {"deriv", "step"}
-
-        if self.noise_variance == 0:
-            self.noise_type = "none"
-        elif self.predict_type == "step":
-            self.noise_type = "step-corrected"
-        elif self.predict_type == "deriv":
-            self.noise_type = "deriv-corrected"
 
         self.input_size = self.training_set.input_size()
         self.output_size = self.training_set.input_size()
@@ -997,67 +1092,17 @@ class MLP(TrainedNetwork):
             extra_dims = self.training_set.spatial_reshape[0] * self.training_set.spatial_reshape[1]
             self.input_size += extra_dims
 
-    def description(self):
-        dataset_type = "snapshot"
-        if self.predict_type == "step":
-            dataset_type = "step-snapshot"
+    def get_network_description(self):
         template = {
-            "phase_args": {
-                "network": {
-                    "arch": "-".join(["mlp", self.predict_type]),
-                    "arch_args": {
-                        "input_dim": self.input_size,
-                        "hidden_dim": self.hidden_dim,
-                        "output_dim": self.output_size,
-                        "depth": self.depth,
-                        "nonlinearity": "tanh",
-                    },
-                },
-                "training": {
-                    "optimizer": "adam",
-                    "optimizer_args": {
-                        "learning_rate": self.learning_rate,
-                    },
-                    "max_epochs": self.epochs,
-                    "try_gpu": self.gpu,
-                    "train_dtype": self.train_dtype,
-                    "train_type": "-".join(["mlp", self.predict_type]),
-                    "train_type_args": {},
-                    "scheduler": self.scheduler,
-                    "scheduler_step": self.scheduler_step,
-                    "scheduler_args": self.scheduler_args,
-                },
-                "train_data": {
-                    "data_dir": self.training_set.path,
-                    "dataset": dataset_type,
-                    "predict_type": self.predict_type,
-                    "linearize": True,
-                    "dataset_args": {},
-                    "loader": {
-                        "batch_size": self.batch_size,
-                        "shuffle": True,
-                    },
-                },
-            },
-            "slurm_args": {
-                "gpu": self.gpu,
-                "time": "15:00:00",
-                "cpus": 4 if self.gpu else 20,
-                "mem": self._get_mem_requirement(train_set=self.training_set),
+            "arch": f"mlp-{self.predict_type}",
+            "arch_args": {
+                "input_dim": self.input_size,
+                "hidden_dim": self.hidden_dim,
+                "output_dim": self.output_size,
+                "depth": self.depth,
+                "nonlinearity": "tanh",
             },
         }
-        if self.validation_set is not None:
-            template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
-        if self.noise_type != "none":
-            template["phase_args"]["training"]["noise"] = {
-                "type": self.noise_type,
-                "variance": self.noise_variance
-            }
-        if self.predict_type == "step":
-             template["phase_args"]["train_data"]["dataset_args"].update({
-                 "time-skew": self.step_time_skew,
-                 "subsample": self.step_subsample,
-             })
         return template
 
 
@@ -1084,98 +1129,47 @@ class CNN(TrainedNetwork):
             }
             for ic, oc, ks in chans_inout_kenel]
         name_key = ";".join([f"{cr['kernel_size']}:{cr['in_chans']}" for cr in chan_records])
-        super().__init__(experiment=experiment,
-                         method="-".join(["cnn", predict_type]),
-                         name_tail=f"{training_set.name}-a{name_key}")
-        self.training_set = training_set
-        self.gpu = gpu
-        self.learning_rate = learning_rate
-        self.train_dtype = train_dtype
-        self.batch_size = batch_size
-        self.epochs = epochs
-        self.validation_set = validation_set
-        self.scheduler = scheduler
-        self.scheduler_step = scheduler_step
-        self.scheduler_args = {}
-        self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
-        self.noise_variance = noise_variance
+        super().__init__(
+            experiment=experiment,
+            method=f"cnn-{predict_type}",
+            name_tail=f"{training_set.name}-a{name_key}"
+            training_set=training_set,
+            validation_set=validation_set,
+            gpu=gpu,
+            learning_rate=learning_rate,
+            optimizer="adam",
+            epochs=epochs,
+            train_dtype=train_dtype,
+            batch_size=batch_size,
+            train_type=f"cnn-{predict_type}",
+            noise_variance=noise_variance,
+            scheduler=scheduler,
+            scheduler_step=scheduler_step,
+            scheduler_args=None,
+            predict_type=predict_type,
+            step_time_skew=step_time_skew,
+            step_subsample=step_subsample,
+            flatten_input_data=False,
+        )
         self.layer_defs = chan_records
-        self.predict_type = predict_type
-        self.step_time_skew = step_time_skew
-        self.step_subsample = step_subsample
         self.padding_mode = padding_mode
-        assert predict_type in {"deriv", "step"}
-
-        if self.noise_variance == 0:
-            self.noise_type = "none"
-        elif self.predict_type == "step":
-            self.noise_type = "step-corrected"
-        elif self.predict_type == "deriv":
-            self.noise_type = "deriv-corrected"
 
         self.conv_dim = 1
         if training_set.system in {"navier-stokes", "taylor-green", "spring-mesh"}:
            self.conv_dim = 2
         self.spatial_reshape = getattr(self.training_set, "spatial_reshape", None)
 
-    def description(self):
+    def get_network_description(self):
         template = {
-            "phase_args": {
-                "network": {
-                    "arch": "-".join(["cnn", self.predict_type]),
-                    "arch_args": {
-                        "nonlinearity": "relu",
-                        "layer_defs": self.layer_defs,
-                        "dim": self.conv_dim,
-                        "spatial_reshape": self.spatial_reshape,
-                        "padding_mode": self.padding_mode,
-                    },
-                },
-                "training": {
-                    "optimizer": "adam",
-                    "optimizer_args": {
-                        "learning_rate": self.learning_rate,
-                    },
-                    "max_epochs": self.epochs,
-                    "try_gpu": self.gpu,
-                    "train_dtype": self.train_dtype,
-                    "train_type": "-".join(["cnn", self.predict_type]),
-                    "train_type_args": {},
-                    "scheduler": self.scheduler,
-                    "scheduler_step": self.scheduler_step,
-                    "scheduler_args": self.scheduler_args,
-                },
-                "train_data": {
-                    "data_dir": self.training_set.path,
-                    "dataset": ("snapshot" if self.predict_type == "deriv" else "step-snapshot"),
-                    "predict_type": self.predict_type,
-                    "linearize": False,
-                    "dataset_args": {},
-                    "loader": {
-                        "batch_size": self.batch_size,
-                        "shuffle": True,
-                    },
-                },
-            },
-            "slurm_args": {
-                "gpu": self.gpu,
-                "time": "15:00:00",
-                "cpus": 8 if self.gpu else 20,
-                "mem": self._get_mem_requirement(train_set=self.training_set),
+            "arch": f"cnn-{self.predict_type}",
+            "arch_args": {
+                "nonlinearity": "relu",
+                "layer_defs": self.layer_defs,
+                "dim": self.conv_dim,
+                "spatial_reshape": self.spatial_reshape,
+                "padding_mode": self.padding_mode,
             },
         }
-        if self.validation_set is not None:
-            template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
-        if self.noise_type != "none":
-            template["phase_args"]["training"]["noise"] = {
-                "type": self.noise_type,
-                "variance": self.noise_variance
-            }
-        if self.predict_type == "step":
-             template["phase_args"]["train_data"]["dataset_args"].update({
-                 "time-skew": self.step_time_skew,
-                 "subsample": self.step_subsample,
-             })
         return template
 
 
@@ -1187,95 +1181,46 @@ class UNet(TrainedNetwork):
                  noise_variance=0, predict_type="deriv",
                  loss_type="l1",
                  step_time_skew=1, step_subsample=1):
-        super().__init__(experiment=experiment,
-                         method=f"unet-{predict_type}",
-                         name_tail=f"{training_set.name}")
-        self.training_set = training_set
+        super().__init__(
+            experiment=experiment,
+            method=f"unet-{predict_type}",
+            name_tail=f"{training_set.name}"
+            training_set=training_set,
+            validation_set=validation_set,
+            gpu=gpu,
+            learning_rate=learning_rate,
+            optimizer="adam",
+            epochs=epochs,
+            train_dtype=train_dtype,
+            batch_size=batch_size,
+            train_type=f"unet-{predict_type}",
+            noise_variance=noise_variance,
+            scheduler=scheduler,
+            scheduler_step=scheduler_step,
+            scheduler_args=None,
+            predict_type=predict_type,
+            step_time_skew=step_time_skew,
+            step_subsample=step_subsample,
+            flatten_input_data=False,
+        )
         self._predict_system = training_set.system
-        self.gpu = gpu
-        self.learning_rate = learning_rate
-        self.train_dtype = train_dtype
-        self.batch_size = batch_size
-        self.epochs = epochs
-        self.validation_set = validation_set
-        self.scheduler = scheduler
-        self.scheduler_step = scheduler_step
-        self.scheduler_args = {}
-        self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
-        self.noise_variance = noise_variance
-        self.predict_type = predict_type
-        self.step_time_skew = step_time_skew
-        self.step_subsample = step_subsample
         self.loss_type = loss_type
-        assert predict_type in {"deriv", "step"}
         assert self._predict_system in {"navier-stokes", "spring-mesh"}
-
-        if self.noise_variance == 0:
-            self.noise_type = "none"
-        elif self.predict_type == "step":
-            self.noise_type = "step-corrected"
-        elif self.predict_type == "deriv":
-            self.noise_type = "deriv-corrected"
-
-
         self.spatial_reshape = getattr(self.training_set, "spatial_reshape", None)
 
-    def description(self):
+    def get_network_description(self):
         template = {
-            "phase_args": {
-                "network": {
-                    "arch": f"unet-{self.predict_type}",
-                    "arch_args": {
-                        "predict_system": self._predict_system,
-                        "spatial_reshape": self.spatial_reshape,
-                    },
-                },
-                "training": {
-                    "optimizer": "adam",
-                    "optimizer_args": {
-                        "learning_rate": self.learning_rate,
-                    },
-                    "max_epochs": self.epochs,
-                    "try_gpu": self.gpu,
-                    "train_dtype": self.train_dtype,
-                    "train_type": f"unet-{self.predict_type}",
-                    "train_type_args": {},
-                    "scheduler": self.scheduler,
-                    "scheduler_step": self.scheduler_step,
-                    "scheduler_args": self.scheduler_args,
-                    "loss_type": self.loss_type,
-                },
-                "train_data": {
-                    "data_dir": self.training_set.path,
-                    "dataset": ("snapshot" if self.predict_type == "deriv" else "step-snapshot"),
-                    "predict_type": self.predict_type,
-                    "linearize": False,
-                    "dataset_args": {},
-                    "loader": {
-                        "batch_size": self.batch_size,
-                        "shuffle": True,
-                    },
-                },
-            },
-            "slurm_args": {
-                "gpu": self.gpu,
-                "time": "15:00:00",
-                "cpus": 8 if self.gpu else 20,
-                "mem": self._get_mem_requirement(train_set=self.training_set),
+            "arch": f"unet-{self.predict_type}",
+            "arch_args": {
+                "predict_system": self._predict_system,
+                "spatial_reshape": self.spatial_reshape,
             },
         }
-        if self.validation_set is not None:
-            template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
-        if self.noise_type != "none":
-            template["phase_args"]["training"]["noise"] = {
-                "type": self.noise_type,
-                "variance": self.noise_variance,
-            }
-        if self.predict_type == "step":
-             template["phase_args"]["train_data"]["dataset_args"].update({
-                 "time-skew": self.step_time_skew,
-                 "subsample": self.step_subsample,
-             })
+        return template
+
+    def get_training_description(self):
+        template = super().get_training_description()
+        template["loss_type"] = self.loss_type
         return template
 
 
@@ -1286,80 +1231,51 @@ class NNKernel(TrainedNetwork):
                  nonlinearity="relu", optimizer="sgd", weight_decay=0,
                  predict_type="deriv",
                  step_time_skew=1, step_subsample=1):
-        super().__init__(experiment=experiment,
-                         method="-".join(["nn-kernel", predict_type]),
-                         name_tail=f"{training_set.name}-h{hidden_dim}-lr{learning_rate}-wd{weight_decay}")
-        self.training_set = training_set
-        self.gpu = gpu
-        self.learning_rate = learning_rate
+        super().__init__(
+            experiment=experiment,
+            method=f"nn-kernel-{predict_type}",
+            name_tail=f"{training_set.name}-h{hidden_dim}-lr{learning_rate}-wd{weight_decay}"
+            training_set=training_set,
+            validation_set=validation_set,
+            gpu=gpu,
+            learning_rate=learning_rate,
+            optimizer=optimizer,
+            epochs=epochs,
+            train_dtype=train_dtype,
+            batch_size=batch_size,
+            train_type=f"nn-kernel-{predict_type}",
+            noise_variance=noise_variance,
+            scheduler=scheduler,
+            scheduler_step=scheduler_step,
+            scheduler_args=None,
+            predict_type=predict_type,
+            step_time_skew=step_time_skew,
+            step_subsample=step_subsample,
+            flatten_input_data=True,
+        )
         self.hidden_dim = hidden_dim
-        self.train_dtype = train_dtype
-        self.batch_size = batch_size
-        self.epochs = epochs
         self.nonlinearity = nonlinearity
-        self.validation_set = validation_set
-        self.optimizer = optimizer
         self.weight_decay = weight_decay
-        self._check_val_set(train_set=self.training_set, val_set=self.validation_set)
-        self.predict_type = predict_type
-        assert predict_type in {"deriv", "step"}
-        self.step_time_skew = step_time_skew
-        self.step_subsample = step_subsample
 
-    def description(self):
-        dataset_type = "snapshot"
-        if self.predict_type == "step":
-            dataset_type = "step-snapshot"
+    def get_network_description(self):
         template = {
-            "phase_args": {
-                "network": {
-                    "arch": "-".join(["nn-kernel", self.predict_type]),
-                    "arch_args": {
-                        "input_dim": self.training_set.input_size(),
-                        "hidden_dim": self.hidden_dim,
-                        "output_dim": self.training_set.input_size(),
-                        "nonlinearity": self.nonlinearity,
-                    },
-                },
-                "training": {
-                    "optimizer": self.optimizer,
-                    "optimizer_args": {
-                        "learning_rate": self.learning_rate,
-                        "weight_decay": self.weight_decay,
-                    },
-                    "max_epochs": self.epochs,
-                    "try_gpu": self.gpu,
-                    "train_dtype": self.train_dtype,
-                    "train_type": "-".join(["nn-kernel", self.predict_type]),
-                    "train_type_args": {},
-                },
-                "train_data": {
-                    "data_dir": self.training_set.path,
-                    "dataset": dataset_type,
-                    "predict_type": self.predict_type,
-                    "linearize": True,
-                    "dataset_args": {},
-                    "loader": {
-                        "batch_size": self.batch_size,
-                        "shuffle": True,
-                    },
-                },
-            },
-            "slurm_args": {
-                "gpu": self.gpu,
-                "time": "10:00:00",
-                "cpus": 4 if self.gpu else 20,
-                "mem": self._get_mem_requirement(train_set=self.training_set),
+            "arch": f"nn-kernel-{self.predict_type}",
+            "arch_args": {
+                "input_dim": self.training_set.input_size(),
+                "hidden_dim": self.hidden_dim,
+                "output_dim": self.training_set.input_size(),
+                "nonlinearity": self.nonlinearity,
             },
         }
-        if self.validation_set is not None:
-            template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
-        if self.predict_type == "step":
-             template["phase_args"]["train_data"]["dataset_args"].update({
-                 "time-skew": self.step_time_skew,
-                 "subsample": self.step_subsample,
-             })
         return template
+
+    def get_training_description(self):
+        template = super().get_training_description()
+        template["optimizer_args"]["weight_decay"] = self.weight_decay
+        return template
+
+    def get_time_requirement(self):
+        return "10:00:00"
 
 
 class Evaluation(WritableDescription):
