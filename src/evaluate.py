@@ -416,54 +416,6 @@ def run_phase(base_dir, out_dir, phase_args):
                 new_press = system.pressure(t=t)
                 return SystemDerivative(dq_dt=new_press, dp_dt=d_vel)
             time_deriv_func = tg_system_derivative
-    elif eval_type == "gn":
-        # Lazy import to avoid pytorch-geometric if possible
-        from methods import gn
-        import dataset_geometric
-
-        package_args = eval_args["package_args"]
-        GnMockDataset = namedtuple("GnMockDataset", ["p", "q", "dp_dt", "dq_dt", "masses", "edge_index", "vertices", "static_nodes"])
-
-        GNPrediction = namedtuple("GNPrediction", ["q", "p"])
-        def gn_time_deriv_func(masses, edges, n_particles, vertices):
-            def model_next_step(q, p, dt=1.0, t=0):
-                with torch.no_grad():
-                    time_step_size = dt
-                    p_orig_shape = p.shape
-                    q_orig_shape = q.shape
-                    batch_size = p.shape[0]
-                    assert batch_size == 1
-                    p = p.reshape((n_particles, -1))
-                    q = q.reshape((n_particles, -1))
-                    mocked = GnMockDataset(p=p, q=q,
-                        masses=masses, dp_dt=None, dq_dt=None, edge_index=edges, vertices=vertices, static_nodes=static_nodes)
-                    bundled = dataset_geometric.package_data([mocked],
-                        package_args=package_args, system=eval_dataset.system)[0]
-
-                    accel = net(torch.unsqueeze(bundled.pos, 0),
-                        torch.unsqueeze(bundled.x, 0),
-                        torch.unsqueeze(bundled.edge_index, 0),
-                        torch.unsqueeze(bundled.static_nodes, 0) if bundled.static_nodes is not None else None)
-                    accel = gn.unpack_results(accel, eval_dataset.system)
-
-                    # Prediction for Taylor Green
-                    if eval_dataset.system in {"taylor-green", "navier-stokes"}:
-                        accel = accel.squeeze().detach().cpu().numpy()
-
-                        p_next = p + time_step_size * accel[..., :2]
-                        q_next = accel[..., -1]
-                    else:
-                        accel = accel.reshape(p.shape).detach().cpu().numpy()
-
-                        p_next = p + time_step_size * accel
-                        q_next = q + time_step_size * p_next
-
-                    return GNPrediction(p=p_next.reshape(p_orig_shape),
-                                        q=q_next.reshape(q_orig_shape))
-            return model_next_step
-
-        if integrator_type != "null":
-          raise ValueError(f"GN predictions do not work with integrator {integrator_type}")
     else:
         logger.error(f"Invalid evaluation type: {eval_type}")
         raise ValueError(f"Invalid evaluation type: {eval_type}")
@@ -549,18 +501,7 @@ def run_phase(base_dir, out_dir, phase_args):
         else:
             raise ValueError(f"Unknown system type {eval_dataset.system}")
 
-        if eval_type == "gn":
-            n_particles = net.static_nodes.shape[0] if net.static_nodes is not None else static_nodes.shape[0]
-            if eval_dataset.system == "spring":
-                n_particles = 1
-            time_deriv_func = gn_time_deriv_func(masses=masses, edges=edges, n_particles=n_particles, vertices=vertices)
-            num_traj = p.shape[0]
-            traj_steps = p.shape[1]
-            p = p.reshape((num_traj, traj_steps, -1))
-            q = q.reshape((num_traj, traj_steps, -1))
-            p_noiseless = p_noiseless.reshape((num_traj, traj_steps, -1))
-            q_noiseless = q_noiseless.reshape((num_traj, traj_steps, -1))
-        elif eval_type in {"cnn-step", "cnn-deriv", "unet-step", "unet-deriv"}:
+        if eval_type in {"cnn-step", "cnn-deriv", "unet-step", "unet-deriv"}:
             time_deriv_func = cnn_time_deriv_func(batch=trajectory)
         elif eval_type in {"mlp", "mlp-step", "mlp-deriv", "nn-kernel-step", "nn-kernel-deriv"}:
             time_deriv_func = mlp_time_deriv_func(batch=trajectory)

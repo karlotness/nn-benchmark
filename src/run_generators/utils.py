@@ -9,81 +9,6 @@ import itertools
 from scipy import interpolate
 
 
-def generate_packing_args(instance, system, dataset):
-    if system == "spring":
-        dim = dataset.input_size() // 2
-        assert dim == 1
-        instance.particle_process_type = "one-dim"
-        instance.adjacency_args = {
-            "type": "regular-grid",
-            "boundary_conditions": "fixed",
-            "boundary_vertices": [[-1., 0.], [1., 0.]],
-            "dimension": dim,
-            }
-        instance.v_features = [4, 2]
-        instance.e_features = 6
-        instance.mesh_coords = [[-1., 0.], [0., 0.], [1., 0.]]
-        instance.static_nodes = [1, 0, 1]
-        instance.num_mask_layers = 2
-    elif system == "wave":
-        dim = dataset.input_size() // 2
-        instance.particle_process_type = "one-dim"
-        instance.adjacency_args = {
-            "type": "regular-grid",
-            "boundary_conditions": "periodic",
-            "boundary_vertices": None,
-            "dimension": dim,
-            }
-        instance.v_features = [4, 2]
-        instance.e_features = 6
-        instance.mesh_coords = [[x, 0] for x in np.linspace(0, 1, dim)]
-        instance.static_nodes = [0 for i in np.arange(dim)]
-        instance.num_mask_layers = 2
-    elif system == "spring-mesh":
-        dim = dataset.input_size() // 2
-        instance.particle_process_type = "identity"
-        instance.adjacency_args = {
-            "type": "native",
-            "boundary_conditions": None,
-            "boundary_vertices": None,
-            "dimension": dim,
-            }
-        instance.v_features = [4, 2]
-        instance.e_features = 6
-        instance.mesh_coords = [list(map(float, p["position"])) for p in dataset.initial_cond_source.particle_properties()]
-        instance.static_nodes = [1 if p["is_fixed"] else 0 for p in dataset.initial_cond_source.particle_properties()]
-        instance.num_mask_layers = 2
-    elif system == "taylor-green":
-        dim = dataset.input_size() // 2
-        instance.particle_process_type = "identity"
-        instance.adjacency_args = {
-            "type": "native",
-            "boundary_conditions": "periodic",
-            "boundary_vertices": None,
-            "dimension": dim,
-            }
-        instance.v_features = [4, 5]
-        instance.e_features = 6
-        instance.mesh_coords = [list(map(float, p)) for p in dataset.initial_cond_source.vertices]
-        instance.static_nodes = [1 for p in dataset.initial_cond_source.vertices]
-        instance.num_mask_layers = 2
-    elif system == "navier-stokes":
-        dim = dataset.input_size() // 2
-        instance.particle_process_type = "identity"
-        instance.adjacency_args = {
-            "type": "native",
-            "boundary_conditions": None,
-            "boundary_vertices": None,
-            "dimension": dim,
-            }
-        instance.v_features = [6, 3]
-        instance.e_features = 3
-        instance.mesh_coords = None
-        instance.static_nodes = None
-        instance.num_mask_layers = 4
-    else:
-        raise ValueError(f"Invalid system {system}")
-
 
 def generate_scheduler_args(instance, end_lr):
     def gamma_factor(initial_lr, final_lr, epochs):
@@ -1057,102 +982,6 @@ class TrainedNetwork(WritableDescription):
         return 35
 
 
-class GN(TrainedNetwork):
-    def __init__(self, experiment, training_set, gpu=True, hidden_dim=128,
-                 learning_rate=1e-4, end_lr=1e-6, epochs=300, layer_norm=False,
-                 scheduler="exponential", scheduler_step="epoch",
-                 noise_type="none", noise_variance=0,
-                 train_dtype="float", batch_size=100, validation_set=None):
-        super().__init__(experiment=experiment,
-                         method="gn",
-                         name_tail=f"{training_set.name}-h{hidden_dim}")
-        self.training_set = training_set
-        self.hidden_dim = hidden_dim
-        self.gpu = gpu
-        self.learning_rate = learning_rate
-        self.epochs = epochs
-        self.layer_norm = layer_norm
-        self.train_dtype = train_dtype
-        self.batch_size = batch_size
-        self.validation_set = validation_set
-        self.scheduler = scheduler
-        self.scheduler_step = scheduler_step
-        self.noise_type = noise_type
-        self.noise_variance = noise_variance
-        self._check_val_set(
-            train_set=self.training_set, val_set=self.validation_set)
-        generate_packing_args(
-            self, self.training_set.system, self.training_set)
-        generate_scheduler_args(self, end_lr)
-        self.dataset_type = "snapshot"
-        if training_set.system in "navier-stokes":
-            self.dataset_type = "navier-stokes"
-
-    def description(self):
-        template = {
-            "phase_args": {
-                "network": {
-                    "arch": "gn",
-                    "arch_args": {
-                        "v_features": self.v_features,
-                        "e_features": self.e_features,
-                        "hidden_dim": self.hidden_dim,
-                        "mesh_coords": self.mesh_coords,
-                        "static_nodes": self.static_nodes,
-                        "layer_norm": self.layer_norm,
-                        "num_mask_layers": self.num_mask_layers,
-                    },
-                },
-                "training": {
-                    "optimizer": "adam",
-                    "optimizer_args": {
-                        "learning_rate": self.learning_rate,
-                    },
-                    "max_epochs": self.epochs,
-                    "try_gpu": self.gpu,
-                    "train_dtype": self.train_dtype,
-                    "train_type": "gn",
-                    "train_type_args": {
-                    },
-                    "scheduler": self.scheduler,
-                    "scheduler_step": self.scheduler_step,
-                    "scheduler_args": self.scheduler_args,
-                },
-                "train_data": {
-                    "data_dir": self.training_set.path,
-                    "dataset": self.dataset_type,
-                    "dataset_args": {},
-                    "loader": {
-                        "type": "pytorch-geometric",
-                        "batch_size": self.batch_size,
-                        "shuffle": True,
-                        "package_args": {
-                            "particle_processing": self.particle_process_type,
-                            "package_type": "gn",
-                            "adjacency_args": self.adjacency_args,
-                        },
-                    },
-                },
-            },
-            "slurm_args": {
-                "gpu": self.gpu,
-                "time": "15:00:00",
-                "cpus": 8 if self.gpu else 20,
-                "mem": self._get_mem_requirement(train_set=self.training_set),
-            },
-        }
-        if self.validation_set is not None:
-            template["phase_args"]["train_data"]["val_data_dir"] = self.validation_set.path
-        if self.noise_type != "none":
-            template["phase_args"]["training"]["noise"] = {
-                "type": self.noise_type,
-                "variance": self.noise_variance
-            }
-        return template
-
-
-
-
 class MLP(TrainedNetwork):
     def __init__(self, experiment, training_set, gpu=True, learning_rate=1e-3,
                  hidden_dim=2048, depth=2, train_dtype="float",
@@ -1628,9 +1457,6 @@ class NetworkEvaluation(Evaluation):
         if self.eval_set.system != self.network.training_set.system:
             raise ValueError(f"Inconsistent systems {self.eval_set.system} and {self.network.training_set.system}")
 
-        if self.network.method == "gn":
-            system = eval_set.system
-            generate_packing_args(self, system, self.eval_set)
 
     def description(self):
         eval_type = self.network.method
@@ -1657,12 +1483,6 @@ class NetworkEvaluation(Evaluation):
                 "mem": self._get_mem_requirement(eval_set=self.eval_set),
             },
         }
-        if self.network.method == "gn":
-            template["phase_args"]["eval"]["package_args"] = {
-                "particle_processing": self.particle_process_type,
-                "package_type": "gn",
-                "adjacency_args": self.adjacency_args,
-            }
         return template
 
 

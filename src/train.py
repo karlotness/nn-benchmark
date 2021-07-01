@@ -216,17 +216,6 @@ def create_dataset(base_dir, data_args, train_noise_wrapper=None):
                                            shuffle=loader_args["shuffle"],
                                            pin_memory=pin_memory,
                                            num_workers=num_workers)
-        elif loader_type == "pytorch-geometric":
-            # Lazy import to avoid pytorch-geometric if possible
-            import dataset_geometric
-            from torch_geometric import data as geometric_data
-            package_args = loader_args["package_args"]
-            loader = geometric_data.DenseDataLoader(
-                dataset=dataset_geometric.package_data(data_set,
-                                                       package_args=package_args,
-                                                       system=data_set.system),
-                batch_size=loader_args["batch_size"],
-                shuffle=loader_args["shuffle"])
         else:
             raise ValueError(f"Invalid loader type {loader_type}")
         return data_set, loader
@@ -373,29 +362,6 @@ def train_cnn(net, batch, loss_fn, train_type_args, tensor_converter, predict_ty
                            total_loss_denom_incr=shape_product(p.shape))
 
 
-def train_gn(net, batch, loss_fn, train_type_args, tensor_converter):
-    # Extract values from batch
-    graph_batch = batch
-    graph_batch.x = tensor_converter(graph_batch.x)
-    graph_batch.pos = tensor_converter(graph_batch.pos)
-    graph_batch.y = tensor_converter(graph_batch.y)
-    graph_batch.edge_index = graph_batch.edge_index.to(tensor_converter.device)
-    graph_batch.static_nodes = graph_batch.static_nodes.to(tensor_converter.device) if graph_batch.static_nodes is not None else None
-
-    accel_pred = net(graph_batch.pos, graph_batch.x, graph_batch.edge_index, graph_batch.static_nodes)
-    accel = graph_batch.y
-
-    if torch.is_tensor(graph_batch.fixed_mask_y):
-        fm_y = graph_batch.fixed_mask_y.to(device=tensor_converter.device)
-        mask = torch.logical_not(fm_y)
-        accel = torch.masked_select(accel, mask)
-        accel_pred = torch.masked_select(accel_pred, mask)
-
-    loss = loss_fn(accel_pred, accel)
-    return TrainLossResult(loss=loss,
-                           total_loss_denom_incr=shape_product(accel.shape))
-
-
 TRAIN_FUNCTIONS = {
     "mlp-deriv": functools.partial(train_mlp, predict_type="deriv"),
     "mlp-step": functools.partial(train_mlp, predict_type="step"),
@@ -403,7 +369,6 @@ TRAIN_FUNCTIONS = {
     "nn-kernel-step": functools.partial(train_mlp, predict_type="step"),
     "cnn-deriv": functools.partial(train_cnn, predict_type="deriv"),
     "cnn-step": functools.partial(train_cnn, predict_type="step"),
-    "gn": train_gn,
     "unet-deriv": functools.partial(train_cnn, predict_type="deriv"),
     "unet-step": functools.partial(train_cnn, predict_type="step"),
 }

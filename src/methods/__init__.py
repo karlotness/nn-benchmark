@@ -20,7 +20,6 @@ NETWORK_TYPES = {
     "mlp": lazy_build_network("mlp"),
     "cnn": lazy_build_network("cnn"),
     "unet": lazy_build_network("unet"),
-    "gn": lazy_build_network("gn", pass_predict_type=False),
     "nn-kernel": lazy_build_network("nn_kernel"),
     "knn": build_knn,
 }
