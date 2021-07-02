@@ -1,12 +1,13 @@
-from collections import namedtuple
 import torch
 import math
-from .defs import NONLINEARITIES
+import dataclasses
+from .defs import NONLINEARITIES, TimeDerivative, StepPrediction
 
-
-TimeDerivative = namedtuple("TimeDerivative", ["dq_dt", "dp_dt"])
-StepPrediction = namedtuple("StepPrediction", ["q", "p"])
-LayerDef = namedtuple("LayerDef", ["kernel_size", "in_chans", "out_chans"])
+@dataclasses.dataclass
+class LayerDef:
+    kernel_size: int
+    in_chans: int
+    out_chans: int
 
 
 class CNN(torch.nn.Module):

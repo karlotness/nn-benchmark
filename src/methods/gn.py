@@ -4,10 +4,6 @@ from torch_geometric.nn import MetaLayer
 from torch_geometric.data import data
 from torch_scatter import scatter_sum
 import numpy as np
-from collections import namedtuple
-
-
-TimeDerivative = namedtuple("TimeDerivative", ["dq_dt", "dp_dt"])
 
 
 def package_batch(system, p, q, dp_dt, dq_dt, masses, edge_index, boundary_vertices, vertices=None, fixed_mask_p=None, fixed_mask_q=None, static_nodes=None):

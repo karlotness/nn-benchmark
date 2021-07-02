@@ -1,9 +1,5 @@
-from collections import namedtuple
 import torch
-from .defs import NONLINEARITIES
-
-TimeDerivative = namedtuple("TimeDerivative", ["dq_dt", "dp_dt"])
-StepPrediction = namedtuple("StepPrediction", ["q", "p"])
+from .defs import NONLINEARITIES, TimeDerivative, StepPrediction
 
 
 class NNKernel(torch.nn.Module):

@@ -1,11 +1,8 @@
 from collections import namedtuple
 import torch
 import math
-from .defs import NONLINEARITIES
+from .defs import NONLINEARITIES, TimeDerivative, StepPrediction
 
-
-TimeDerivative = namedtuple("TimeDerivative", ["dq_dt", "dp_dt"])
-StepPrediction = namedtuple("StepPrediction", ["q", "p"])
 
 RELU_LEAK = 0.2
 BASE_CHANS = 64
