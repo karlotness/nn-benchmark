@@ -10,7 +10,7 @@ parser.add_argument("base_dir", type=str,
                     help="Base directory for run descriptions")
 
 EPOCHS = 400
-NUM_REPEATS = 1
+NUM_REPEATS = 3
 # Spring base parameters
 SPRING_END_TIME = 2 * math.pi
 SPRING_DT = 0.00781

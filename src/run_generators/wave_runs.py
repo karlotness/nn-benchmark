@@ -10,7 +10,7 @@ parser.add_argument("base_dir", type=str,
                     help="Base directory for run descriptions")
 
 EPOCHS = 250
-NUM_REPEATS = 1
+NUM_REPEATS = 3
 # Wave base parameters
 WAVE_END_TIME = 5
 WAVE_DT = 0.00049

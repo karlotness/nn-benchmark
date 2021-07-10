@@ -12,7 +12,7 @@ args = parser.parse_args()
 base_dir = pathlib.Path(args.base_dir)
 
 EPOCHS = 800
-NUM_REPEATS = 1
+NUM_REPEATS = 3
 # Navier-Stokes base parameters
 NS_END_TIME = 0.08 * 65
 NS_DT = 0.08
