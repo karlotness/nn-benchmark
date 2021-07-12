@@ -73,6 +73,21 @@ class NavierStokesEvalDecorator:
         return DecoratedIntegrationResult(q=new_q, p=new_p)
 
 
+class TrajTimeCollector:
+    def __init__(self):
+        self.times = {}
+        self.current_traj = None
+
+    def start_traj(self, traj_num):
+        self.current_traj = traj_num
+
+    def accumulate_time(self, time):
+        self.times[self.current_traj] += time
+
+    def get_time(self, traj_num):
+        return self.current_traj.get(traj_num)
+
+
 def load_network(net_dir, base_dir, base_logger, model_file_name="model.pt"):
     logger = base_logger.getChild("load_network")
     if net_dir is None:
@@ -174,6 +189,7 @@ def run_phase(base_dir, out_dir, phase_args):
     base_dir = pathlib.Path(base_dir)
     out_dir = pathlib.Path(out_dir)
     eval_args = phase_args["eval"]
+    eval_only_time_collector = TrajTimeCollector()
 
     # Choose the device and dtype
     device = select_device(try_gpu=eval_args["try_gpu"], base_logger=logger)
@@ -238,7 +254,14 @@ def run_phase(base_dir, out_dir, phase_args):
                 with torch.no_grad():
                     q = torch.from_numpy(q).to(device, dtype=eval_dtype)
                     p = torch.from_numpy(p).to(device, dtype=eval_dtype)
+                    if device.type == "cuda":
+                        torch.cuda.synchronize()
+                    t_start = time.perf_counter()
                     ret = net(q=q, p=p, extra_data=extra_data)
+                    if device.type == "cuda":
+                        torch.cuda.synchronize()
+                    t_end = time.perf_counter()
+                    eval_only_time_collector.accumulate_time(t_end - t_start)
                     dq = ret.dq_dt.detach().cpu().numpy()
                     dp = ret.dp_dt.detach().cpu().numpy()
                     return MLPDerivative(dq_dt=dq, dp_dt=dp)
@@ -260,7 +283,14 @@ def run_phase(base_dir, out_dir, phase_args):
                 with torch.no_grad():
                     q = torch.from_numpy(q).to(device, dtype=eval_dtype)
                     p = torch.from_numpy(p).to(device, dtype=eval_dtype)
+                    if device.type == "cuda":
+                        torch.cuda.synchronize()
+                    t_start = time.perf_counter()
                     ret = net(q=q, p=p, extra_data=extra_data)
+                    if device.type == "cuda":
+                        torch.cuda.synchronize()
+                    t_end = time.perf_counter()
+                    eval_only_time_collector.accumulate_time(t_end - t_start)
                     next_q = ret.q.detach().cpu().numpy()
                     next_p = ret.p.detach().cpu().numpy()
                     return MLPPrediction(q=next_q, p=next_p)
@@ -295,7 +325,14 @@ def run_phase(base_dir, out_dir, phase_args):
                     p_orig_shape = p.shape
                     q = torch.from_numpy(q).to(device, dtype=eval_dtype).reshape(q_full_shape)
                     p = torch.from_numpy(p).to(device, dtype=eval_dtype).reshape(p_full_shape)
+                    if device.type == "cuda":
+                        torch.cuda.synchronize()
+                    t_start = time.perf_counter()
                     res = net(p=p, q=q, extra_data=extra_data)
+                    if device.type == "cuda":
+                        torch.cuda.synchronize()
+                    t_end = time.perf_counter()
+                    eval_only_time_collector.accumulate_time(t_end - t_start)
                     dq_dt = res.dq_dt.reshape(q_orig_shape).cpu().numpy()
                     dp_dt = res.dp_dt.reshape(p_orig_shape).cpu().numpy()
                     return CNNDerivative(dq_dt=dq_dt, dp_dt=dp_dt)
@@ -329,7 +366,14 @@ def run_phase(base_dir, out_dir, phase_args):
                     p_orig_shape = p.shape
                     q = torch.from_numpy(q).to(device, dtype=eval_dtype).reshape(q_full_shape)
                     p = torch.from_numpy(p).to(device, dtype=eval_dtype).reshape(p_full_shape)
+                    if device.type == "cuda":
+                        torch.cuda.synchronize()
+                    t_start = time.perf_counter()
                     res = net(p=p, q=q, extra_data=extra_data)
+                    if device.type == "cuda":
+                        torch.cuda.synchronize()
+                    t_end = time.perf_counter()
+                    eval_only_time_collector.accumulate_time(t_end - t_start)
                     q_next = res.q.reshape(q_orig_shape).cpu().numpy()
                     p_next = res.p.reshape(p_orig_shape).cpu().numpy()
                     return CNNPrediction(q=q_next, p=p_next)
@@ -345,7 +389,10 @@ def run_phase(base_dir, out_dir, phase_args):
         def model_time_deriv(q, p, dt=1.0, t=0):
             p_len = p.shape[-1]
             x = np.concatenate([p, q], axis=-1)
+            t_start = time.perf_counter()
             ret = net.predict(x)
+            t_end = time.perf_counter()
+            eval_only_time_collector.accumulate_time(t_end - t_start)
             dpdt, dqdt = np.split(ret, [p_len], axis=-1)
             return KNNDerivative(dq_dt=dqdt, dp_dt=dpdt)
         time_deriv_func = model_time_deriv
@@ -354,7 +401,10 @@ def run_phase(base_dir, out_dir, phase_args):
         def model_next_step(q, p, dt=1.0, t=0):
             p_len = p.shape[-1]
             x = np.concatenate([p, q], axis=-1)
+            t_start = time.perf_counter()
             ret = net.predict(x)
+            t_end = time.perf_counter()
+            eval_only_time_collector.accumulate_time(t_end - t_start)
             next_p, next_q = np.split(ret, [p_len], axis=-1)
             return KNNPrediction(q=next_q, p=next_p)
         time_deriv_func = model_next_step
@@ -366,7 +416,10 @@ def run_phase(base_dir, out_dir, phase_args):
         def system_derivative(q, p, dt=1.0, t=0):
             if torch.is_tensor(dt):
                 dt = dt.item()
+            t_start = time.perf_counter()
             dq_dt, dp_dt = system.derivative(p=p, q=q)
+            t_end = time.perf_counter()
+            eval_only_time_collector.accumulate_time(t_end - t_start)
             return SystemDerivative(dp_dt=dp_dt, dq_dt=dq_dt)
         time_deriv_func = system_derivative
         if eval_dataset.system == "taylor-green":
@@ -469,6 +522,7 @@ def run_phase(base_dir, out_dir, phase_args):
 
     for traj_num, trajectory in enumerate(eval_loader):
         logger.info(f"Starting trajectory number {traj_num}")
+        eval_only_time_collector.start_traj(traj_num)
         traj_name = trajectory.name[0]
         p = trajectory.p.to(device, dtype=eval_dtype)
         q = trajectory.q.to(device, dtype=eval_dtype)
@@ -645,7 +699,8 @@ def run_phase(base_dir, out_dir, phase_args):
                 "q": f"{traj_name}_q",
             },
             "timing": {
-                "integrate_elapsed": integrate_elapsed
+                "integrate_elapsed": integrate_elapsed,
+                "eval_only": eval_only_time_collector.get_time(traj_num),
             }
         }
 
