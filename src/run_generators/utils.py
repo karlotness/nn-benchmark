@@ -1035,6 +1035,7 @@ class TrainedNetwork(WritableDescription):
                          phase="train",
                          name=f"{method}-{name_tail}")
         self.method = method
+        self.eval_gpu = True
 
     def _check_val_set(self, train_set, val_set):
         if val_set is None:
@@ -1817,6 +1818,7 @@ class KNNRegressor(TrainedNetwork):
                          name_tail=f"{training_set.name}")
         self.training_set = training_set
         self.train_dtype = "double"
+        self.eval_gpu = False
 
     def description(self):
         template = {
@@ -1860,6 +1862,7 @@ class KNNPredictor(TrainedNetwork):
                          name_tail=f"{training_set.name}")
         self.training_set = training_set
         self.train_dtype = "double"
+        self.eval_gpu = False
 
     def description(self):
         template = {
@@ -1933,7 +1936,7 @@ class Evaluation(WritableDescription):
 
 
 class NetworkEvaluation(Evaluation):
-    def __init__(self, experiment, network, eval_set, gpu=False, integrator=None,
+    def __init__(self, experiment, network, eval_set, gpu=None, integrator=None,
                  eval_dtype=None, network_file="model.pt"):
         if network.method in {"knn-predictor", "knn-predictor-oneshot", "gn", "cnn-step", "mlp-step", "nn-kernel-step", "unet-step"}:
             integrator = "null"
@@ -1944,7 +1947,11 @@ class NetworkEvaluation(Evaluation):
         self.network = network
         self.network_file = network_file
         self.eval_set = eval_set
-        self.gpu = gpu
+        if gpu is None:
+            # Auto handling
+            self.gpu = network.eval_gpu
+        else:
+            self.gpu = gpu
         if eval_dtype is None:
             self.eval_dtype = self.network.train_dtype
         else:
