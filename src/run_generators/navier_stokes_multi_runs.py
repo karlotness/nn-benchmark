@@ -22,7 +22,7 @@ EVAL_INTEGRATORS = ["leapfrog", "euler", "rk4"]
 TRAIN_NOISE_VAR = 1e-3
 N_OBSTACLES = 4
 
-COARSE_LEVELS = [1, 4, 16]  # Used for time skew parameter for training & validation
+COARSE_LEVELS = [1]  # Used for time skew parameter for training & validation
 TRAIN_SET_SIZES = [25, 50, 100]
 
 writable_objects = []

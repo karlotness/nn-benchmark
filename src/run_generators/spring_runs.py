@@ -19,7 +19,7 @@ SPRING_SUBSAMPLE = 2**7
 EVAL_INTEGRATORS = ["leapfrog", "euler", "rk4"]
 
 TRAIN_SET_SIZES = [10, 500, 1000]
-COARSE_LEVELS = [1, 4, 16]
+COARSE_LEVELS = [1]
 
 experiment_general = utils.Experiment("spring-runs")
 experiment_deriv = utils.Experiment("spring-runs-deriv")

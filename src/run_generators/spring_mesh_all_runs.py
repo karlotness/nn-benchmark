@@ -22,7 +22,7 @@ VEL_DECAY = 0.1
 SPRING_SUBSAMPLE = 2**7
 EVAL_INTEGRATORS = ["leapfrog", "euler", "rk4"]
 
-COARSE_LEVELS = [1, 4, 16, 64]  # Used for time skew parameter for training & validation
+COARSE_LEVELS = [1]  # Used for time skew parameter for training & validation
 TRAIN_SET_SIZES = [25, 50, 100]
 
 writable_objects = []
@@ -165,7 +165,6 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
     for cnn_arch in [
             [(None, 32, 5), (32, 32, 5), (32, 32, 5), (32, None, 5)],
             [(None, 32, 9), (32, 32, 9), (32, 32, 9), (32, None, 9)],
-            [(None, 64, 9), (64, 64, 9), (64, 64, 9), (64, None, 9)],
     ]:
         cnn_deriv_train = utils.CNN(experiment=experiment_deriv,
                                     training_set=train_set,

@@ -20,7 +20,7 @@ WAVE_N_GRID = 125
 EVAL_INTEGRATORS = ["leapfrog", "euler", "rk4"]
 
 TRAIN_SET_SIZES = [10, 25, 50]
-COARSE_LEVELS = [1, 4, 16]
+COARSE_LEVELS = [1]
 
 experiment_general = utils.Experiment("wave-runs")
 experiment_deriv = utils.Experiment("wave-runs-deriv")
