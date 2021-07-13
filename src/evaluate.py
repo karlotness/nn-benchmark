@@ -80,12 +80,14 @@ class TrajTimeCollector:
 
     def start_traj(self, traj_num):
         self.current_traj = traj_num
+        if self.current_traj not in self.times:
+            self.times[self.current_traj] = 0
 
     def accumulate_time(self, time):
         self.times[self.current_traj] += time
 
     def get_time(self, traj_num):
-        return self.current_traj.get(traj_num)
+        return self.times.get(traj_num)
 
 
 def load_network(net_dir, base_dir, base_logger, model_file_name="model.pt"):
