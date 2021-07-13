@@ -1937,13 +1937,14 @@ class Evaluation(WritableDescription):
 
 class NetworkEvaluation(Evaluation):
     def __init__(self, experiment, network, eval_set, gpu=None, integrator=None,
-                 eval_dtype=None, network_file="model.pt"):
+                 eval_dtype=None, network_file="model.pt", time_limit=None):
         if network.method in {"knn-predictor", "knn-predictor-oneshot", "gn", "cnn-step", "mlp-step", "nn-kernel-step", "unet-step"}:
             integrator = "null"
         if integrator is None:
             raise ValueError("Must manually specify integrator")
         super().__init__(experiment=experiment,
                          name_tail=f"net-{network.name}-set-{eval_set.name}-{integrator}")
+        self._time_limit = time_limit or "01:30:00"
         self.network = network
         self.network_file = network_file
         self.eval_set = eval_set
@@ -1965,7 +1966,6 @@ class NetworkEvaluation(Evaluation):
             system = eval_set.system
             generate_packing_args(self, system, self.eval_set)
 
-
     def description(self):
         eval_type = self.network.method
         gpu = self.gpu and (eval_type not in {"knn-predictor", "knn-regressor", "knn-predictor-oneshot", "knn-regressor-oneshot"})
@@ -1986,7 +1986,7 @@ class NetworkEvaluation(Evaluation):
             },
             "slurm_args": {
                 "gpu": gpu,
-                "time": "16:00:00",
+                "time": self._time_limit,
                 "cpus": 4 if gpu else 20,
                 "mem": self._get_mem_requirement(eval_set=self.eval_set),
             },
@@ -2014,7 +2014,7 @@ class KNNOneshotEvaluation(NetworkEvaluation):
                                               path=None)
         super().__init__(experiment=experiment, network=self._mock_network,
                          eval_set=eval_set, gpu=False, integrator=integrator,
-                         eval_dtype=eval_dtype)
+                         eval_dtype=eval_dtype, time_limit="16:00:00")
         self.training_set = training_set
         self.dataset_type = dataset_type
         self.dataset_args = dataset_args or {}
