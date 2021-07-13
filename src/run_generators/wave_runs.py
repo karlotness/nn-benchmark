@@ -25,6 +25,7 @@ COARSE_LEVELS = [1]
 experiment_general = utils.Experiment("wave-runs")
 experiment_deriv = utils.Experiment("wave-runs-deriv")
 experiment_step = utils.Experiment("wave-runs-step")
+experiment_coarse_int = utils.Experiment("wave-coarse-int")
 
 writable_objects = []
 
@@ -111,6 +112,20 @@ for integrator in (EVAL_INTEGRATORS + ["back-euler", "bdf-2"]):
                                                               integrator=integrator)
             integration_run_double.name_tag = f"cors{coarse}"
             writable_objects.append(integration_run_double)
+
+
+# Do the evaluation coarsening
+for eval_set, integrator, coarse_level in itertools.product(
+        eval_sets[1],
+        EVAL_INTEGRATORS,
+        [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]):
+    integration_run_double = utils.BaselineIntegrator(experiment=experiment_coarse_int,
+                                                      eval_set=eval_set,
+                                                      eval_dtype="double",
+                                                      integrator=integrator,
+                                                      coarsening=coarse_level)
+    integration_run_double.name_tag = f"int-cors{coarse_level}"
+    writable_objects.append(integration_run_double)
 
 
 # Emit KNN runs

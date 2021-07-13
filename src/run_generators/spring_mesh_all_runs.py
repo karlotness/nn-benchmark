@@ -30,6 +30,7 @@ writable_objects = []
 experiment_general = utils.Experiment(f"springmesh-{mesh_size}-perturball-runs")
 experiment_step = utils.Experiment(f"springmesh-{mesh_size}-perturball-runs-step")
 experiment_deriv = utils.Experiment(f"springmesh-{mesh_size}-perturball-runs-deriv")
+experiment_coarse_int = utils.Experiment(f"springmesh-{mesh_size}-coarse-int")
 
 mesh_gen = utils.SpringMeshGridGenerator(grid_shape=(mesh_size, mesh_size), fix_particles="top")
 
@@ -105,6 +106,20 @@ for integrator in (EVAL_INTEGRATORS + ["back-euler", "bdf-2"]):
                                                               integrator=integrator)
             integration_run_double.name_tag = f"cors{coarse}"
             writable_objects.append(integration_run_double)
+
+
+# Do the evaluation coarsening
+for eval_set, integrator, coarse_level in itertools.product(
+        eval_sets[1],
+        EVAL_INTEGRATORS,
+        [1, 2, 4, 8, 16, 32, 64, 128, 256, 512]):
+    integration_run_double = utils.BaselineIntegrator(experiment=experiment_coarse_int,
+                                                      eval_set=eval_set,
+                                                      eval_dtype="double",
+                                                      integrator=integrator,
+                                                      coarsening=coarse_level)
+    integration_run_double.name_tag = f"int-cors{coarse_level}"
+    writable_objects.append(integration_run_double)
 
 
 # Emit KNN runs
