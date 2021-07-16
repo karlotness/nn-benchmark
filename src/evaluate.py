@@ -10,7 +10,7 @@ from train import create_dataset as train_create_dataset
 import methods
 import dataset
 import integrators
-from systems import spring, wave, particle, spring_mesh, taylor_green, navier_stokes
+from systems import spring, wave, spring_mesh, navier_stokes
 from collections import namedtuple
 import math
 
@@ -217,8 +217,6 @@ def run_phase(base_dir, out_dir, phase_args):
     eval_dataset, eval_loader = create_dataset(base_dir, phase_args["eval_data"])
 
     make_eval_decorator = NullEvalDecorator
-    if eval_dataset.system == "taylor-green" and eval_type != "gn":
-        make_eval_decorator = NavierStokesEvalDecorator
 
     # Integrate each trajectory, compute stats and store
     logger.info("Starting evaluation")
@@ -407,15 +405,6 @@ def run_phase(base_dir, out_dir, phase_args):
             eval_only_time_collector.accumulate_time(t_end - t_start)
             return SystemDerivative(dp_dt=dp_dt, dq_dt=dq_dt)
         time_deriv_func = system_derivative
-        if eval_dataset.system == "taylor-green":
-            # Special case for TG derivatives
-            def tg_system_derivative(q, p, dt=1.0, t=0):
-                # q is pressure
-                # p is velocity
-                d_vel, d_press = system.derivative(p=p, q=q, t=t)
-                new_press = system.pressure(t=t)
-                return SystemDerivative(dq_dt=new_press, dp_dt=d_vel)
-            time_deriv_func = tg_system_derivative
     else:
         logger.error(f"Invalid evaluation type: {eval_type}")
         raise ValueError(f"Invalid evaluation type: {eval_type}")
@@ -450,12 +439,6 @@ def run_phase(base_dir, out_dir, phase_args):
             system = wave.system_from_records(n_grid=n_grid,
                                               space_max=space_max,
                                               wave_speed=wave_speed)
-        elif eval_dataset.system == "particle":
-            n_dim = eval_dataset.system_metadata["n_dim"]
-            n_particles = eval_dataset.system_metadata["n_particles"]
-            g = eval_dataset.system_metadata["g"]
-            system = particle.ParticleSystem(n_particles=n_particles,
-                                             n_dim=n_dim, g=g)
         elif eval_dataset.system == "spring-mesh":
             n_dim = eval_dataset.system_metadata["n_dim"]
             particles = eval_dataset.system_metadata["particles"]
@@ -467,16 +450,6 @@ def run_phase(base_dir, out_dir, phase_args):
             system = spring_mesh.system_from_records(n_dim, particles, edges_dict,
                                                      vel_decay=vel_decay)
             boundary_cond_func = spring_mesh.make_enforce_boundary_function(trajectory=trajectory)
-        elif eval_dataset.system == "taylor-green":
-            n_grid = eval_dataset.system_metadata["n_grid"]
-            space_scale = trajectory.trajectory_meta["space_scale"][0].item()
-            viscosity = trajectory.trajectory_meta["viscosity"][0].item()
-            density = trajectory.trajectory_meta["density"][0].item()
-            vertices = eval_dataset.system_metadata["vertices"]
-            edges_dict = eval_dataset.system_metadata["edges"]
-            edges = np.array([(e["a"], e["b"]) for e in edges_dict] +
-                             [(e["b"], e["a"]) for e in edges_dict], dtype=np.int64).T
-            system = taylor_green.system_from_records(n_grid=n_grid, space_scale=space_scale, viscosity=viscosity, density=density, vertices=vertices, edges=edges_dict)
         elif eval_dataset.system == "navier-stokes":
             grid_resolution = eval_dataset.system_metadata["grid_resolution"]
             in_velocity = trajectory.trajectory_meta["in_velocity"][0].item()
@@ -513,7 +486,7 @@ def run_phase(base_dir, out_dir, phase_args):
         q0, p0 = eval_decorator.decorate_initial_cond(q0, p0)
         wrapped_time_deriv_func = eval_decorator.decorate_deriv_func(time_deriv_func)
         integrate_start = time.perf_counter()
-        if not getattr(eval_dataset, "_linearize", True) and eval_type != "gn":
+        if not getattr(eval_dataset, "_linearize", True):
             q0 = q0.reshape((1, -1))
             p0 = p0.reshape((1, -1))
 
@@ -540,7 +513,7 @@ def run_phase(base_dir, out_dir, phase_args):
         int_p = int_res_raw.p
         int_q = int_res_raw.q
 
-        if not getattr(eval_dataset, "_linearize", True) and eval_type != "gn":
+        if not getattr(eval_dataset, "_linearize", True):
             n_noiseless_steps = p_noiseless.shape[1]
             p_noiseless = p_noiseless.reshape((1, n_noiseless_steps, -1))
             q_noiseless = q_noiseless.reshape((1, n_noiseless_steps, -1))

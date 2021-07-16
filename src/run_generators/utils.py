@@ -146,30 +146,6 @@ class SpringInitialConditionSource(InitialConditionSource):
         return state
 
 
-class ParticleInitialConditionSource(InitialConditionSource):
-    def __init__(self, n_particles, n_dim, scale=1.0, masses=None):
-        super().__init__()
-        self.n_particles = n_particles
-        self.n_dim = n_dim
-        self.scale = scale
-        if masses is None:
-            self.masses = np.ones(self.n_particles)
-        else:
-            self.masses = masses
-        assert len(self.masses.shape) == 1
-        assert self.masses.shape[0] == self.n_particles
-
-    def _generate_initial_condition(self):
-        p0 = np.random.normal(scale=self.scale, size=(self.n_particles, self.n_dim))
-        q0 = np.random.normal(scale=self.scale, size=(self.n_particles, self.n_dim))
-        state = {
-            "p0": p0.tolist(),
-            "q0": q0.tolist(),
-            "masses": self.masses.tolist(),
-        }
-        return state
-
-
 class SpringMeshGridGenerator:
     def __init__(self, grid_shape, fix_particles="corners"):
         self.grid_shape = grid_shape
@@ -371,69 +347,6 @@ class SpringMeshManualPerturb(InitialConditionSource):
             "particles": particles,
             "springs": springs,
         }
-
-
-class TaylorGreenGridGenerator:
-    def __init__(self, grid_shape):
-        self.grid_shape = grid_shape
-        self.n_grid = self.grid_shape[0]
-        assert all(v == self.grid_shape[0] for v in self.grid_shape)
-        self.n_dims = len(grid_shape)
-        self.n_dim = self.n_dims
-        self.n_vertices = 1
-        for s in grid_shape:
-            self.n_vertices *= s
-        self._vertices = None
-        self._edges = None
-
-    def generate_mesh(self):
-        if self._vertices is None:
-            vertices = []
-            edges = []
-            ranges = [range(s) for s in self.grid_shape]
-            # Generate vertices
-            for coords in itertools.product(*ranges):
-                vertices.append(list(coords))
-            # Add edges
-            for (a, part_a), (b, part_b) in itertools.combinations(enumerate(vertices), 2):
-                # Determine if we want an edge
-                length = math.sqrt(sum((pa - pb) ** 2 for pa, pb in zip(part_a, part_b)))
-                periodic_boundary_x = (part_a[1] == part_b[1] and np.allclose(abs(part_a[0] - part_b[0]), self.grid_shape[0]))
-                periodic_boundary_y = (part_a[0] == part_b[0] and np.allclose(abs(part_a[1] - part_b[1]), self.grid_shape[1]))
-                if not (np.allclose(length, 1) or periodic_boundary_x or periodic_boundary_y):
-                    continue
-                # Add the edge
-                edge_def = {
-                    "a": a,
-                    "b": b,
-                }
-                edges.append(edge_def)
-            self._vertices = vertices
-            self._edges = edges
-        return copy.deepcopy(self._vertices), copy.deepcopy(self._edges)
-
-
-class TaylorGreenInitialConditionSource(InitialConditionSource):
-    def __init__(self,
-                 mesh_generator,
-                 viscosity_range=(0.5, 1.5),
-                 density_range=(1.0, 1.0)):
-        super().__init__()
-        self.viscosity_range = viscosity_range
-        self.density_range = density_range
-        self.vertices, self.edges = mesh_generator.generate_mesh()
-        self.mesh_generator = mesh_generator
-
-    def _generate_initial_condition(self):
-        viscosity = np.random.uniform(*self.viscosity_range)
-        density = np.random.uniform(*self.density_range)
-        state = {
-            "viscosity": viscosity,
-            "density": density,
-            "vertices": self.vertices,
-            "edges": self.edges,
-        }
-        return state
 
 
 class NavierStokesInitialConditionSource(InitialConditionSource):
@@ -692,62 +605,6 @@ class WaveDataset(Dataset):
         return 2 * self.n_grid
 
 
-class ParticleDataset(Dataset):
-    def __init__(self, experiment, initial_cond_source, num_traj,
-                 set_type="train", n_dim=2, n_particles=2,
-                 num_time_steps=200, time_step_size=0.1, noise_sigma=0,
-                 g=1.0, rtol=1e-6):
-        super().__init__(experiment=experiment,
-                         name_tail=f"n{num_traj}-t{num_time_steps}-n{noise_sigma}",
-                         system="particle",
-                         set_type=set_type)
-        self.num_traj = num_traj
-        self.num_time_steps = num_time_steps
-        self.time_step_size = time_step_size
-        self.rtol = rtol
-        self.noise_sigma = noise_sigma
-        self.n_particles = n_particles
-        self.n_dim = n_dim
-        self.g = g
-        self.initial_cond_source = initial_cond_source
-        self.initial_conditions = self.initial_cond_source.sample_initial_conditions(self.num_traj)
-        assert isinstance(self.initial_cond_source, ParticleInitialConditionSource)
-        assert self.initial_cond_source.n_particles == self.n_particles
-        assert self.initial_cond_source.n_dim == self.n_dim
-
-    def description(self):
-        trajectories = []
-        for icond in self.initial_conditions:
-            traj = {
-                "num_time_steps": self.num_time_steps,
-                "time_step_size": self.time_step_size,
-                "rtol": self.rtol,
-                "noise_sigma": self.noise_sigma,
-            }
-            traj.update(icond)
-            trajectories.append(traj)
-        template = {
-            "phase_args": {
-                "system": "particle",
-                "system_args": {
-                    "n_particles": self.n_particles,
-                    "n_dim": self.n_dim,
-                    "g": self.g,
-                    "trajectory_defs": trajectories,
-                }
-            },
-            "slurm_args": {
-                "gpu": False,
-                "time": "00:30:00",
-                "cpus": 8,
-                "mem": 6,
-            },
-        }
-        return template
-
-    def input_size(self):
-        return 2 * self.n_dim * self.n_particles
-
 
 class SpringMeshDataset(Dataset):
     def __init__(self, experiment, initial_cond_source, num_traj,
@@ -801,58 +658,6 @@ class SpringMeshDataset(Dataset):
 
     def input_size(self):
         return 2 * self.n_dim * self.n_particles
-
-
-class TaylorGreenDataset(Dataset):
-    def __init__(self, experiment, initial_cond_source, num_traj,
-                 set_type="train", n_grid=250,
-                 num_time_steps=200, time_step_size=0.1):
-        noise_sigma = 0
-        super().__init__(experiment=experiment,
-                         name_tail=f"n{num_traj}-t{num_time_steps}-n{noise_sigma}",
-                         system="taylor-green",
-                         set_type=set_type)
-        self.n_grid = n_grid
-        self.num_traj = num_traj
-        self.initial_cond_source = initial_cond_source
-        self.num_time_steps = num_time_steps
-        self.time_step_size = time_step_size
-        self.initial_conditions = self.initial_cond_source.sample_initial_conditions(self.num_traj)
-        assert isinstance(self.initial_cond_source, TaylorGreenInitialConditionSource)
-        assert self.n_grid == self.initial_cond_source.mesh_generator.n_grid
-
-    def description(self):
-        trajectories = []
-        for icond in self.initial_conditions:
-            traj = {
-                "viscosity": 1.0,
-                "space_scale": 2,
-                "density": 1.0,
-                "num_time_steps": self.num_time_steps,
-                "time_step_size": self.time_step_size,
-            }
-            traj.update(icond)
-            trajectories.append(traj)
-        # Generate template
-        template = {
-            "phase_args": {
-                "system": "taylor-green",
-                "system_args": {
-                    "n_grid": self.n_grid,
-                    "trajectory_defs": trajectories,
-                }
-            },
-            "slurm_args": {
-                "gpu": False,
-                "time": "05:00:00",
-                "cpus": 16,
-                "mem": 64,
-            },
-        }
-        return template
-
-    def input_size(self):
-        return 3 * (self.n_grid ** 2)
 
 
 class NavierStokesDataset(Dataset):
@@ -1123,7 +928,7 @@ class CNN(TrainedNetwork):
                  step_time_skew=1, step_subsample=1):
         if training_set.system == "spring-mesh":
             base_num_chans = 5
-        elif training_set.system in {"navier-stokes", "taylor-green"}:
+        elif training_set.system in {"navier-stokes"}:
             base_num_chans = 5
         elif training_set.system == "wave":
             base_num_chans = 2
@@ -1163,7 +968,7 @@ class CNN(TrainedNetwork):
         assert self.predict_type in {"step", "deriv"}
 
         self.conv_dim = 1
-        if training_set.system in {"navier-stokes", "taylor-green", "spring-mesh"}:
+        if training_set.system in {"navier-stokes", "spring-mesh"}:
            self.conv_dim = 2
         self.spatial_reshape = getattr(self.training_set, "spatial_reshape", None)
 
@@ -1304,7 +1109,7 @@ class Evaluation(WritableDescription):
 class NetworkEvaluation(Evaluation):
     def __init__(self, experiment, network, eval_set, gpu=None, integrator=None,
                  eval_dtype=None, network_file="model.pt", time_limit=None):
-        if network.method in {"knn-predictor", "knn-predictor-oneshot", "gn", "cnn-step", "mlp-step", "nn-kernel-step", "unet-step"}:
+        if network.method in {"knn-predictor", "knn-predictor-oneshot", "cnn-step", "mlp-step", "nn-kernel-step", "unet-step"}:
             integrator = "null"
         if integrator is None:
             raise ValueError("Must manually specify integrator")
@@ -1338,7 +1143,7 @@ class NetworkEvaluation(Evaluation):
                 "eval_net_file": self.network_file,
                 "eval_data": {
                     "data_dir": self.eval_set.path,
-                    "linearize": (self.network.method not in {"hogn", "gn", "cnn", "cnn-step", "cnn-deriv", "unet-step", "unet-deriv"}),
+                    "linearize": (self.network.method not in {"cnn", "cnn-step", "cnn-deriv", "unet-step", "unet-deriv"}),
                 },
                 "eval": {
                     "eval_type": eval_type,
@@ -1419,7 +1224,7 @@ class KNNRegressorOneshot(KNNOneshotEvaluation):
                          eval_set=eval_set,
                          eval_dtype=eval_dtype,
                          integrator=integrator,
-                         dataset_type=("navier-stokes" if training_set.system == "taylor-green" else "snapshot"),
+                         dataset_type="snapshot",
                          knn_type="regressor")
 
 
@@ -1439,7 +1244,7 @@ class BaselineIntegrator(Evaluation):
                 "eval_net": None,
                 "eval_data": {
                     "data_dir": self.eval_set.path,
-                    "linearize": (self.eval_set.system == "taylor-green"),
+                    "linearize": False,
                 },
                 "eval": {
                     "eval_type": "integrator-baseline",
