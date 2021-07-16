@@ -194,12 +194,6 @@ def create_dataset(base_dir, data_args, train_noise_wrapper=None):
             time_skew = int(data_args["dataset_args"].get("time-skew", 1))
             subsample = int(data_args["dataset_args"].get("subsample", 1))
             data_set = dataset.StepSnapshotDataset(traj_dataset=base_data_set, subsample=subsample, time_skew=time_skew)
-        elif dataset_type == "navier-stokes":
-            data_set = dataset.NavierStokesSnapshotDataset(traj_dataset=base_data_set)
-        elif dataset_type == "rollout-chunk":
-            rollout_length = int(data_args["dataset_args"]["rollout_length"])
-            data_set = dataset.RolloutChunkDataset(traj_dataset=base_data_set,
-                                                   rollout_length=rollout_length)
         else:
             raise ValueError(f"Invalid dataset type {dataset_type}")
 
