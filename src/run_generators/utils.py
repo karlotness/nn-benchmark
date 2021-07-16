@@ -931,7 +931,7 @@ class TrainedNetwork(WritableDescription):
         self.learning_rate = learning_rate
         self.optimizer = optimizer
         self.epochs = epochs
-        self.train_dtype = train_type
+        self.train_dtype = train_dtype
         self.batch_size = batch_size
         self.scheduler = scheduler
         self.scheduler_step = scheduler_step
@@ -941,6 +941,7 @@ class TrainedNetwork(WritableDescription):
         self.step_subsample = step_subsample
         self.train_type = train_type
         self.flatten_input_data = flatten_input_data
+        self.noise_variance = noise_variance
 
         assert self.predict_type in {None, "step", "deriv"}
 
@@ -955,7 +956,7 @@ class TrainedNetwork(WritableDescription):
         self.__check_val_set()
 
     def __check_val_set(self):
-        if val_set is None:
+        if self.validation_set is None:
             return
         assert self.validation_set.system == self.training_set.system
         assert self.validation_set.input_size() == self.training_set.input_size()
@@ -972,9 +973,9 @@ class TrainedNetwork(WritableDescription):
         return template
 
     def get_mem_requirement(self):
-        system = train_set.system
+        system = self.training_set.system
         if system == "wave":
-            if train_set.num_traj > 100 and train_set.num_time_steps > 8500:
+            if self.training_set.num_traj > 100 and self.training_set.num_time_steps > 8500:
                 return 73
             else:
                 return 37
@@ -1019,9 +1020,12 @@ class TrainedNetwork(WritableDescription):
         return template
 
     def get_data_description(self):
+        dataset_type = "snapshot"
+        if self.predict_type == "step":
+            dataset_type = "step-snapshot"
         template = {
             "data_dir": self.training_set.path,
-            "dataset": "step-snapshot" if self.predict_type == "step" else "snapshot",
+            "dataset": dataset_type,
             "linearize": self.flatten_input_data,
             "dataset_args": {},
             "loader": {
@@ -1081,6 +1085,8 @@ class MLP(TrainedNetwork):
         self.hidden_dim = hidden_dim
         self.depth = depth
 
+        assert self.predict_type in {"step", "deriv"}
+
         self.input_size = self.training_set.input_size()
         self.output_size = self.training_set.input_size()
         if self.training_set.system == "navier-stokes":
@@ -1132,7 +1138,7 @@ class CNN(TrainedNetwork):
         super().__init__(
             experiment=experiment,
             method=f"cnn-{predict_type}",
-            name_tail=f"{training_set.name}-a{name_key}"
+            name_tail=f"{training_set.name}-a{name_key}",
             training_set=training_set,
             validation_set=validation_set,
             gpu=gpu,
@@ -1153,6 +1159,8 @@ class CNN(TrainedNetwork):
         )
         self.layer_defs = chan_records
         self.padding_mode = padding_mode
+
+        assert self.predict_type in {"step", "deriv"}
 
         self.conv_dim = 1
         if training_set.system in {"navier-stokes", "taylor-green", "spring-mesh"}:
@@ -1184,7 +1192,7 @@ class UNet(TrainedNetwork):
         super().__init__(
             experiment=experiment,
             method=f"unet-{predict_type}",
-            name_tail=f"{training_set.name}"
+            name_tail=f"{training_set.name}",
             training_set=training_set,
             validation_set=validation_set,
             gpu=gpu,
@@ -1203,6 +1211,9 @@ class UNet(TrainedNetwork):
             step_subsample=step_subsample,
             flatten_input_data=False,
         )
+
+        assert self.predict_type in {"step", "deriv"}
+
         self._predict_system = training_set.system
         self.loss_type = loss_type
         assert self._predict_system in {"navier-stokes", "spring-mesh"}
@@ -1234,7 +1245,7 @@ class NNKernel(TrainedNetwork):
         super().__init__(
             experiment=experiment,
             method=f"nn-kernel-{predict_type}",
-            name_tail=f"{training_set.name}-h{hidden_dim}-lr{learning_rate}-wd{weight_decay}"
+            name_tail=f"{training_set.name}-h{hidden_dim}-lr{learning_rate}-wd{weight_decay}",
             training_set=training_set,
             validation_set=validation_set,
             gpu=gpu,
@@ -1244,15 +1255,16 @@ class NNKernel(TrainedNetwork):
             train_dtype=train_dtype,
             batch_size=batch_size,
             train_type=f"nn-kernel-{predict_type}",
-            noise_variance=noise_variance,
-            scheduler=scheduler,
-            scheduler_step=scheduler_step,
-            scheduler_args=None,
+            noise_variance=0,
+            scheduler="none",
             predict_type=predict_type,
             step_time_skew=step_time_skew,
             step_subsample=step_subsample,
             flatten_input_data=True,
         )
+
+        assert self.predict_type in {"step", "deriv"}
+
         self.hidden_dim = hidden_dim
         self.nonlinearity = nonlinearity
         self.weight_decay = weight_decay
