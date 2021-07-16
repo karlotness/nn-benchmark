@@ -15,63 +15,6 @@ from collections import namedtuple
 import math
 
 
-DecoratedIntegrationResult = namedtuple("DecoratedIntegrationResult", ["q", "p"])
-
-class NullEvalDecorator:
-    def __init__(self, integrator):
-        pass
-
-    def decorate_initial_cond(self, q0, p0):
-        return q0, p0
-
-    def decorate_deriv_func(self, func):
-        return func
-
-    def process_results(self, int_res):
-        return int_res
-
-
-class NavierStokesEvalDecorator:
-    def __init__(self, integrator):
-        self.pressure_steps = []
-        if integrator == "rk4":
-            self.stride = 4
-        elif integrator == "leapfrog":
-            self.stride = 2
-        else:
-            self.stride = 1
-
-    def decorate_initial_cond(self, q0, p0):
-        press = q0
-        vels = p0
-        self.pressure_steps.append(press)
-        nq0, np0 = np.split(vels, 2, axis=-1)
-        return nq0, np0
-
-    def decorate_deriv_func(self, func):
-        def tg_wrapped(q, p, dt=1.0, t=0):
-            press = self.pressure_steps[-1]
-            vel = np.concatenate([q, p], axis=-1)
-            dq, dp = func(press, vel, dt=dt, t=t)
-            dq = dq.reshape((1, -1))
-            dp = dp.reshape((1, -1))
-            x = np.concatenate([dq, dp], axis=-1)
-            n = x.shape[-1]//3
-            new_press = x[..., :n]
-            nq0, np0 = np.split(x[..., n:], 2, axis=-1)
-            self.pressure_steps.append(new_press)
-            return nq0, np0
-
-        return tg_wrapped
-
-    def process_results(self, int_res):
-        new_p = np.concatenate([int_res.q, int_res.p], axis=-1)
-        press_stride = self.stride
-        press_steps = self.pressure_steps[::press_stride][:-1]
-        new_q = np.vstack(press_steps)
-        return DecoratedIntegrationResult(q=new_q, p=new_p)
-
-
 class TrajTimeCollector:
     def __init__(self):
         self.times = {}
@@ -215,8 +158,6 @@ def run_phase(base_dir, out_dir, phase_args):
 
     # Load the evaluation data
     eval_dataset, eval_loader = create_dataset(base_dir, phase_args["eval_data"])
-
-    make_eval_decorator = NullEvalDecorator
 
     # Integrate each trajectory, compute stats and store
     logger.info("Starting evaluation")
@@ -482,9 +423,7 @@ def run_phase(base_dir, out_dir, phase_args):
         p0 = p[:, 0].detach().cpu().numpy()
         q0 = q[:, 0].detach().cpu().numpy()
         t0 = trajectory.t[0, 0].item()
-        eval_decorator = make_eval_decorator(integrator=integrator_type)
-        q0, p0 = eval_decorator.decorate_initial_cond(q0, p0)
-        wrapped_time_deriv_func = eval_decorator.decorate_deriv_func(time_deriv_func)
+        q0, p0 = q0, p0
         integrate_start = time.perf_counter()
         if not getattr(eval_dataset, "_linearize", True):
             q0 = q0.reshape((1, -1))
@@ -502,10 +441,9 @@ def run_phase(base_dir, out_dir, phase_args):
             t0=t0,
             num_steps=num_time_steps,
             dt=time_step_size,
-            deriv_func=wrapped_time_deriv_func,
+            deriv_func=time_deriv_func,
             boundary_cond_func=boundary_cond_func,
             system=system)
-        int_res_raw = eval_decorator.process_results(int_res_raw)
 
         # Remove extraneous batch dimension
         integrate_elapsed = time.perf_counter() - integrate_start
