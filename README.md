@@ -64,7 +64,16 @@ launching the next.
 
 Consult `manage_runs.py --help` more information on available options.
 
-[envcreate]: https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-from-an-environment-yml-file
+## Citing
+If you make use of this software, please cite our associated paper:
+```bibtex
+@article{nnbenchmark21,
+  title={An Extensible Benchmark Suite for Learning to Simulate Physical Systems},
+  author={Karl Otness and Arvi Gjoka and Joan Bruna and Daniele Panozzo and Benjamin Peherstorfer and Teseo Schneider and Denis Zorin},
+  year={2021},
+  url={https://openreview.net/forum?id=pY9MHwmrymR}
+}
+```
 
 ## License
 This software is made available under the terms of the MIT license.
