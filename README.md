@@ -68,4 +68,7 @@ Consult `manage_runs.py --help` more information on available options.
 
 ## License
 This software is made available under the terms of the MIT license.
-See `LICENSE.txt` for details.
+See [LICENSE.txt](LICENSE.txt) for details.
+
+The external dependencies used by this software are available under a
+variety of different licenses. Please review these external licenses.
