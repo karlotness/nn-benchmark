@@ -16,6 +16,9 @@ slurm-*.out
 *.pickle
 *.json
 
+# Ignore IPython notebooks
+*.ipynb
+
 # Ignore Python-generated files
 __pycache__/
 .ipynb_checkpoints/
