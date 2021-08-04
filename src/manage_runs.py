@@ -215,6 +215,20 @@ def do_local_launch(run_descr, root_directory):
         print("Run FAILED")
 
 
+def find_container():
+    # Check in current directory
+    container_path = pathlib.Path("nn-benchmark.sif")
+    if container_path.is_file():
+        return container_path.resolve()
+    scratch_path = os.environ.get("SCRATCH")
+    if scratch_path:
+        scratch_dir = pathlib.Path(scratch_path)
+        container_path = scratch_dir / "nn-benchmark.sif"
+        if container_path.is_file():
+            return container_path.resolve()
+    return None
+
+
 def do_slurm_launch(run_descr, root_directory):
     shortname = run_descr.relative_to(root_directory)
     slurm_args = {}
@@ -230,14 +244,10 @@ def do_slurm_launch(run_descr, root_directory):
     slurm_cpus = int(slurm_args["cpus"])
     slurm_mem = int(slurm_args["mem"])
     gpu_arg = ["--gres=gpu:1"] if slurm_gpu else []
-    scratch_path = os.environ.get("SCRATCH")
     run_cmd = f"python3 main.py '{run_descr}' '{root_directory}'"
-    if scratch_path is not None:
-        scratch_dir = pathlib.Path(scratch_path)
-        container_path = (scratch_dir / "nn-benchmark.sif")
-        if container_path.is_file():
-            container_path = container_path.resolve()
-            run_cmd = f"singularity run --nv '{container_path}' python3 main.py '{run_descr}' '{root_directory}'"
+    container_path = find_container()
+    if container_path:
+        run_cmd = f"singularity run --nv '{container_path}' python3 main.py '{run_descr}' '{root_directory}'"
     try:
         time.sleep(0.5)
         subprocess.run(["sbatch",
