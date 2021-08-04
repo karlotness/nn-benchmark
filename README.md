@@ -72,11 +72,18 @@ $ MKLROOT=/path/to/mkl/root/ cmake .. -DPOLYSOLVE_WITH_PARDISO=ON -DPOLYFEM_NO_U
 $ make
 ```
 This will produce a binary `PolyFEM_bin` in the build directory. Once
-you have this binary, set the environment variable `POLYFEM_BIN_DIR`
-to the containing folder. The Navier-Stokes system will use this
+you have this binary, either place it in the same directory as the
+rest of the code, or ensure that it is available on the path.
+
+Alternatively, you can set the environment variable `POLYFEM_BIN_DIR`
+to the containing folder. The Navier-Stokes system will then use this
 environment variable to locate the PolyFEM executable.
 
 ## Running
+
+This software provides facilities for generating new datasets from the
+implemented numerical simulators, and also for training and testing
+neural networks on numerical simulation tasks.
 
 The flow of experiment runs is divided into three phases: data
 generation (`data_gen`), training (`train`), and evaluation (`eval`).
@@ -84,44 +91,134 @@ Descriptions of tasks in each of these phases are written to JSON
 files, and run script runs the code with appropriate arguments, either
 locally or by submitting jobs to a SLURM queue.
 
+There are two entry point scripts which can be used to run these
+tasks: `main.py` and `manage_runs.py`. The script `main.py` performs
+the actual work of a single task: generating data, training a neural
+network, or running an evaluation phase. An experiment run is composed
+of many such tasks and these individual jobs are managed by
+`manage_runs.py`. For single runs `main.py` can be used directly, but
+for larger experiments `manage_runs.py` provides useful management
+facilities.
+
 ### Run Descriptions
 
-Each experiment is stored in its own directory. Creating the JSON
-files is handled by separate "run generator" scripts. Scripts which
-produce the experiments reported in the paper are in the
-`run_generators/` folder. These can be run directly, and take a single
-argument: a path to the folder where they will write their output.
-Once the experiment directory has been populated by the JSON task
-descriptions, the launcher script can be used to run each phase.
+Each experiment has its own directory tree. Each task's parameters and
+arguments are stored in a series of JSON files in a series of
+directories: `descr/{data_gen,train,eval}/`. Each JSON file produces a
+corresponding output directory under `run/{data_gen,train,eval}`.
 
-### Launcher
+Each JSON file contains a large number of arguments controlling the
+execution of the job, describing the required resources (for SLURM
+submission), and affecting the generation of data or training
+configuration.
 
-Running the tasks themselves requires the Anaconda environment to be
-available. Either, it should be already activated before running
-`manage_runs.py`, *or* the Singularity container should be available.
-The launcher searches for the `nn-benchmark.sif` file in a path
-specified by the `SCRATCH` environment variable. If found, the
-Singularity container will be used.
+These files are created by "run generator" scripts which use utilities
+objects in `run_generators/utils.py`. To illustrate this usage, the
+run generation scripts used to produce the experiments run in our
+paper are included in this repository. These can be run directly, and
+take a single argument: a path to the folder where they will write
+their output. Once the experiment directory has been populated by the
+JSON task descriptions, the launcher script can be used to run each
+phase. Be advised that running these scripts will resample random
+parameters and so will produce data sets drawn from the same
+distribution but with different contents.
+
+### Main Script
+
+The script `main.py` is responsible for performing the work of a
+single job. It requires two arguments: the path to the JSON run
+description file for it to follow and a path to the root of the
+associated experiment directory. This second argument is necessary
+because all loaded paths are relative to this root, which allows
+relocating the experiments to different file systems.
+
+For example, with an experiment generated under `experiment/` the
+command below will run the job described in `description.json`.
+```console
+$ python main.py experiment/descr/{data_gen,train,eval}/description.json experiment/
+```
+This command needs to be run with the associated dependencies
+available. Either run this command inside the Singularity container or
+with the `nn-benchmark` environment loaded and environment variables
+configured.
+
+### Managing Runs
+
+Running the individual jobs of an experiment individually with the
+main script is possible, but unwieldy for large experiments. The
+launcher script `manage_runs.py` provides useful facilities for
+launching batches of jobs and managing their outputs.
+
+#### Scanning
+
+The first function of `manage_runs.py` is to check the status of a
+directory of experiments and to report on the status of jobs found
+there. The state of each job is reported as one of four categories:
+1. Outstanding - The job has yet to be run (may be queued)
+2. Mismatched - The input run description for this job was modified after it was run
+3. Incomplete - The job is either still running or crashed
+4. Finished - The job finished successfully
 
 To check the status of the runs:
+```console
+$ python manage_runs.py scan experiment/
 ```
-python manage_runs.py scan <path/to/experiment_directory>
-```
-The scan utility can also delete failed runs. Check the `--help`
-option for more information.
 
-When you are ready to launch a phase of the experiment
+The scan utility produces a report on the status of the jobs, and
+lists other issues that it detects with the experiment runs. In
+particular, it detects issues with two jobs sharing the same output
+directory.
+
+The scan utility can also delete runs which exhibit these issues. Add
+either `--delete=mismatch` or `--delete=incomplete` to the scan
+command to delete the outputs of runs in these two states. This will
+allow them to be relaunched.
+
+*Warning:* There is **no** confirmation for the delete operation. Wait
+until all running jobs have finished before using the delete
+functionality and confirm that you want to delete the outputs before
+adding the `--delete` option.
+
+#### Submitting Jobs
+
+The job management script submits batches of jobs. It is capable of
+running them either locally (one after another on the local machine)
+or by submitting them to a SLURM queue. When you are ready to launch
+all pending jobs from one phase of the experiment:
+```console
+$ python manage_runs.py launch experiment/ data_gen
+$ python manage_runs.py launch experiment/ train
+$ python manage_runs.py launch experiment/ eval
 ```
-python manage_runs.py launch <path/to/experiment_directory> data_gen
-python manage_runs.py launch <path/to/experiment_directory> train
-python manage_runs.py launch <path/to/experiment_directory> eval
-```
-after launching one phase, wait for all its jobs to complete before
+After launching one phase, wait for all of its jobs to complete before
 launching the next.
+
+The script automatically detects whether a SLURM queue is available by
+looking for the `sbatch` executable on the path. You can override this
+auto-detection using the `--launch-type` argument with options:
+`local`, `slurm`, or `auto` (the default).
+
+The job management script itself requires only modules from the Python
+standard library. However, running the jobs requires the rest of the
+project dependencies to be available.
+
+If you are using the Singularity container the management script will
+look for the file `nn-benchmark.sif` in the current directory, and
+next in a directory set in a `SCRATCH` environment variable. If the
+container is found, and jobs are being submitted to a SLURM queue, the
+container will be used automatically. If the container is being used,
+the job launching script may warn that the conda environment is not
+loaded. This can be ignored as the container will provide the
+environment for each running job.
+
+In other cases, you must load the Conda environment before running the
+job launching script. Ensure that the `nn-benchmark` Conda environment
+is loaded and available.
 
 Consult `manage_runs.py --help` more information on available options.
 
 ## Citing
+
 If you make use of this software, please cite our associated paper:
 ```bibtex
 @article{nnbenchmark21,
@@ -133,6 +230,7 @@ If you make use of this software, please cite our associated paper:
 ```
 
 ## License
+
 This software is made available under the terms of the MIT license.
 See [LICENSE.txt](LICENSE.txt) for details.
 
