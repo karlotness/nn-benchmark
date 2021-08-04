@@ -78,11 +78,11 @@ $ conda activate nn-benchmark
 ```
 
 In order to generate new data for the Navier-Stokes system, you must
-also build a copy of PolyFEM In a separate directory, clone the
+also build a copy of PolyFEM. In a separate directory, clone the
 [PolyFEM repository][polyfem]. To build it you will need a recent C++
 compiler, CMake, a suitable build backend (such as Make), and a copy
 of [Intel's MKL][mkl]. Once these are installed, in the copy of the
-PolyFEM repository you cloned above run:
+PolyFEM repository you cloned above, run:
 ```console
 $ mkdir build
 $ cd build
@@ -131,15 +131,15 @@ submission), and affecting the generation of data or training
 configuration.
 
 These files are created by "run generator" scripts which use utilities
-objects in `run_generators/utils.py`. To illustrate this usage, the
-run generation scripts used to produce the experiments run in our
-paper are included in this repository. These can be run directly, and
-take a single argument: a path to the folder where they will write
-their output. Once the experiment directory has been populated by the
-JSON task descriptions, the launcher script can be used to run each
-phase. Be advised that running these scripts will resample random
-parameters and so will produce data sets drawn from the same
-distribution but with different contents.
+in `run_generators/utils.py`. To illustrate this usage, the run
+generation scripts used to produce the experiments run in our paper
+are included in this repository. These can be run directly, and take a
+single argument: a path to the folder where they will write their
+output. Once the experiment directory has been populated by the JSON
+task descriptions, the launcher script can be used to run each phase.
+Be advised that running these scripts will resample random parameters
+and so will produce data sets drawn from the same distribution but
+with different contents.
 
 ### Main Script
 
@@ -150,7 +150,7 @@ associated experiment directory. This second argument is necessary
 because all loaded paths are relative to this root, which allows
 relocating the experiments to different file systems.
 
-For example, with an experiment generated under `experiment/` the
+For example, with an experiment generated under `experiment/`, the
 command below will run the job described in `description.json`.
 ```console
 $ python main.py experiment/descr/{data_gen,train,eval}/description.json experiment/
@@ -225,7 +225,7 @@ look for the file `nn-benchmark.sif` in the current directory, and
 next in a directory set in a `SCRATCH` environment variable. If the
 container is found, and jobs are being submitted to a SLURM queue, the
 container will be used automatically. If the container is being used,
-the job launching script may warn that the conda environment is not
+the job launching script may warn that the Conda environment is not
 loaded. This can be ignored as the container will provide the
 environment for each running job.
 
@@ -233,7 +233,7 @@ In other cases, you must load the Conda environment before running the
 job launching script. Ensure that the `nn-benchmark` Conda environment
 is loaded and available.
 
-Consult `manage_runs.py --help` more information on available options.
+Consult `manage_runs.py --help` for more information on available options.
 
 ## Citing
 
