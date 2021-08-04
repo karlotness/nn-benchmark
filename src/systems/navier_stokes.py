@@ -133,6 +133,17 @@ class NavierStokesSystem(System):
             str_segments.append(f"f {t[0] + 1} {t[1] + 1} {t[2] + 1}\n")
         return "".join(str_segments)
 
+    def _find_polyfem(self):
+        # Check POLYFEM_BIN_DIR (if set) and PATH
+        prog = shutil.which(str(pathlib.Path(os.environ.get("POLYFEM_BIN_DIR", "")) / "PolyFEM_bin"))
+        if prog:
+            return prog
+        # Check current directory
+        prog = pathlib.Path("PolyFEM_bin")
+        if prog.is_file():
+            return str(prog.resolve())
+        return None
+
     def generate_trajectory(self, num_time_steps, time_step_size, in_velocity, subsample=1, mesh_args=None, traj_name=""):
         orig_time_step_size = time_step_size
         orig_num_time_steps = num_time_steps
@@ -159,7 +170,7 @@ class NavierStokesSystem(System):
                 json.dump(config, config_file)
 
             # Run PolyFEM
-            prog = shutil.which(str(pathlib.Path(os.environ.get("POLYFEM_BIN_DIR", "")) / "PolyFEM_bin"))
+            prog = self._find_polyfem()
             if not prog:
                 raise ValueError("Cannot find PolyFEM; please install and set POLYFEM_BIN_DIR")
             cmdline = [prog, "--json", "config.json", "--cmd"]
