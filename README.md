@@ -10,9 +10,27 @@ experiments either on the same data used in our work, or on modified
 datasets with different compositions.
 
 For a copy of the archived data as used for our tests, see our record
-in the [NYU Faculty Digital Archive][nyuarchive].
+in the [NYU Faculty Digital Archive][nyuarchive]. For information on
+using these records, see the supplementary material in our NeurIPS
+paper which discusses the structure of the stored datasets. We have
+also made available electronic descriptions of the experiments we ran
+which can be used with the code here to rerun our experiments, or use
+our stored network weights for further analysis without retraining.
 
 ## Contents
+
+We include here the code we used in our experiments to:
+1. Generate new data from our implemented simulations
+2. Train neural networks for time derivative or step prediction
+3. Test performance of the trained network on held-out data sets
+4. Manage batches of jobs in each experiment
+
+It can be used as-is to either recreate our experiments, or modified
+to include new learning methods, new simulations, or adjustments to
+problem settings.
+
+See below for information on how to install the required dependencies
+and run the software.
 
 ## Installation
 
