@@ -141,7 +141,7 @@ variety of different licenses. Please review these external licenses.
 
 [envcreate]: https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-from-an-environment-yml-file
 [openreview]: https://openreview.net/forum?id=pY9MHwmrymR
-[nyuarchive]: https://archive.nyu.edu/
+[nyuarchive]: https://archive.nyu.edu/handle/2451/63285
 [polyfem]: https://github.com/polyfem/polyfem/
 [anaconda]: https://www.anaconda.com/
 [singularity]: https://singularity.hpcng.org/
