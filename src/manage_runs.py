@@ -265,7 +265,8 @@ def do_slurm_launch(run_descr, root_directory):
 def do_launch(root_directory, phase, launch_method):
     print(f"Performing launch with {launch_method}")
     # Check for conda env
-    if os.environ.get("CONDA_DEFAULT_ENV", None) != "nn-benchmark":
+    launch_uses_container = launch_method == "slurm" and find_container()
+    if os.environ.get("CONDA_DEFAULT_ENV", None) != "nn-benchmark" and not launch_uses_container:
         # Conda env seems not to be loaded, warn
         print("WARNING: The Conda environment seems not to be loaded")
         print("         Consider canceling this launch to load it")
