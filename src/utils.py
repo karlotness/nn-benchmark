@@ -28,11 +28,9 @@ def get_git_info(base_logger=None):
     else:
         logger = logging.getLogger("gitinfo")
     try:
-        commit_id_out = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True)
-        commit_id_out.check_returncode()
+        commit_id_out = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, check=True)
         commit_id = codecs.decode(commit_id_out.stdout).strip()
-        clean_tree_out = subprocess.run(["git", "status", "--porcelain"], capture_output=True)
-        clean_tree_out.check_returncode()
+        clean_tree_out = subprocess.run(["git", "status", "--porcelain"], capture_output=True, check=True)
         clean_worktree = len(clean_tree_out.stdout) == 0
         return CommitInfo(hash=commit_id, clean_worktree=clean_worktree)
         logger.info("Running on commit {} ({} worktree)".format(commit_id,
