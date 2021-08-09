@@ -2,7 +2,7 @@ import logging
 import subprocess
 import codecs
 import dataclasses
-import re
+import os
 
 
 def set_up_logging(level, out_file):
@@ -54,18 +54,13 @@ def get_loaded_modules(base_logger=None):
         logger = base_logger.getChild("moduleinfo")
     else:
         logger = logging.getLogger("moduleinfo")
-    try:
-        module_cmd_out = subprocess.run(["bash", "-c", "module list"],
-                                        capture_output=True, check=True)
-    except subprocess.CalledProcessError:
+
+    module_list = os.environ.get("LOADEDMODULES", None)
+    if module_list is None:
         logger.warning("Failed to get linux module info")
         return []
-    # Decode process output and scan for module info
-    module_output = codecs.decode(module_cmd_out.stdout or module_cmd_out.stderr)
-    rgx = re.compile(r"\d+\)\s+(?P<modname>\S+)\s?")
     modules = []
-    for match in re.finditer(rgx, module_output):
-        raw_name = match.group("modname")
+    for raw_name in module_list.strip().split(":"):
         # Split components of module name
         if "/" in raw_name:
             components = raw_name.split("/")
