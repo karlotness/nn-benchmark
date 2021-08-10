@@ -107,7 +107,7 @@ The flow of experiment runs is divided into three phases: data
 generation (`data_gen`), training (`train`), and evaluation (`eval`).
 Descriptions of tasks in each of these phases are written to JSON
 files, and run script runs the code with appropriate arguments, either
-locally or by submitting jobs to a SLURM queue.
+locally or by submitting jobs to a Slurm queue.
 
 There are two entry point scripts which can be used to run these
 tasks: `main.py` and `manage_runs.py`. The script `main.py` performs
@@ -126,7 +126,7 @@ directories: `descr/{data_gen,train,eval}/`. Each JSON file produces a
 corresponding output directory under `run/{data_gen,train,eval}`.
 
 Each JSON file contains a large number of arguments controlling the
-execution of the job, describing the required resources (for SLURM
+execution of the job, describing the required resources (for Slurm
 submission), and affecting the generation of data or training
 configuration.
 
@@ -201,7 +201,7 @@ adding the `--delete` option.
 
 The job management script submits batches of jobs. It is capable of
 running them either locally (one after another on the local machine)
-or by submitting them to a SLURM queue. When you are ready to launch
+or by submitting them to a Slurm queue. When you are ready to launch
 all pending jobs from one phase of the experiment:
 ```console
 $ python manage_runs.py launch experiment/ data_gen
@@ -211,7 +211,7 @@ $ python manage_runs.py launch experiment/ eval
 After launching one phase, wait for all of its jobs to complete before
 launching the next.
 
-The script automatically detects whether a SLURM queue is available by
+The script automatically detects whether a Slurm queue is available by
 looking for the `sbatch` executable on the path. You can override this
 auto-detection using the `--launch-type` argument with options:
 `local`, `slurm`, or `auto` (the default).
@@ -223,7 +223,7 @@ project dependencies to be available.
 If you are using the Singularity container the management script will
 look for the file `nn-benchmark.sif` in the current directory, and
 next in a directory set in a `SCRATCH` environment variable. If the
-container is found, and jobs are being submitted to a SLURM queue, the
+container is found, and jobs are being submitted to a Slurm queue, the
 container will be used automatically. If the container is being used,
 the job launching script may warn that the Conda environment is not
 loaded. This can be ignored as the container will provide the
