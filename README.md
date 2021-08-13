@@ -39,8 +39,8 @@ need to install the necessary dependencies. We use
 [Anaconda][anaconda] to manage most of the dependencies for this
 project. The [environment.yml](environment.yml) lists these
 dependencies. These include several proprietary dependencies such as
-Nvidia's CUDA toolkit and Intel's MKL. Please review the licenses for
-the external dependencies.
+Nvidia's CUDA toolkit and Intel's MKL. Review the licenses for the
+external dependencies before downloading or installing.
 
 Additionally, generating data for the Navier-Stokes system requires a
 built copy of [PolyFEM][polyfem].
@@ -253,7 +253,8 @@ This software is made available under the terms of the MIT license.
 See [LICENSE.txt](LICENSE.txt) for details.
 
 The external dependencies used by this software are available under a
-variety of different licenses. Please review these external licenses.
+variety of different licenses. Review these external licenses before
+using the software.
 
 [envcreate]: https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-from-an-environment-yml-file
 [openreview]: https://openreview.net/forum?id=pY9MHwmrymR
