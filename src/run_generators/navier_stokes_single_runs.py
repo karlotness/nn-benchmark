@@ -123,20 +123,10 @@ for train_set, integrator in itertools.product(train_sets, EVAL_INTEGRATORS):
         writable_objects.append(knn_reg)
 
 
-# DERIVATIVE: Emit MLP, GN, NNkernel runs
+# DERIVATIVE: Emit MLP runs
 for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
     # Other networks work for all integrators
     general_int_nets = []
-    # NN Kernel
-    nn_kernel = utils.NNKernel(experiment=experiment_deriv,
-                               training_set=train_set,
-                               learning_rate=0.001, weight_decay=0.0001,
-                               hidden_dim=32768*2, train_dtype="float",
-                               optimizer="sgd",
-                               predict_type="deriv",
-                               batch_size=375, epochs=EPOCHS, validation_set=val_set,
-                               nonlinearity="relu")
-    general_int_nets.append(nn_kernel)
     # MLPs
     for width, depth in [(4096, 4), (2048, 5)]:
         mlp_deriv_train = utils.MLP(experiment=experiment_deriv,
@@ -188,20 +178,9 @@ for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
         eval_run.name_tag = trained_net.name_tag
         writable_objects.append(eval_run)
 
-# STEP: Emit MLP, NNkernel runs
+# STEP: Emit MLP runs
 for coarse, train_set, _repeat in itertools.product(COARSE_LEVELS, train_sets, range(NUM_REPEATS)):
     general_int_nets = []
-    nn_kernel = utils.NNKernel(experiment=experiment_step,
-                               training_set=train_set,
-                               learning_rate=0.001, weight_decay=0.0001,
-                               hidden_dim=32768*2, train_dtype="float",
-                               optimizer="sgd",
-                               predict_type="step",
-                               step_time_skew=coarse, step_subsample=1,
-                               batch_size=375, epochs=EPOCHS, validation_set=val_set,
-                               nonlinearity="relu")
-    nn_kernel.name_tag = f"cors{coarse}"
-    general_int_nets.append(nn_kernel)
 
     for width, depth in [(4096, 4), (2048, 5)]:
         mlp_step_train = utils.MLP(experiment=experiment_step,

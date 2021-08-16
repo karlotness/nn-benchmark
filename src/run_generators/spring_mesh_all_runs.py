@@ -144,7 +144,7 @@ for train_set, integrator in itertools.product(train_sets, EVAL_INTEGRATORS):
         writable_objects.append(knn_reg)
 
 
-# DERIVATIVE: Emit MLP, GN, NNkernel runs
+# DERIVATIVE: Emit MLP, NNkernel runs
 for train_set, _repeat in itertools.product(train_sets, range(NUM_REPEATS)):
     # Other networks work for all integrators
     general_int_nets = []
