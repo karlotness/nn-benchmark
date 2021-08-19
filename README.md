@@ -2,7 +2,7 @@
 
 This repository stores the code associated with our paper, to appear
 at NeurIPS 2021 in the datasets and benchmarks track. A copy of our
-paper is available from [OpenReview][openreview].
+paper is available from [arXiv][arxiv].
 
 The code in this repository can be used to recreate our experiments
 from our archived run description files, or modified to run additional
@@ -243,7 +243,7 @@ If you make use of this software, please cite our associated paper:
   title={An Extensible Benchmark Suite for Learning to Simulate Physical Systems},
   author={Karl Otness and Arvi Gjoka and Joan Bruna and Daniele Panozzo and Benjamin Peherstorfer and Teseo Schneider and Denis Zorin},
   year={2021},
-  url={https://openreview.net/forum?id=pY9MHwmrymR}
+  url={https://arxiv.org/abs/2108.07799}
 }
 ```
 
@@ -257,7 +257,7 @@ variety of different licenses. Review these external licenses before
 using the software.
 
 [envcreate]: https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-from-an-environment-yml-file
-[openreview]: https://openreview.net/forum?id=pY9MHwmrymR
+[arxiv]: https://arxiv.org/abs/2108.07799
 [nyuarchive]: https://archive.nyu.edu/handle/2451/63285
 [polyfem]: https://github.com/polyfem/polyfem/
 [anaconda]: https://www.anaconda.com/
