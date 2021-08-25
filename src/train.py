@@ -224,15 +224,6 @@ def create_dataset(base_dir, data_args, train_noise_wrapper=None):
     return train_data_set, train_loader, val_data_set, val_loader
 
 
-def add_auxiliary_data(trajectory_dataset, network_args):
-    if trajectory_dataset.system == "navier-stokes":
-        enumerated_fixed_mask_name = trajectory_dataset._traj_dataset._trajectory_meta[0]["field_keys"]["enumerated_fixed_mask"]
-        network_args["arch_args"]["static_nodes"] = trajectory_dataset._traj_dataset._npz_file[enumerated_fixed_mask_name].flatten().tolist()
-        network_args["arch_args"]["mesh_coords"] = None
-    else:
-        pass
-
-
 def select_device(try_gpu, base_logger):
     logger = base_logger.getChild("select_device")
     device = torch.device("cpu")
