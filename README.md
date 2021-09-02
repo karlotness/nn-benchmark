@@ -10,12 +10,15 @@ experiments either on the same data used in our work, or on modified
 datasets with different compositions.
 
 For a copy of the archived data as used for our tests, see our record
-in the [NYU Faculty Digital Archive][nyuarchive]. For information on
-using these records, see the supplementary material in our NeurIPS
-paper which discusses the structure of the stored datasets. We have
-also made available electronic descriptions of the experiments we ran
-which can be used with the code here to rerun our experiments, or use
-our stored network weights for further analysis without retraining.
+in the [NYU Faculty Digital Archive][nyuarchive] (and optionally use
+[download.sh](download.sh) to retrieve them). See the records on the
+NYU Archive site for the licenses covering the downloaded files. For
+information on using these records, see the supplementary material in
+our NeurIPS paper which discusses the structure of the stored
+datasets. We have also made available electronic descriptions of the
+experiments we ran which can be used with the code here to rerun our
+experiments, or use our stored network weights for further analysis
+without retraining.
 
 ## Contents
 
