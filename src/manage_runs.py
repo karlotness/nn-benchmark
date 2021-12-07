@@ -9,6 +9,7 @@ import collections
 import os
 import utils
 import time
+import sys
 
 PHASES = ["data_gen", "train", "eval"]
 
@@ -210,7 +211,7 @@ def do_local_launch(run_descr, root_directory):
     shortname = run_descr.relative_to(root_directory)
     print(f"Launching {shortname}")
     try:
-        subprocess.run(["python3", "main.py", run_descr, root_directory], check=True)
+        subprocess.run([sys.executable, "main.py", run_descr, root_directory], check=True)
     except subprocess.CalledProcessError:
         print("Run FAILED")
 
