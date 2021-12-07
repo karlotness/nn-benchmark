@@ -11,13 +11,12 @@ DEBIAN_FRONTEND="noninteractive" apt -y install wget gnupg software-properties-c
 wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
 apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
 rm GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
-echo "deb https://apt.repos.intel.com/oneapi all main" | tee /etc/apt/sources.list.d/oneAPI.list
 add-apt-repository "deb https://apt.repos.intel.com/oneapi all main"
 DEBIAN_FRONTEND="noninteractive" apt -y update
 DEBIAN_FRONTEND="noninteractive" apt -y install intel-oneapi-mkl-devel
 
-mkdir -p /opt/intel/oneapi/mkl/latest/tools/
-ln -s /opt/intel/oneapi/mkl/latest/bin/intel64/mkl_link_tool /opt/intel/oneapi/mkl/latest/tools/mkl_link_tool
+# Add symlink for MKL path
+ln -s /opt/intel/oneapi/mkl/latest/ /opt/intel/mkl
 
 # Install dev requirements
 DEBIAN_FRONTEND="noninteractive" apt -y install build-essential git cmake
@@ -26,8 +25,8 @@ DEBIAN_FRONTEND="noninteractive" apt -y install build-essential git cmake
 git clone --depth 1 https://github.com/polyfem/polyfem.git polyfem-build
 mkdir -p polyfem-build/build
 cd polyfem-build/build
-MKLROOT=/opt/intel/oneapi/mkl/latest/ cmake .. -DPOLYSOLVE_WITH_PARDISO=ON -DPOLYFEM_NO_UI=ON
-make -j10
+MKLROOT=/opt/intel/mkl/ cmake .. -DPOLYSOLVE_WITH_PARDISO=ON -DPOLYFEM_NO_UI=ON
+MKLROOT=/opt/intel/mkl/ make -j10
 mkdir -p /opt/polyfem/
 cp PolyFEM_bin /opt/polyfem/
 
@@ -45,7 +44,7 @@ environment.yml /opt/environment.yml
 
 %environment
 export POLYFEM_BIN_DIR=/opt/polyfem/
-export MKLROOT=/opt/intel/oneapi/mkl/latest/
+export MKLROOT=/opt/intel/mkl/
 
 %post
 # Install basic requirements
@@ -57,12 +56,14 @@ DEBIAN_FRONTEND="noninteractive" apt -y install wget gnupg software-properties-c
 wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
 apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
 rm GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
-echo "deb https://apt.repos.intel.com/oneapi all main" | tee /etc/apt/sources.list.d/oneAPI.list
 add-apt-repository "deb https://apt.repos.intel.com/oneapi all main"
 DEBIAN_FRONTEND="noninteractive" apt -y update
 DEBIAN_FRONTEND="noninteractive" apt -y install intel-oneapi-mkl
 DEBIAN_FRONTEND="noninteractive" apt -y autoremove
 DEBIAN_FRONTEND="noninteractive" apt -y clean
+
+# Add symlink for MKL path
+ln -s /opt/intel/oneapi/mkl/latest/ /opt/intel/mkl
 
 # Install miniconda
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
