@@ -22,7 +22,10 @@ ln -s /opt/intel/oneapi/mkl/latest/ /opt/intel/mkl
 DEBIAN_FRONTEND="noninteractive" apt -y install build-essential git cmake
 
 # Build polyfem
-git clone --depth 1 https://github.com/polyfem/polyfem.git polyfem-build
+git clone https://github.com/polyfem/polyfem.git polyfem-build
+cd polyfem-build
+git reset --hard '4f79356d82250219fa7d849ed81dc2a7eb3f1b93'
+cd ..
 mkdir -p polyfem-build/build
 cd polyfem-build/build
 MKLROOT=/opt/intel/mkl/ cmake .. -DPOLYSOLVE_WITH_PARDISO=ON -DPOLYFEM_NO_UI=ON
